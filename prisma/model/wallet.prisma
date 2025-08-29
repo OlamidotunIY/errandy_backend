@@ -1,0 +1,39 @@
+model Wallet {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    workerId  String   @unique @db.ObjectId
+    available Float    @default(0) // Can withdraw
+    held      Float    @default(0) // Pending release
+    currency  String?
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    worker Worker @relation(fields: [workerId], references: [id])
+
+    @@map("wallets")
+}
+
+model Transaction {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    userId    String   @db.ObjectId
+    amount    Float
+    type      TxType
+    status    TxStatus
+    reference String   @unique
+    metadata  Json? // e.g. { jobId: "...", workerId: "...", fee: 20 }
+    createdAt DateTime @default(now())
+
+    @@map("transactions")
+}
+
+enum TxType {
+    FUND
+    ESCROW_HOLD
+    ESCROW_RELEASE
+    WITHDRAWAL
+}
+
+enum TxStatus {
+    PENDING
+    SUCCESS
+    FAILED
+}

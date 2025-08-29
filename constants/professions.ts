@@ -1,0 +1,137 @@
+export const PROFESSIONS = {
+  Plumber: [
+    "Leak Repair",
+    "Pipe Installation",
+    "Toilet Repair",
+    "Water Heater Installation",
+    "Shower Installation",
+    "Drain Cleaning",
+    "Septic Tank Maintenance"
+  ],
+  Electrician: [
+    "Wiring Installation",
+    "Lighting Repair",
+    "Circuit Breaker Fix",
+    "Electrical Inspection",
+    "Ceiling Fan Installation",
+    "Inverter Installation",
+    "Socket & Switch Fixing"
+  ],
+  Carpenter: [
+    "Furniture Repair",
+    "Wardrobe Installation",
+    "Custom Woodwork",
+    "Door & Window Fixing",
+    "Cabinet Making",
+    "Ceiling Installation",
+    "Wooden Flooring"
+  ],
+  Mechanic: [
+    "Engine Diagnostics",
+    "Brake Repair",
+    "Oil Change",
+    "Vehicle Inspection",
+    "Battery Replacement",
+    "Suspension Fix",
+    "Tyre Replacement"
+  ],
+  Painter: [
+    "Interior Painting",
+    "Exterior Painting",
+    "Wallpaper Installation",
+    "Paint Retouching",
+    "Decorative Finishing",
+    "Fence Painting",
+    "Graffiti Removal"
+  ],
+  Cleaner: [
+    "Home Cleaning",
+    "Office Cleaning",
+    "Post-construction Cleaning",
+    "Move-in/Move-out Cleaning",
+    "Deep Cleaning",
+    "Carpet Cleaning",
+    "Upholstery Cleaning"
+  ],
+  Technician: [
+    "AC Repair",
+    "Fridge Repair",
+    "Washer Installation",
+    "TV Mounting",
+    "Microwave Fix",
+    "Fan Repair",
+    "Water Dispenser Fix"
+  ],
+  Tailor: [
+    "Suit Sewing",
+    "Clothing Adjustment",
+    "School Uniforms",
+    "Traditional Attire",
+    "Bridal Wear",
+    "Corporate Uniforms",
+    "Fashion Design"
+  ],
+  Welder: [
+    "Gate Fabrication",
+    "Window Grills",
+    "Door Frames",
+    "Metal Furniture",
+    "Burglary Proofing",
+    "Water Tank Stand",
+    "Aluminium Work"
+  ],
+  Mason: [
+    "Block Laying",
+    "Plastering",
+    "Foundation Work",
+    "Tiling",
+    "Concrete Pouring",
+    "Staircase Building",
+    "Interlocking Pavement"
+  ],
+  Barber: [
+    "Hair Cut",
+    "Shaving",
+    "Beard Styling",
+    "Hair Coloring",
+    "Mobile Barber Service",
+    "Children's Haircut"
+  ],
+  MakeupArtist: [
+    "Bridal Makeup",
+    "Photoshoot Makeup",
+    "Traditional Makeup",
+    "Makeover for Events",
+    "Casual Makeup",
+    "Home Service Makeup"
+  ],
+  Driver: [
+    "Private Chauffeur",
+    "School Pickups",
+    "Corporate Driving",
+    "Interstate Driving",
+    "Truck Delivery",
+    "Daily Rentals"
+  ],
+  Bricklayer: [
+    "Wall Construction",
+    "Plastering",
+    "Foundation Work",
+    "Soffit Installation",
+    "Column Casting"
+  ],
+  Roofer: [
+    "Roof Installation",
+    "Leak Fixing",
+    "Roof Replacement",
+    "Waterproofing",
+    "Ceiling Board Fixing"
+  ],
+  CCTVInstaller: [
+    "CCTV Setup",
+    "Security Camera Maintenance",
+    "Access Control Installation",
+    "Intercom Setup",
+    "Remote Surveillance Setup"
+  ]
+};

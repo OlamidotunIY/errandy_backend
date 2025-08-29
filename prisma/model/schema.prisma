@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String        @id @map("_id")
+  name                String
+  email               String
+  emailVerified       Boolean
+  image               String?
+  createdAt           DateTime
+  updatedAt           DateTime
+  phoneNumber         String?
+  phoneNumberVerified Boolean?
+  username            String?
+  displayUsername     String?
+  country             String?
+  twoFactorEnabled    Boolean?
+  sessions            Session[]
+  accounts            Account[]
+  twofactors          TwoFactor[]
+  userAddress         UserAddress[]
+
+  // Active address reference
+  activeAddressId String?      @db.ObjectId
+  activeAddress   UserAddress? @relation("Address", fields: [activeAddressId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  worker          Worker?
+  client          Client?
+
+  @@unique([email])
+  @@unique([username])
+  @@map("user")
+}
+
+model UserAddress {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String
+  label     String
+  address   String
+  location  Json // GeoJSON { type: "Point", coordinates: [lng, lat] }
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User   @relation(fields: [userId], references: [id])
+  User User[] @relation("Address")
+
+  @@map("userAddresses")
+}
+
+model Session {
+  id        String   @id @map("_id")
+  expiresAt DateTime
+  token     String
+  createdAt DateTime
+  updatedAt DateTime
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@map("sessions")
+}
+
+model Account {
+  id                    String    @id @map("_id")
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime
+  updatedAt             DateTime
+
+  @@map("accounts")
+}
+
+model Verification {
+  id         String    @id @map("_id")
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime?
+  updatedAt  DateTime?
+
+  @@map("verifications")
+}
+
+model TwoFactor {
+  id          String @id @map("_id")
+  secret      String
+  backupCodes String
+  userId      String
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("twoFactors")
+}
+
+enum UserRole {
+  RECRUITER // client/poster
+  HUSTLR // worker/errandee
+}

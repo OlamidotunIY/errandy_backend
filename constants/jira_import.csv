@@ -1,0 +1,60 @@
+Issue ID,Issue Type,Summary,Description,Parent ID,Priority
+E1,Epic,Authentication & Onboarding,All tasks related to login, signup, and onboarding,,High
+S1,Story,Implement BetterAuth authentication,"Integrate BetterAuth with JWT + refresh tokens",E1,High
+T1,Sub-task,Set up NestJS auth module,"Create auth service, guards, and resolvers",S1,High
+T2,Sub-task,Add Google Sign-In,"Enable Google OAuth2 login",S1,Medium
+S2,Story,Worker onboarding,"Worker selects services & adds at least one address",E1,High
+T3,Sub-task,Build worker onboarding UI,"React/Expo screens for worker onboarding",S2,High
+T4,Sub-task,Connect onboarding API,"GraphQL mutation to save worker setup",S2,High
+S3,Story,Client onboarding,"Client adds optional payment method",E1,Medium
+T5,Sub-task,Build client onboarding UI,"React/Expo screens for payment setup",S3,Medium
+T6,Sub-task,Connect payment setup API,"GraphQL mutation to save client payment method",S3,Medium
+
+E2,Epic,Errands & Escrow,All tasks related to errands, worker assignment, escrow,,High
+S4,Story,Create errand,"Clients create errands with title, description, budget, location, due date",E2,High
+T7,Sub-task,Design errand model,"Prisma schema for errands",S4,High
+T8,Sub-task,Implement errand creation resolver,"GraphQL mutation to create errand",S4,High
+S5,Story,Find nearby errands,"Workers query errands near them",E2,High
+T9,Sub-task,Geo-query implementation,"Add geospatial support for errands",S5,High
+S6,Story,Worker applies to errand,"Workers submit proposals to errands",E2,High
+S7,Story,Assign worker to errand,"Client assigns worker, escrow triggered",E2,High
+T10,Sub-task,Implement escrow hold,"Deduct client balance, move 80% to escrow",S7,High
+T11,Sub-task,Deduct company fee,"20% goes to company revenue",S7,High
+S8,Story,Escrow release,"Auto-release funds 24h after job completion if no dispute",E2,High
+T12,Sub-task,Implement EscrowReleaseJob,"BullMQ job for 24h release",S8,High
+T13,Sub-task,Implement wallet credit logic,"Funds credited to worker wallet (locked for 5 days)",S8,High
+S9,Story,Dispute handling,"Funds held in escrow until resolved",E2,High
+T14,Sub-task,Design dispute model,"Prisma schema for disputes",S9,High
+T15,Sub-task,Implement dispute resolvers,"Mutations for open/resolve disputes",S9,High
+T16,Sub-task,Admin panel for disputes,"Dashboard UI to resolve disputes",S9,High
+
+E3,Epic,Wallet & Transactions,All tasks for wallet balance, withdrawals, transaction logs,,High
+S10,Story,Wallet implementation,"Wallet model + transaction history",E3,High
+T17,Sub-task,Design wallet model,"Prisma wallet schema",S10,High
+T18,Sub-task,Design transaction model,"Prisma transaction schema",S10,High
+S11,Story,Withdrawal logic,"Workers withdraw after 5-day hold",E3,High
+T19,Sub-task,Implement WalletUnlockJob,"BullMQ job to unlock withdrawable funds",S11,High
+T20,Sub-task,Implement withdrawal resolver,"GraphQL mutation for withdrawal",S11,High
+S12,Story,Integrate Paystack PSP,"Payments in Nigeria",E3,High
+T21,Sub-task,Implement deposit resolver,"Handle client deposits",S12,High
+T22,Sub-task,Implement PSP webhooks,"Handle Paystack webhook events",S12,High
+
+E4,Epic,Chat & Communication,Messaging between client & worker,,Medium
+S13,Story,Chat model & resolvers,"Thread + messages between client/worker",E4,High
+T23,Sub-task,Design chat models,"Prisma schema for threads, messages",S13,High
+T24,Sub-task,Implement chat resolvers,"GraphQL subscriptions for chat",S13,High
+S14,Story,File sharing,"Workers & clients share files in chat",E4,Medium
+T25,Sub-task,S3 integration,"File uploads to S3",S14,Medium
+S15,Story,Voice messages,"Support audio messages",E4,Medium
+S16,Story,Errand offers from chat,"Workers propose errands in chat",E4,Medium
+
+E5,Epic,Notifications,System-wide notifications,,High
+S17,Story,Notification service,"Push, email, in-app notifications",E5,High
+T26,Sub-task,Implement NotificationJob,"BullMQ notification job",S17,High
+T27,Sub-task,Push notifications,"Expo push integration",S17,High
+T28,Sub-task,Email notifications,"SendGrid/SES integration",S17,Medium
+
+E6,Epic,Platform Operations,Monitoring, CI/CD, testing,,Medium
+S18,Story,Monitoring & logging,"Add Winston, Sentry, Prometheus",E6,Medium
+S19,Story,CI/CD pipeline,"GitHub Actions + Docker + staging/prod deploys",E6,Medium
+S20,Story,Automated testing,"Unit, integration, E2E coverage",E6,High

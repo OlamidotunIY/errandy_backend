@@ -1,0 +1,57 @@
+model Errand {
+    id                  String        @id @default(auto()) @map("_id") @db.ObjectId
+    userId              String        @db.ObjectId
+    title               String
+    description         String?
+    pricingType         PricingType   @default(FIXED)
+    price               Float?
+    hourlyRate          Float?
+    status              ErrandStatus? @default(DRAFT)
+    workerType          WorkerType?
+    profession          String? // e.g., "Electrician"
+    service             String? // e.g., "Wiring Installation"
+    assignedTo          String?       @db.ObjectId // Worker ID
+    applicationDeadline DateTime?
+    completionDeadline  DateTime?
+    serviceAddress      String? // e.g., "12 Palm Street, Lagos"
+    location            Json?
+    createdAt           DateTime      @default(now())
+    updatedAt           DateTime      @updatedAt
+    reviews             Review[]
+
+    @@map("errands")
+}
+
+model Review {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    workerId  String
+    errandId  String   @db.ObjectId
+    rating    Int // 1 to 5
+    comment   String?
+    createdAt DateTime @default(now())
+
+    // Relation
+    errand Errand @relation(fields: [errandId], references: [id])
+
+    @@map("reviews")
+}
+
+enum ErrandStatus {
+    DRAFT
+    OPEN
+    IN_PROGRESS
+    COMPLETED
+    CANCELLED
+    OVERDUE
+}
+
+enum WorkerType {
+    PROFESSIONAL
+    GENERAL
+    ARTISAN
+}
+
+enum PricingType {
+    FIXED
+    HOURLY
+}

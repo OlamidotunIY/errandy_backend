@@ -1,0 +1,249 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+type Application {
+  """Example field (placeholder)"""
+  exampleField: Int!
+}
+
+type Chat {
+  """Example field (placeholder)"""
+  exampleField: Int!
+}
+
+input CreateAddressInput {
+  address: String!
+  label: String!
+  latitude: Float!
+  longitude: Float!
+  userId: String!
+}
+
+input CreateApplicationInput {
+  """Example field (placeholder)"""
+  exampleField: Int!
+}
+
+input CreateChatInput {
+  """Example field (placeholder)"""
+  exampleField: Int!
+}
+
+input CreateErrandInput {
+  """Errand title"""
+  title: String!
+}
+
+input CreateReviewInput {
+  """Example field (placeholder)"""
+  exampleField: Int!
+}
+
+input CreateServiceInput {
+  """Example field (placeholder)"""
+  exampleField: Int!
+}
+
+input CreateWalletInput {
+  """Example field (placeholder)"""
+  exampleField: Int!
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+type Errand {
+  applicationDeadline: DateTime
+  assignedTo: String
+  completionDeadline: DateTime
+  createdAt: DateTime!
+  description: String
+  hourlyRate: Float
+  id: String!
+  latitude: Float
+  longitude: Float
+  price: Float
+  pricingType: PricingType!
+  profession: String
+  reviews: [Review!]!
+  service: String
+  serviceAddress: String
+  status: ErrandStatus!
+  title: String!
+  updatedAt: DateTime!
+  userId: String!
+  workerType: WorkerType
+}
+
+enum ErrandStatus {
+  CANCELLED
+  COMPLETED
+  DRAFT
+  IN_PROGRESS
+  OPEN
+}
+
+input GetAllErrandInput {
+  maxDistanceKm: Float = 5
+  status: String
+}
+
+type Mutation {
+  addAddress(dto: CreateAddressInput!): User!
+  createApplication(createApplicationInput: CreateApplicationInput!): Application!
+  createChat(createChatInput: CreateChatInput!): Chat!
+  createErrand(createErrandInput: CreateErrandInput!): Errand!
+  createReview(createReviewInput: CreateReviewInput!): Review!
+  createService(createServiceInput: CreateServiceInput!): Service!
+  createWallet(createWalletInput: CreateWalletInput!): Wallet!
+  removeApplication(id: Int!): Application!
+  removeChat(id: Int!): Chat!
+  removeErrand(id: ID!): Errand!
+  removeReview(id: Int!): Review!
+  removeService(id: Int!): Service!
+  removeWallet(id: Int!): Wallet!
+  updateApplication(updateApplicationInput: UpdateApplicationInput!): Application!
+  updateChat(updateChatInput: UpdateChatInput!): Chat!
+  updateErrand(updateErrandInput: UpdateErrandInput!): Errand!
+  updateReview(updateReviewInput: UpdateReviewInput!): Review!
+  updateService(updateServiceInput: UpdateServiceInput!): Service!
+  updateUser(updateUserInput: UpdateUserInput!): User!
+  updateWallet(updateWalletInput: UpdateWalletInput!): Wallet!
+}
+
+enum PricingType {
+  FIXED
+  HOURLY
+}
+
+type Query {
+  application(id: Int!): Application!
+  chat(id: Int!): Chat!
+  errand(id: ID!): Errand!
+  errands(dto: GetAllErrandInput!): [Errand!]!
+  professions: [ServiceGroup!]!
+  review(id: Int!): Review!
+  service(id: Int!): Service!
+  services: [ServiceGroup!]!
+  user: User!
+  wallet(id: Int!): Wallet!
+}
+
+type Review {
+  comment: String
+  createdAt: DateTime!
+  errandId: String!
+  id: String!
+  rating: Int!
+  reviewerId: String!
+  workerId: String!
+}
+
+type Service {
+  """Example field (placeholder)"""
+  exampleField: Int!
+}
+
+type ServiceGroup {
+  name: String!
+  services: [String!]!
+}
+
+input UpdateApplicationInput {
+  """Example field (placeholder)"""
+  exampleField: Int
+  id: Int!
+}
+
+input UpdateChatInput {
+  """Example field (placeholder)"""
+  exampleField: Int
+  id: Int!
+}
+
+input UpdateErrandInput {
+  applicationDeadline: DateTime
+  assignedTo: String
+  completionDeadline: DateTime
+
+  """Errand description"""
+  description: String
+  hourlyRate: Float
+  id: String!
+  location: String
+  price: Float
+  pricingType: PricingType
+  profession: String
+  service: String
+  serviceAddress: String
+  status: ErrandStatus
+
+  """Errand title"""
+  title: String
+  workerType: WorkerType
+}
+
+input UpdateReviewInput {
+  """Example field (placeholder)"""
+  exampleField: Int
+  id: Int!
+}
+
+input UpdateServiceInput {
+  """Example field (placeholder)"""
+  exampleField: Int
+  id: Int!
+}
+
+input UpdateUserInput {
+  displayUsername: String
+
+  """Example field (placeholder)"""
+  exampleField: Int
+  id: String!
+  image: String
+  name: String
+  phoneNumber: String
+  role: UserRole
+  username: String
+}
+
+input UpdateWalletInput {
+  """Example field (placeholder)"""
+  exampleField: Int
+  id: Int!
+}
+
+type User {
+  activeAddressId: String
+  activeRole: UserRole
+  createdAt: DateTime!
+  displayUsername: String
+  email: String!
+  emailVerified: Boolean
+  id: ID!
+  image: String
+  name: String!
+  phoneNumber: String
+  roles: [UserRole!]
+  updatedAt: DateTime!
+  username: String
+}
+
+enum UserRole {
+  HUSTLR
+  RECRUITER
+}
+
+type Wallet {
+  """Example field (placeholder)"""
+  exampleField: Int!
+}
+
+enum WorkerType {
+  GENERAL
+  PROFESSIONAL
+}

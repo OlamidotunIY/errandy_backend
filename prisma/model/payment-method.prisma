@@ -1,0 +1,19 @@
+model PaymentMethod {
+    id     String @id @default(auto()) @map("_id") @db.ObjectId
+    userId String @db.ObjectId
+    client Client @relation(fields: [userId], references: [id])
+
+    provider    String // "paystack", "stripe", "paypal", "adyen"
+    providerRef String // e.g. Paystack authorization_code, Stripe paymentMethodId
+    type        String // "card", "bank_account", "wallet", "paypal"
+
+    cardBrand String? // Visa, Mastercard, Amex
+    last4     String? // Last 4 digits for display
+    expMonth  Int?
+    expYear   Int?
+
+    isDefault Boolean @default(false)
+    verified  Boolean @default(false)
+
+    createdAt DateTime @default(now())
+}

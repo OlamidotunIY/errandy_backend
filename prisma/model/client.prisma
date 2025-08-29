@@ -1,0 +1,7 @@
+model Client {
+    id String @id @default(auto()) @map("_id") @db.ObjectId
+    userId     String      @unique
+
+    paymentMethods PaymentMethod[]
+    user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

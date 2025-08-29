@@ -1,0 +1,10 @@
+model Worker {
+    id         String      @id @default(auto()) @map("_id") @db.ObjectId
+    workerType WorkerType?
+    userId     String      @unique
+
+    // Relations
+    user     User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+    services ServicesOnWorkers[]
+    wallet   Wallet?
+}

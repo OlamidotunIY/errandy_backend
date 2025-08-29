@@ -1,0 +1,47 @@
+model ChatRoom {
+    id           String    @id @default(auto()) @map("_id") @db.ObjectId
+    name         String?
+    participants String[] // array of user IDs
+    createdAt    DateTime  @default(now())
+    updatedAt    DateTime  @updatedAt
+    messages     Message[]
+
+    @@map("rooms")
+}
+
+model Message {
+    id         String      @id @default(auto()) @map("_id") @db.ObjectId
+    roomId     String      @db.ObjectId
+    senderId   String
+    receiverId String
+    content    String?
+    contentUrl String? // used for voice, images, files
+    type       MessageType @default(TEXT)
+    seen       Boolean     @default(false)
+    delivered  Boolean     @default(false)
+    reactions  Reaction[]
+    createdAt  DateTime    @default(now())
+
+    // Relation
+    room ChatRoom @relation(fields: [roomId], references: [id])
+
+    @@map("messages")
+}
+
+model Reaction {
+    id        String  @id @default(auto()) @map("_id") @db.ObjectId
+    messageId String  @db.ObjectId
+    userId    String
+    emoji     String // e.g. "👍", "❤️", etc.
+    Message   Message @relation(fields: [messageId], references: [id])
+
+    @@map("reactions")
+}
+
+enum MessageType {
+    TEXT
+    IMAGE
+    VIDEO
+    FILE
+    VOICE
+}
