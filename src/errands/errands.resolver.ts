@@ -7,7 +7,9 @@ import { UseGuards } from '@nestjs/common';
 import { Session, UserSession } from '@thallesp/nestjs-better-auth';
 import { GetAllErrandInput } from './dto/get-all-errand.input';
 import { ServiceGroup } from './entities/service.entity';
+import { ServiceCategoryWithServices } from './entities/service-category.entity';
 import { GqlAuthGuard } from 'src/auth/guard/graphql-auth.guard';
+import { GqlServiceCategoryType } from 'src/service/entities/enums';
 
 @UseGuards(GqlAuthGuard)
 @Resolver(() => Errand)
@@ -45,15 +47,5 @@ export class ErrandsResolver {
   @Mutation(() => Errand)
   removeErrand(@Args('id', { type: () => ID }) id: string) {
     return this.errandsService.remove(id);
-  }
-
-  @Query(() => [ServiceGroup], { name: 'services' })
-  getServices() {
-    return this.errandsService.getServices();
-  }
-
-  @Query(() => [ServiceGroup], { name: 'professions' })
-  getProfessions() {
-    return this.errandsService.getProfessions();
   }
 }

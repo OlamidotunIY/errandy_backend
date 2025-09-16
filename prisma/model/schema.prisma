@@ -21,10 +21,12 @@ model User {
   displayUsername     String?
   country             String?
   twoFactorEnabled    Boolean?
+  onboardingProgress  OnboardingProgress @default(NONE)
   sessions            Session[]
   accounts            Account[]
   twofactors          TwoFactor[]
   userAddress         UserAddress[]
+  activeRole          UserRole?
 
   // Active address reference
   activeAddressId String?      @db.ObjectId
@@ -108,6 +110,14 @@ model TwoFactor {
 }
 
 enum UserRole {
-  RECRUITER // client/poster
-  HUSTLR // worker/errandee
+  WORKER
+  CLIENT
+}
+
+enum OnboardingProgress {
+  NONE
+  ROLE_SELECTED
+  SERVICES_SELECTED
+  ADDRESS_ADDED
+  COMPLETED
 }

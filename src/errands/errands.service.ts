@@ -5,10 +5,9 @@ import {
   UpdateErrandLocation,
 } from './dto/update-errand.input';
 import { PrismaService } from 'src/prisma.service';
-import { PROFESSIONS } from 'constants/professions';
-import { CASUAL_JOB } from 'constants/categories';
 import { Prisma } from '@prisma/client';
 import { GetAllErrandInput } from './dto/get-all-errand.input';
+import { GqlServiceCategoryType } from 'src/service/entities/enums';
 
 export interface GeoPoint {
   type: 'Point';
@@ -34,7 +33,14 @@ export class ErrandsService {
     // Get user's active address + workerType + skills
     const user = await this.prisma.user.findFirst({
       where: { id: userId },
-      include: { activeAddress: true },
+      include: {
+        activeAddress: true,
+        worker: {
+          include: {
+            services: true,
+          },
+        },
+      },
     });
 
     if (!user?.activeAddress?.location) {
@@ -47,11 +53,8 @@ export class ErrandsService {
 
     // Create conditions for matching jobs
     let priorityMatch: Record<string, any> = {};
-    if (user.workerType === 'GENERAL' && user.services?.length) {
-      priorityMatch.service = { $in: user.services };
-    }
-    if (user.workerType === 'PROFESSIONAL' && user.professions?.length) {
-      priorityMatch.profession = { $in: user.professions };
+    if (user?.worker?.services?.length) {
+      priorityMatch.service = { $in: user.worker.services };
     }
 
     return this.prisma.errand.aggregateRaw({
@@ -67,7 +70,7 @@ export class ErrandsService {
         {
           $match: {
             status: 'OPEN',
-            workerType: user.workerType,
+            workerType: user.worker?.workerType,
           },
         },
         {
@@ -75,20 +78,15 @@ export class ErrandsService {
             priority: {
               $cond: [
                 {
-                  $or: [
-                    priorityMatch.service
-                      ? { $in: ['$service', user.services] }
-                      : false,
-                    priorityMatch.profession
-                      ? { $in: ['$profession', user.professions] }
-                      : false,
-                  ],
+                  $or: priorityMatch.service
+                    ? [{ $in: ['$service', user.worker?.services] }]
+                    : [],
                 },
-                1, // High priority
-                0, // Low priority
+                1,
+                0,
               ],
             },
-          },
+          } as Prisma.InputJsonValue,
         },
         {
           $sort: {
@@ -143,19 +141,5 @@ export class ErrandsService {
         id,
       },
     });
-  }
-
-  getProfessions() {
-    return Object.entries(PROFESSIONS).map(([name, services]) => ({
-      name,
-      services,
-    }));
-  }
-
-  getServices() {
-    return Object.entries(CASUAL_JOB).map(([name, services]) => ({
-      name,
-      services,
-    }));
   }
 }

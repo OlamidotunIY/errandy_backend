@@ -1,6 +1,6 @@
 import { InputType, Field, PartialType } from '@nestjs/graphql';
 import { CreateUserInput } from './create-user.input';
-import { UserRole } from '../entities/user.entity';
+import { GqlUserRole } from '../entities/user.entity';
 
 @InputType()
 export class UpdateUserInput extends PartialType(CreateUserInput) {
@@ -22,6 +22,6 @@ export class UpdateUserInput extends PartialType(CreateUserInput) {
   @Field({ nullable: true })
   displayUsername?: string;
 
-  @Field(() => UserRole, { nullable: true })
-  role?: UserRole;
+  @Field(() => GqlUserRole, { nullable: true })
+  role?: GqlUserRole;
 }

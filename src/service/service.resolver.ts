@@ -1,35 +1,26 @@
-import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
+import { Resolver, Query, Mutation, Args, ID } from '@nestjs/graphql';
 import { ServiceService } from './service.service';
 import { Service } from './entities/service.entity';
-import { CreateServiceInput } from './dto/create-service.input';
-import { UpdateServiceInput } from './dto/update-service.input';
+import { ServiceCategory } from './entities/service-category.entity';
+import { GetServiceCategoriesInput } from './dto/get-service-categories.input';
+import { GqlServiceCategoryType } from './entities/enums';
 
 @Resolver(() => Service)
 export class ServiceResolver {
   constructor(private readonly serviceService: ServiceService) {}
 
-  @Mutation(() => Service)
-  createService(@Args('createServiceInput') createServiceInput: CreateServiceInput) {
-    return this.serviceService.create(createServiceInput);
+  @Query(() => [Service], { name: 'services' })
+  getServices(@Args('categoryType', { type: () => GqlServiceCategoryType, nullable: true }) categoryType?: GqlServiceCategoryType) {
+    return this.serviceService.getServices(categoryType);
   }
 
-  @Query(() => [Service], { name: 'service' })
-  findAll() {
-    return this.serviceService.findAll();
+  @Query(() => [ServiceCategory], { name: 'serviceCategories' })
+  getServiceCategories(@Args('input', { nullable: true }) input?: GetServiceCategoriesInput) {
+    return this.serviceService.getServiceCategories(input);
   }
 
   @Query(() => Service, { name: 'service' })
-  findOne(@Args('id', { type: () => Int }) id: number) {
+  findOne(@Args('id', { type: () => ID }) id: string) {
     return this.serviceService.findOne(id);
-  }
-
-  @Mutation(() => Service)
-  updateService(@Args('updateServiceInput') updateServiceInput: UpdateServiceInput) {
-    return this.serviceService.update(updateServiceInput.id, updateServiceInput);
-  }
-
-  @Mutation(() => Service)
-  removeService(@Args('id', { type: () => Int }) id: number) {
-    return this.serviceService.remove(id);
   }
 }

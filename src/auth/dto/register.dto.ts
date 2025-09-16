@@ -1,6 +1,6 @@
 import { Field, InputType, ObjectType } from '@nestjs/graphql';
 import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
-import { User, UserRole } from 'src/users/entities/user.entity';
+import { User, GqlUserRole } from 'src/users/entities/user.entity';
 @InputType()
 export class RegisterDto {
   @Field()
@@ -22,8 +22,8 @@ export class RegisterDto {
   @Field()
   username: string;
 
-  @Field(() => UserRole, { nullable: true })
-  role?: UserRole;
+  @Field(() => GqlUserRole, { nullable: true })
+  role?: GqlUserRole;
 }
 
 @ObjectType()

@@ -1,14 +1,6 @@
-import {
-  Resolver,
-  Query,
-  Mutation,
-  Args,
-  Int,
-  ID,
-  Context,
-} from '@nestjs/graphql';
+import { Resolver, Query, Mutation, Args } from '@nestjs/graphql';
 import { UsersService } from './users.service';
-import { User } from './entities/user.entity';
+import { GqlUserRole, User } from './entities/user.entity';
 import { UpdateUserInput } from './dto/update-user.input';
 import { UseGuards } from '@nestjs/common';
 import { CreateAddressInput } from './dto/create-user.input';
@@ -33,5 +25,10 @@ export class UsersResolver {
   @Mutation(() => User)
   addAddress(@Args('dto') dto: CreateAddressInput, @CurrentUser() user: User) {
     return this.usersService.addAddress(dto, user.id);
+  }
+
+  @Mutation(() => User)
+  createUserRole(@Args('role') role: GqlUserRole, @CurrentUser() user: User) {
+    return this.usersService.createUserRole(user.id, role);
   }
 }

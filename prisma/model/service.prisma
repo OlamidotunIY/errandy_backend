@@ -1,14 +1,29 @@
+enum ServiceCategoryType {
+  CASUAL
+  PROFESSIONAL
+}
+
+model ServiceCategory {
+  id       String              @id @default(auto()) @map("_id") @db.ObjectId
+  name     String              @unique
+  type     ServiceCategoryType
+  services Service[]
+}
+
 model Service {
-    id      String              @id @default(auto()) @map("_id") @db.ObjectId
-    name    String
-    workers ServicesOnWorkers[]
+  id         String              @id @default(auto()) @map("_id") @db.ObjectId
+  name       String              @unique
+  type       ServiceCategoryType
+  categoryId String              @db.ObjectId
+  category   ServiceCategory     @relation(fields: [categoryId], references: [id])
+  workers    ServicesOnWorkers[]
 }
 
 model ServicesOnWorkers {
-    id        String @id @default(auto()) @map("_id") @db.ObjectId
-    serviceId String @db.ObjectId
-    workerId  String @db.ObjectId
+  id        String @id @default(auto()) @map("_id") @db.ObjectId
+  serviceId String @db.ObjectId
+  workerId  String @db.ObjectId
 
-    service Service @relation(fields: [serviceId], references: [id])
-    worker  Worker  @relation(fields: [workerId], references: [id])
+  service Service @relation(fields: [serviceId], references: [id])
+  worker  Worker  @relation(fields: [workerId], references: [id])
 }

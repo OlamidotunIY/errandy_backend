@@ -40,11 +40,6 @@ input CreateReviewInput {
   exampleField: Int!
 }
 
-input CreateServiceInput {
-  """Example field (placeholder)"""
-  exampleField: Int!
-}
-
 input CreateWalletInput {
   """Example field (placeholder)"""
   exampleField: Int!
@@ -91,27 +86,37 @@ input GetAllErrandInput {
   status: String
 }
 
+input GetServiceCategoriesInput {
+  type: ServiceCategoryType
+}
+
 type Mutation {
   addAddress(dto: CreateAddressInput!): User!
   createApplication(createApplicationInput: CreateApplicationInput!): Application!
   createChat(createChatInput: CreateChatInput!): Chat!
   createErrand(createErrandInput: CreateErrandInput!): Errand!
   createReview(createReviewInput: CreateReviewInput!): Review!
-  createService(createServiceInput: CreateServiceInput!): Service!
+  createUserRole(role: String!): User!
   createWallet(createWalletInput: CreateWalletInput!): Wallet!
   removeApplication(id: Int!): Application!
   removeChat(id: Int!): Chat!
   removeErrand(id: ID!): Errand!
   removeReview(id: Int!): Review!
-  removeService(id: Int!): Service!
   removeWallet(id: Int!): Wallet!
   updateApplication(updateApplicationInput: UpdateApplicationInput!): Application!
   updateChat(updateChatInput: UpdateChatInput!): Chat!
   updateErrand(updateErrandInput: UpdateErrandInput!): Errand!
   updateReview(updateReviewInput: UpdateReviewInput!): Review!
-  updateService(updateServiceInput: UpdateServiceInput!): Service!
   updateUser(updateUserInput: UpdateUserInput!): User!
   updateWallet(updateWalletInput: UpdateWalletInput!): Wallet!
+}
+
+enum OnboardingProgress {
+  ADDRESS_ADDED
+  COMPLETED
+  NONE
+  ROLE_SELECTED
+  SERVICES_SELECTED
 }
 
 enum PricingType {
@@ -124,10 +129,10 @@ type Query {
   chat(id: Int!): Chat!
   errand(id: ID!): Errand!
   errands(dto: GetAllErrandInput!): [Errand!]!
-  professions: [ServiceGroup!]!
   review(id: Int!): Review!
-  service(id: Int!): Service!
-  services: [ServiceGroup!]!
+  service(id: ID!): Service!
+  serviceCategories(input: GetServiceCategoriesInput): [ServiceCategory!]!
+  services(categoryType: ServiceCategoryType): [Service!]!
   user: User!
   wallet(id: Int!): Wallet!
 }
@@ -143,13 +148,23 @@ type Review {
 }
 
 type Service {
-  """Example field (placeholder)"""
-  exampleField: Int!
+  category: ServiceCategory
+  categoryId: String!
+  id: ID!
+  name: String!
+  type: ServiceCategoryType!
 }
 
-type ServiceGroup {
+type ServiceCategory {
+  id: ID!
   name: String!
-  services: [String!]!
+  services: [Service!]
+  type: ServiceCategoryType!
+}
+
+enum ServiceCategoryType {
+  CASUAL
+  PROFESSIONAL
 }
 
 input UpdateApplicationInput {
@@ -192,12 +207,6 @@ input UpdateReviewInput {
   id: Int!
 }
 
-input UpdateServiceInput {
-  """Example field (placeholder)"""
-  exampleField: Int
-  id: Int!
-}
-
 input UpdateUserInput {
   displayUsername: String
 
@@ -218,24 +227,27 @@ input UpdateWalletInput {
 }
 
 type User {
-  activeAddressId: String
+  activeAddressId: ID
   activeRole: UserRole
+  country: String
   createdAt: DateTime!
   displayUsername: String
   email: String!
-  emailVerified: Boolean
+  emailVerified: Boolean!
   id: ID!
   image: String
   name: String!
+  onboardingProgress: OnboardingProgress!
   phoneNumber: String
-  roles: [UserRole!]
+  phoneNumberVerified: Boolean
+  twoFactorEnabled: Boolean
   updatedAt: DateTime!
   username: String
 }
 
 enum UserRole {
-  HUSTLR
-  RECRUITER
+  CLIENT
+  WORKER
 }
 
 type Wallet {

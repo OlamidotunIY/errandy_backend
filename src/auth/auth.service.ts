@@ -32,16 +32,6 @@ export class AuthService {
             email: dto.email,
           },
         });
-
-        await this.prisma.user.update({
-          where: {
-            id: result.user.id,
-          },
-          data: {
-            roles: dto.role ? [dto.role] : [],
-            activeRole: dto.role ? dto.role : 'RECRUITER',
-          },
-        });
       }
 
       return {

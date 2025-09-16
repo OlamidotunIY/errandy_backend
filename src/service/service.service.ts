@@ -1,26 +1,46 @@
 import { Injectable } from '@nestjs/common';
-import { CreateServiceInput } from './dto/create-service.input';
-import { UpdateServiceInput } from './dto/update-service.input';
+import { GetServiceCategoriesInput } from './dto/get-service-categories.input';
+import { PrismaService } from 'src/prisma.service';
+import { GqlServiceCategoryType } from './entities/enums';
 
 @Injectable()
 export class ServiceService {
-  create(createServiceInput: CreateServiceInput) {
-    return 'This action adds a new service';
+  constructor(private readonly prisma: PrismaService) {}
+
+  findOne(id: string) {
+    return this.prisma.service.findUnique({
+      where: { id },
+      include: {
+        category: true,
+      },
+    });
   }
 
-  findAll() {
-    return `This action returns all service`;
+  async getServiceCategories(input?: GetServiceCategoriesInput) {
+    const where = input?.type ? { type: input.type } : {};
+
+    return this.prisma.serviceCategory.findMany({
+      where,
+      include: {
+        services: true,
+      },
+      orderBy: {
+        name: 'asc',
+      },
+    });
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} service`;
-  }
+  async getServices(categoryType?: GqlServiceCategoryType) {
+    const where = categoryType ? { type: categoryType } : {};
 
-  update(id: number, updateServiceInput: UpdateServiceInput) {
-    return `This action updates a #${id} service`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} service`;
+    return this.prisma.service.findMany({
+      where,
+      include: {
+        category: true,
+      },
+      orderBy: {
+        name: 'asc',
+      },
+    });
   }
 }
