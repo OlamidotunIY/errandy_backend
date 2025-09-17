@@ -2,6 +2,21 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+input AddWorkerServicesInput {
+  serviceIds: [ID!]!
+}
+
+type AddressDetails {
+  formattedAddress: String!
+  latitude: Float!
+  longitude: Float!
+}
+
+type AddressSuggestion {
+  description: String!
+  placeId: String!
+}
+
 type Application {
   """Example field (placeholder)"""
   exampleField: Int!
@@ -92,6 +107,7 @@ input GetServiceCategoriesInput {
 
 type Mutation {
   addAddress(dto: CreateAddressInput!): User!
+  addWorkerServices(dto: AddWorkerServicesInput!): User!
   createApplication(createApplicationInput: CreateApplicationInput!): Application!
   createChat(createChatInput: CreateChatInput!): Chat!
   createErrand(createErrandInput: CreateErrandInput!): Errand!
@@ -129,12 +145,19 @@ type Query {
   chat(id: Int!): Chat!
   errand(id: ID!): Errand!
   errands(dto: GetAllErrandInput!): [Errand!]!
+  reverseGeocode(input: ReverseGeocodeInput!): AddressDetails!
   review(id: Int!): Review!
   service(id: ID!): Service!
   serviceCategories(input: GetServiceCategoriesInput): [ServiceCategory!]!
   services(categoryType: ServiceCategoryType): [Service!]!
+  suggestAddresses(input: SuggestAddressInput!): [AddressSuggestion!]!
   user: User!
   wallet(id: Int!): Wallet!
+}
+
+input ReverseGeocodeInput {
+  latitude: Float!
+  longitude: Float!
 }
 
 type Review {
@@ -165,6 +188,10 @@ type ServiceCategory {
 enum ServiceCategoryType {
   CASUAL
   PROFESSIONAL
+}
+
+input SuggestAddressInput {
+  input: String!
 }
 
 input UpdateApplicationInput {

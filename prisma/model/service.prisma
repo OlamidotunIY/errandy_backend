@@ -26,4 +26,6 @@ model ServicesOnWorkers {
 
   service Service @relation(fields: [serviceId], references: [id])
   worker  Worker  @relation(fields: [workerId], references: [id])
+
+  @@unique([workerId, serviceId])
 }

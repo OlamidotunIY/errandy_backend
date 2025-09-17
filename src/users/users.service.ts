@@ -81,16 +81,31 @@ export class UsersService {
   }
 
   async createUserRole(userId: string, role: GqlUserRole) {
-    const onboardingProgress = role === GqlUserRole.CLIENT
-      ? GqlOnboardingProgress.COMPLETED
-      : GqlOnboardingProgress.ROLE_SELECTED;
+    const onboardingProgress =
+      role === GqlUserRole.CLIENT
+        ? GqlOnboardingProgress.COMPLETED
+        : GqlOnboardingProgress.ROLE_SELECTED;
 
     return this.prisma.user.update({
       where: { id: userId },
       data: {
         ...(role === GqlUserRole.CLIENT
-          ? { client: { create: {} } }
-          : { worker: { create: {} } }),
+          ? {
+              client: {
+                connectOrCreate: {
+                  where: { userId: userId }, // assumes unique userId field in Client
+                  create: {},
+                },
+              },
+            }
+          : {
+              worker: {
+                connectOrCreate: {
+                  where: { userId: userId }, // assumes unique userId field in Worker
+                  create: {},
+                },
+              },
+            }),
         activeRole: role,
         onboardingProgress,
       },
@@ -101,7 +116,8 @@ export class UsersService {
     const user = await this.findOne(userId);
     if (!user || user.activeRole !== 'WORKER') return;
 
-    const hasServices = user.worker?.services && user.worker.services.length > 0;
+    const hasServices =
+      user.worker?.services && user.worker.services.length > 0;
     const hasAddress = user.userAddress && user.userAddress.length > 0;
 
     let newProgress = user.onboardingProgress;
@@ -110,7 +126,10 @@ export class UsersService {
       newProgress = 'SERVICES_SELECTED';
     }
 
-    if (hasAddress && ['ROLE_SELECTED', 'SERVICES_SELECTED'].includes(user.onboardingProgress)) {
+    if (
+      hasAddress &&
+      ['ROLE_SELECTED', 'SERVICES_SELECTED'].includes(user.onboardingProgress)
+    ) {
       newProgress = hasServices ? 'COMPLETED' : 'ADDRESS_ADDED';
     }
 
@@ -128,10 +147,66 @@ export class UsersService {
     return user;
   }
 
-  async updateOnboardingProgressManually(userId: string, progress: GqlOnboardingProgress) {
+  async updateOnboardingProgressManually(
+    userId: string,
+    progress: GqlOnboardingProgress,
+  ) {
     return this.prisma.user.update({
       where: { id: userId },
       data: { onboardingProgress: progress },
     });
+  }
+
+  /**
+   * Add services to the worker. serviceIds are Prisma Service.id values.
+   * This creates ServicesOnWorkers records for the worker and updates onboarding progress.
+   */
+  async addServicesToWorker(serviceIds: string[], userId: string) {
+    const user = await this.findOne(userId);
+    if (!user) throw new BadRequestException('User not found');
+    if (!user.worker) throw new BadRequestException('User is not a worker');
+
+    const workerId = user.worker.id;
+
+    // Deduplicate input
+    const uniqueServiceIds = Array.from(new Set(serviceIds));
+
+    // Validate all service IDs exist
+    const services = await this.prisma.service.findMany({
+      where: { id: { in: uniqueServiceIds } },
+      select: { id: true },
+    });
+
+    const foundIds = new Set(services.map((s) => s.id));
+    const missing = uniqueServiceIds.filter((id) => !foundIds.has(id));
+    if (missing.length) {
+      throw new BadRequestException(
+        `Services not found: ${missing.join(', ')}`,
+      );
+    }
+
+    // Create link records; use deterministic composite id to avoid duplicates
+    const ops = uniqueServiceIds.map((serviceId) =>
+      this.prisma.servicesOnWorkers.upsert({
+        where: {
+          workerId_serviceId: {
+            workerId,
+            serviceId,
+          },
+        },
+        create: {
+          workerId,
+          serviceId,
+        },
+        update: {},
+      }),
+    );
+
+    await Promise.all(ops);
+
+    // Refresh onboarding progress
+    await this.updateOnboardingProgress(userId);
+
+    return this.findOne(userId);
   }
 }

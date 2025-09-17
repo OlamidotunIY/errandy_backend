@@ -11,9 +11,6 @@ export class CreateUserInput {
 @InputType()
 export class CreateAddressInput {
   @Field(() => String)
-  userId: string;
-
-  @Field(() => String)
   label: string;
 
   @Field(() => String)
