@@ -36,7 +36,7 @@ export class User {
   emailVerified: boolean;
 
   @Field({ nullable: true })
-  image?: string | null;
+  image?: string;
 
   @Field()
   createdAt: Date;
@@ -45,22 +45,22 @@ export class User {
   updatedAt: Date;
 
   @Field({ nullable: true })
-  phoneNumber?: string | null;
+  phoneNumber?: string;
 
   @Field({ nullable: true })
-  phoneNumberVerified?: boolean | null;
+  phoneNumberVerified?: boolean;
 
   @Field({ nullable: true })
-  username?: string | null;
+  username?: string;
 
   @Field({ nullable: true })
-  displayUsername?: string | null;
+  displayUsername?: string;
 
   @Field({ nullable: true })
-  country?: string | null;
+  country?: string;
 
   @Field({ nullable: true })
-  twoFactorEnabled?: boolean | null;
+  twoFactorEnabled?: boolean;
 
   @Field(() => GqlUserRole, { nullable: true })
   activeRole?: GqlUserRole;
@@ -69,5 +69,5 @@ export class User {
   onboardingProgress: GqlOnboardingProgress;
 
   @Field(() => ID, { nullable: true })
-  activeAddressId?: string | null;
+  activeAddressId?: string;
 }

@@ -8,7 +8,7 @@ datasource db {
 }
 
 model User {
-  id                  String        @id @map("_id")
+  id                  String             @id @map("_id")
   name                String
   email               String
   emailVerified       Boolean
@@ -25,14 +25,15 @@ model User {
   sessions            Session[]
   accounts            Account[]
   twofactors          TwoFactor[]
-  userAddress         UserAddress[]
+  userAddress         UserAddress[] // all addresses
   activeRole          UserRole?
 
   // Active address reference
-  activeAddressId String?      @db.ObjectId
-  activeAddress   UserAddress? @relation("Address", fields: [activeAddressId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  worker          Worker?
-  client          Client?
+  activeAddressId String?      @unique @db.ObjectId
+  activeAddress   UserAddress? @relation("ActiveAddress", fields: [activeAddressId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  worker Worker?
+  client Client?
 
   @@unique([email])
   @@unique([username])
@@ -48,8 +49,11 @@ model UserAddress {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user User   @relation(fields: [userId], references: [id])
-  User User[] @relation("Address")
+  // normal relation (one user → many addresses)
+  user User @relation(fields: [userId], references: [id])
+
+  // back relation to activeAddress (ONE, not array)
+  activeFor User? @relation("ActiveAddress")
 
   @@map("userAddresses")
 }

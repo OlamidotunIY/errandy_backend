@@ -4,15 +4,18 @@ import { ConfigService } from '@nestjs/config';
 import { AxiosResponse } from 'axios';
 import { SuggestAddressInput } from './dto/suggest-address.input';
 import { ReverseGeocodeInput } from './dto/reverse-geocode.input';
-import { AddressSuggestion, AddressDetails } from './entities/address-suggestion.entity';
+import {
+  AddressSuggestion,
+  AddressDetails,
+} from './entities/address-suggestion.entity';
 
 @Injectable()
 export class AddressService {
-  constructor(
-    private readonly configService: ConfigService,
-  ) {}
+  constructor(private readonly configService: ConfigService) {}
 
-  async suggestAddresses(input: SuggestAddressInput): Promise<AddressSuggestion[]> {
+  async suggestAddresses(
+    input: SuggestAddressInput,
+  ): Promise<AddressSuggestion[]> {
     const apiKey = this.configService.get<string>('GOOGLE_PLACES_API_KEY');
     const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
       input.input,
@@ -30,6 +33,24 @@ export class AddressService {
     const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${apiKey}`;
     const response: AxiosResponse<any> = await axios.get(url);
     const result = response.data.results[0];
+    return {
+      formattedAddress: result.formatted_address,
+      latitude: result.geometry.location.lat,
+      longitude: result.geometry.location.lng,
+    };
+  }
+
+  /**
+   * Given a Google Place ID, fetches full details including formatted address and coords
+   */
+  async getPlaceDetails(input: { placeId: string }): Promise<AddressDetails> {
+    const { placeId } = input;
+    const apiKey = this.configService.get<string>('GOOGLE_PLACES_API_KEY');
+    const url = `https://maps.googleapis.com/maps/api/place/details/json?placeid=${encodeURIComponent(
+      placeId,
+    )}&key=${apiKey}`;
+    const response: AxiosResponse<any> = await axios.get(url);
+    const result = response.data.result;
     return {
       formattedAddress: result.formatted_address,
       latitude: result.geometry.location.lat,

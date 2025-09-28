@@ -50,14 +50,23 @@ export class UsersService {
     const user = await this.findOne(userId);
     if (!user) throw new BadRequestException('User not found');
 
+    const address = await this.prisma.userAddress.create({
+      data: {
+        label: dto.label,
+        address: dto.address,
+        location: geoLocation,
+        user: {
+          connect: { id: userId },
+        },
+      },
+    });
+
     const updatedUser = await this.prisma.user.update({
       where: { id: userId },
       data: {
         activeAddress: {
-          create: {
-            label: dto.label,
-            address: dto.address,
-            location: geoLocation,
+          connect: {
+            id: address.id,
           },
         },
       },

@@ -6,6 +6,7 @@ import { AddressService } from './address.service';
 import { UsersService } from 'src/users/users.service';
 import { SuggestAddressInput } from './dto/suggest-address.input';
 import { ReverseGeocodeInput } from './dto/reverse-geocode.input';
+import { PlaceDetailsInput } from './dto/place-details.input';
 import {
   AddressSuggestion,
   AddressDetails,
@@ -26,6 +27,16 @@ export class AddressResolver {
     @Args('input') input: SuggestAddressInput,
   ): Promise<AddressSuggestion[]> {
     return this.addressService.suggestAddresses(input);
+  }
+
+  /**
+   * Fetch full address details (formatted address + coords) for a Google Place ID
+   */
+  @Query(() => AddressDetails, { name: 'placeDetails' })
+  placeDetails(
+    @Args('input') input: PlaceDetailsInput,
+  ): Promise<AddressDetails> {
+    return this.addressService.getPlaceDetails(input);
   }
 
   @Mutation(() => GqlUser, { name: 'useCurrentAddress' })

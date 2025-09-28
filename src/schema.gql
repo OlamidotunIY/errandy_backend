@@ -32,7 +32,6 @@ input CreateAddressInput {
   label: String!
   latitude: Float!
   longitude: Float!
-  userId: String!
 }
 
 input CreateApplicationInput {
@@ -119,12 +118,14 @@ type Mutation {
   removeErrand(id: ID!): Errand!
   removeReview(id: Int!): Review!
   removeWallet(id: Int!): Wallet!
+  saveUserAddress(dto: SaveUserAddressInput!): User!
   updateApplication(updateApplicationInput: UpdateApplicationInput!): Application!
   updateChat(updateChatInput: UpdateChatInput!): Chat!
   updateErrand(updateErrandInput: UpdateErrandInput!): Errand!
   updateReview(updateReviewInput: UpdateReviewInput!): Review!
   updateUser(updateUserInput: UpdateUserInput!): User!
   updateWallet(updateWalletInput: UpdateWalletInput!): Wallet!
+  useCurrentAddress(input: ReverseGeocodeInput!): User!
 }
 
 enum OnboardingProgress {
@@ -133,6 +134,10 @@ enum OnboardingProgress {
   NONE
   ROLE_SELECTED
   SERVICES_SELECTED
+}
+
+input PlaceDetailsInput {
+  placeId: String!
 }
 
 enum PricingType {
@@ -145,7 +150,7 @@ type Query {
   chat(id: Int!): Chat!
   errand(id: ID!): Errand!
   errands(dto: GetAllErrandInput!): [Errand!]!
-  reverseGeocode(input: ReverseGeocodeInput!): AddressDetails!
+  placeDetails(input: PlaceDetailsInput!): AddressDetails!
   review(id: Int!): Review!
   service(id: ID!): Service!
   serviceCategories(input: GetServiceCategoriesInput): [ServiceCategory!]!
@@ -168,6 +173,13 @@ type Review {
   rating: Int!
   reviewerId: String!
   workerId: String!
+}
+
+input SaveUserAddressInput {
+  address: String!
+  label: String!
+  latitude: Float!
+  longitude: Float!
 }
 
 type Service {
