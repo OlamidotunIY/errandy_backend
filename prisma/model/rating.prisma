@@ -1,0 +1,13 @@
+model Rating {
+	id        String   @id @default(auto()) @map("_id") @db.ObjectId
+	raterId   String   @db.ObjectId
+	rateeId   String   @db.ObjectId
+	errandId  String?  @db.ObjectId
+	rating    Int
+	comment   String?
+	createdAt DateTime @default(now())
+
+	// Relations
+	errand    Errand?  @relation(fields: [errandId], references: [id])
+	ratee     Client   @relation(fields: [rateeId], references: [id])
+}

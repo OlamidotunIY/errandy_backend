@@ -1,4 +1,5 @@
 import { ObjectType, Field, ID, registerEnumType } from '@nestjs/graphql';
+import { UserAddress } from './user-address.entities';
 
 export enum GqlUserRole {
   WORKER = 'WORKER',
@@ -70,4 +71,7 @@ export class User {
 
   @Field(() => ID, { nullable: true })
   activeAddressId?: string;
+
+  @Field(() => [UserAddress], { nullable: 'itemsAndList' })
+  userAddress?: UserAddress[];
 }

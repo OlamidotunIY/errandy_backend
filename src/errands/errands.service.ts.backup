@@ -5,31 +5,75 @@ import {
   UpdateErrandLocation,
 } from './dto/update-errand.input';
 import { PrismaService } from 'src/prisma.service';
-import { Prisma } from '@prisma/client';
+import { Prisma, Errand } from '@prisma/client';
 import { GetAllErrandInput } from './dto/get-all-errand.input';
-import { ErrandQueryInput } from './dto/errand-query.input';
+import { ErrandQu    const aggr    const aggregationResult = await this.pgationResult = await this.prisma.errand.aggregateRaw({ pipeline });
+    // MongoDB aggregateRaw returns JsonObject, convert to our tisma.errand.aggregateRaw({ pipeline });
+    // MongoDB aggregateRaw returns JsonObject, convert to our typed array
+    const errands = (aggregationResult as ErrandWithGeoData[]);
+    const total = await this.getErrandsCount(userped array
+    const errands = (aggregationResult as ErrandWithGeoData[]);
+    const total = await this.getErrandsCount(userId, maxDistanceKm);
+    cod, maxDistanceKm);
+    const page = Math.floor(skist page = Math.floor(skip / limit) + 1;
+
+    return this.b / limit) + 1;
+
+    return this.buildPaginatedResponse(errands, total, page, limiildPaginatedResponse(errands, total, page, limit);); } from './dto/errand-query.input';
 import { PaginatedErrands } from './entities/paginated-errands.entity';
-import { UsersService } from 'src/users/users.service';
-import { PubSubInterface } from 'src/pubsub';
+import { GqlServiceCategoryType } from 'src/service/entities/enums';
+
+// PubSub interface
+interface PubSub {
+  publish(event: string, data: any): Promise<void>;
+  asyncIterator(events: string | string[]): any;
+}
 
 export interface GeoPoint {
   type: 'Point';
   coordinates: [number, number]; // [lng, lat]
 }
 
+// MongoDB aggregation result types - these come from MongoDB as JSON
+interface ErrandWithGeoData {
+  id: string;
+  userId: string;
+  title: string;
+  description: string | null;
+  pricingType: string;
+  price: number | null;
+  hourlyRate: number | null;
+  status: string;
+  service: string | null;
+  profession: string | null;
+  workerType: string | null;
+  serviceAddress: string | null;
+  location: object | null;
+  urgency: string | null;
+  timeConstraints: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  distance: number;
+  priority?: number;
+  matchScore?: number;
+}
+
+interface CountResult {
+  total: number;
+}
+
 @Injectable()
 export class ErrandsService {
   constructor(
     private readonly prisma: PrismaService,
-    @Inject('PUB_SUB') private readonly pubSub: PubSubInterface,
-    private readonly usersService: UsersService,
+    @Inject('PUB_SUB') private readonly pubSub: PubSub,
   ) {}
 
   async create(createErrandInput: CreateErrandInput, userId: string) {
     const errand = await this.prisma.errand.create({
       data: {
         ...createErrandInput,
-        clientId : userId,
+        userId,
       },
       include: {
         reviews: true,
@@ -78,72 +122,45 @@ export class ErrandsService {
       priorityMatch.service = { $in: user.worker.services };
     }
 
-    try {
-      return this.prisma.errand.aggregateRaw({
-        pipeline: [
-          {
-            $geoNear: {
-              near: { type: 'Point', coordinates: [userLng, userLat] },
-              distanceField: 'distance',
-              maxDistance: meters,
-              spherical: true,
-            },
+    return this.prisma.errand.aggregateRaw({
+      pipeline: [
+        {
+          $geoNear: {
+            near: { type: 'Point', coordinates: [userLng, userLat] },
+            distanceField: 'distance',
+            maxDistance: meters,
+            spherical: true,
           },
-          {
-            $match: {
-              status: 'OPEN',
-              workerType: user.worker?.workerType,
-            },
-          },
-          {
-            $addFields: {
-              priority: {
-                $cond: [
-                  {
-                    $or: priorityMatch.service
-                      ? [{ $in: ['$service', user.worker?.services] }]
-                      : [],
-                  },
-                  1,
-                  0,
-                ],
-              },
-            } as Prisma.InputJsonValue,
-          },
-          {
-            $sort: {
-              priority: -1, // Matches first
-              distance: 1, // Then closest
-            },
-          },
-        ],
-      });
-    } catch (error) {
-      // Fallback to regular query if geospatial index is not available
-      if (
-        error.code === 'P2010' &&
-        error.message?.includes('$geoNear requires')
-      ) {
-        console.warn(
-          'Geospatial index not found in findAll, falling back to regular query',
-        );
-        return this.prisma.errand.findMany({
-          where: {
+        },
+        {
+          $match: {
             status: 'OPEN',
-            ...(user.worker?.workerType && {
-              workerType: user.worker.workerType,
-            }),
+            workerType: user.worker?.workerType,
           },
-          include: {
-            reviews: true,
+        },
+        {
+          $addFields: {
+            priority: {
+              $cond: [
+                {
+                  $or: priorityMatch.service
+                    ? [{ $in: ['$service', user.worker?.services] }]
+                    : [],
+                },
+                1,
+                0,
+              ],
+            },
+          } as Prisma.InputJsonValue,
+        },
+        {
+          $sort: {
+            priority: -1, // Matches first
+            distance: 1, // Then closest
           },
-          orderBy: {
-            createdAt: 'desc',
-          },
-        });
-      }
-      throw error;
-    }
+        },
+      ],
+    });
   }
 
   findOne(id: string) {
@@ -170,7 +187,7 @@ export class ErrandsService {
       errandUpdated: {
         errand,
         type: 'UPDATED',
-        userId: errand.clientId,
+        userId: errand.userId,
       },
     });
 
@@ -216,7 +233,7 @@ export class ErrandsService {
       errandDeleted: {
         errand,
         type: 'DELETED',
-        userId: errand.clientId,
+        userId: errand.userId,
       },
     });
 
@@ -226,10 +243,7 @@ export class ErrandsService {
   /**
    * Advanced get errands with personalized feeds and location-based filtering
    */
-  async getErrands(
-    queryInput: ErrandQueryInput,
-    userId: string,
-  ): Promise<PaginatedErrands> {
+  async getErrands(queryInput: ErrandQueryInput, userId: string): Promise<PaginatedErrands> {
     const { type, search, pagination, maxDistanceKm = 20 } = queryInput;
     const { page = 1, limit = 20 } = pagination || {};
 
@@ -245,13 +259,7 @@ export class ErrandsService {
       case 'saved':
         return this.getSavedErrands(userId, skip, limit);
       case 'search':
-        return this.searchErrands(
-          userId,
-          search || '',
-          skip,
-          limit,
-          maxDistanceKm,
-        );
+        return this.searchErrands(userId, search || '', skip, limit, maxDistanceKm);
       default:
         return this.getFeedErrands(userId, skip, limit, maxDistanceKm);
     }
@@ -286,12 +294,7 @@ export class ErrandsService {
   /**
    * Feed: Personalized errands based on location and user preferences
    */
-  async getFeedErrands(
-    userId: string,
-    skip: number,
-    limit: number,
-    maxDistanceKm: number,
-  ): Promise<PaginatedErrands> {
+  async getFeedErrands(userId: string, skip: number, limit: number, maxDistanceKm: number): Promise<PaginatedErrands> {
     const { user, location } = await this.getUserActiveAddress(userId);
     const meters = maxDistanceKm * 1000;
     const userLat = location.coordinates[1];
@@ -344,38 +347,17 @@ export class ErrandsService {
       { $limit: limit },
     ];
 
-    try {
-      // MongoDB aggregation returns Prisma.JsonObject, which we handle properly
-      const result = await this.prisma.errand.aggregateRaw({ pipeline });
-      const errands = this.parseAggregationResults(result);
-      const total = await this.getErrandsCount(userId, maxDistanceKm);
-      const page = Math.floor(skip / limit) + 1;
+    const errands = await this.prisma.errand.aggregateRaw({ pipeline }) as unknown as any[];
+    const total = await this.getErrandsCount(userId, maxDistanceKm);
+    const page = Math.floor(skip / limit) + 1;
 
-      return this.buildPaginatedResponse(errands, total, page, limit);
-    } catch (error) {
-      // If geospatial index doesn't exist, fall back to regular query
-      if (
-        error.code === 'P2010' &&
-        error.message?.includes('$geoNear requires')
-      ) {
-        console.warn(
-          'Geospatial index not found, falling back to regular query',
-        );
-        return this.getFeedErrandsFallback(userId, skip, limit);
-      }
-      throw error;
-    }
+    return this.buildPaginatedResponse(errands, total, page, limit);
   }
 
   /**
    * Best Match: Errands matching user's skills and preferences
    */
-  async getBestMatchErrands(
-    userId: string,
-    skip: number,
-    limit: number,
-    maxDistanceKm: number,
-  ): Promise<PaginatedErrands> {
+  async getBestMatchErrands(userId: string, skip: number, limit: number, maxDistanceKm: number): Promise<PaginatedErrands> {
     const { user, location } = await this.getUserActiveAddress(userId);
     const meters = maxDistanceKm * 1000;
     const userLat = location.coordinates[1];
@@ -433,36 +415,19 @@ export class ErrandsService {
       { $limit: limit },
     ];
 
-    try {
-      const result = await this.prisma.errand.aggregateRaw({ pipeline });
-      const errands = this.parseAggregationResults(result);
-      const total = await this.getMatchingErrandsCount(userId, maxDistanceKm);
-      const page = Math.floor(skip / limit) + 1;
+    const aggregationResult = await this.prisma.errand.aggregateRaw({ pipeline });
+    // MongoDB aggregateRaw returns JsonObject, convert to our typed array
+    const errands = (aggregationResult as ErrandWithGeoData[]);
+    const total = await this.getMatchingErrandsCount(userId, maxDistanceKm);
+    const page = Math.floor(skip / limit) + 1;
 
-      return this.buildPaginatedResponse(errands, total, page, limit);
-    } catch (error) {
-      if (
-        error.code === 'P2010' &&
-        error.message?.includes('$geoNear requires')
-      ) {
-        console.warn(
-          'Geospatial index not found, falling back to regular query',
-        );
-        return this.getBestMatchErrandsFallback(userId, skip, limit);
-      }
-      throw error;
-    }
+    return this.buildPaginatedResponse(errands, total, page, limit);
   }
 
   /**
    * Most Recent: Latest errands near user
    */
-  async getRecentErrands(
-    userId: string,
-    skip: number,
-    limit: number,
-    maxDistanceKm: number,
-  ): Promise<PaginatedErrands> {
+  async getRecentErrands(userId: string, skip: number, limit: number, maxDistanceKm: number): Promise<PaginatedErrands> {
     const { location } = await this.getUserActiveAddress(userId);
     const meters = maxDistanceKm * 1000;
     const userLat = location.coordinates[1];
@@ -493,35 +458,17 @@ export class ErrandsService {
       { $limit: limit },
     ];
 
-    try {
-      const result = await this.prisma.errand.aggregateRaw({ pipeline });
-      const errands = this.parseAggregationResults(result);
-      const total = await this.getErrandsCount(userId, maxDistanceKm);
-      const page = Math.floor(skip / limit) + 1;
+    const errands = await this.prisma.errand.aggregateRaw({ pipeline }) as unknown as any[];
+    const total = await this.getErrandsCount(userId, maxDistanceKm);
+    const page = Math.floor(skip / limit) + 1;
 
-      return this.buildPaginatedResponse(errands, total, page, limit);
-    } catch (error) {
-      if (
-        error.code === 'P2010' &&
-        error.message?.includes('$geoNear requires')
-      ) {
-        console.warn(
-          'Geospatial index not found, falling back to regular query',
-        );
-        return this.getRecentErrandsFallback(userId, skip, limit);
-      }
-      throw error;
-    }
+    return this.buildPaginatedResponse(errands, total, page, limit);
   }
 
   /**
    * Saved: User's bookmarked errands
    */
-  async getSavedErrands(
-    userId: string,
-    skip: number,
-    limit: number,
-  ): Promise<PaginatedErrands> {
+  async getSavedErrands(userId: string, skip: number, limit: number): Promise<PaginatedErrands> {
     // Assuming we have a SavedErrand table - adjust based on your schema
     const errands = await this.prisma.errand.findMany({
       where: {
@@ -542,34 +489,13 @@ export class ErrandsService {
     const total = 0; // Replace with actual saved errands count
     const page = Math.floor(skip / limit) + 1;
 
-    return this.buildPaginatedResponse(
-      errands.map((e) => ({ ...e, distance: 0 })),
-      total,
-      page,
-      limit,
-    );
+    return this.buildPaginatedResponse(errands, total, page, limit);
   }
 
   /**
    * Search: Text search with location filtering
    */
-  async searchErrands(
-    userId: string,
-    keyword: string,
-    skip: number,
-    limit: number,
-    maxDistanceKm: number,
-  ): Promise<PaginatedErrands> {
-    // Save the search keyword to user's search history (only if keyword is not empty)
-    if (keyword && keyword.trim().length > 0) {
-      try {
-        await this.usersService.saveSearchKeyword(userId, keyword.trim());
-      } catch (error) {
-        // Log the error but don't fail the search if saving keyword fails
-        console.warn('Failed to save search keyword:', error.message);
-      }
-    }
-
+  async searchErrands(userId: string, keyword: string, skip: number, limit: number, maxDistanceKm: number): Promise<PaginatedErrands> {
     const { location } = await this.getUserActiveAddress(userId);
     const meters = maxDistanceKm * 1000;
     const userLat = location.coordinates[1];
@@ -606,44 +532,25 @@ export class ErrandsService {
       { $limit: limit },
     ];
 
-    try {
-      const result = await this.prisma.errand.aggregateRaw({ pipeline });
-      const errands = this.parseAggregationResults(result);
-      const total = await this.getSearchErrandsCount(
-        userId,
-        keyword,
-        maxDistanceKm,
-      );
-      const page = Math.floor(skip / limit) + 1;
+    const aggregationResult = await this.prisma.errand.aggregateRaw({ pipeline });
+    // MongoDB aggregateRaw returns JsonObject, convert to our typed array
+    const errands = (aggregationResult as ErrandWithGeoData[]);
+    const total = await this.getSearchErrandsCount(userId, keyword, maxDistanceKm);
+    const page = Math.floor(skip / limit) + 1;
 
-      return this.buildPaginatedResponse(errands, total, page, limit);
-    } catch (error) {
-      if (
-        error.code === 'P2010' &&
-        error.message?.includes('$geoNear requires')
-      ) {
-        console.warn(
-          'Geospatial index not found, falling back to regular query',
-        );
-        return this.searchErrandsFallback(userId, keyword, skip, limit);
-      }
-      throw error;
-    }
+    return this.buildPaginatedResponse(errands, total, page, limit);
   }
 
   /**
    * Helper methods for counting
    */
-  private async getErrandsCount(
-    userId: string,
-    maxDistanceKm: number,
-  ): Promise<number> {
+  private async getErrandsCount(userId: string, maxDistanceKm: number): Promise<number> {
     const { location } = await this.getUserActiveAddress(userId);
     const meters = maxDistanceKm * 1000;
     const userLat = location.coordinates[1];
     const userLng = location.coordinates[0];
 
-    const result = await this.prisma.errand.aggregateRaw({
+    const aggregationResult = await this.prisma.errand.aggregateRaw({
       pipeline: [
         {
           $geoNear: {
@@ -663,20 +570,19 @@ export class ErrandsService {
       ],
     });
 
-    const countResult = this.parseCountResult(result);
+    const countResult = Array.isArray(aggregationResult) ? 
+      aggregationResult as CountAggregationResult[] : 
+      [aggregationResult] as CountAggregationResult[];
     return countResult[0]?.total || 0;
   }
 
-  private async getMatchingErrandsCount(
-    userId: string,
-    maxDistanceKm: number,
-  ): Promise<number> {
+  private async getMatchingErrandsCount(userId: string, maxDistanceKm: number): Promise<number> {
     const { user, location } = await this.getUserActiveAddress(userId);
     const meters = maxDistanceKm * 1000;
     const userLat = location.coordinates[1];
     const userLng = location.coordinates[0];
 
-    const result = await this.prisma.errand.aggregateRaw({
+    const aggregationResult = await this.prisma.errand.aggregateRaw({
       pipeline: [
         {
           $geoNear: {
@@ -700,21 +606,19 @@ export class ErrandsService {
       ],
     });
 
-    const countResult = this.parseCountResult(result);
+    const countResult = Array.isArray(aggregationResult) ? 
+      aggregationResult as CountAggregationResult[] : 
+      [aggregationResult] as CountAggregationResult[];
     return countResult[0]?.total || 0;
   }
 
-  private async getSearchErrandsCount(
-    userId: string,
-    keyword: string,
-    maxDistanceKm: number,
-  ): Promise<number> {
+  private async getSearchErrandsCount(userId: string, keyword: string, maxDistanceKm: number): Promise<number> {
     const { location } = await this.getUserActiveAddress(userId);
     const meters = maxDistanceKm * 1000;
     const userLat = location.coordinates[1];
     const userLng = location.coordinates[0];
 
-    const result = await this.prisma.errand.aggregateRaw({
+    const aggregationResult = await this.prisma.errand.aggregateRaw({
       pipeline: [
         {
           $geoNear: {
@@ -740,230 +644,20 @@ export class ErrandsService {
       ],
     });
 
-    const countResult = this.parseCountResult(result);
+    const countResult = Array.isArray(aggregationResult) ? 
+      aggregationResult as CountAggregationResult[] : 
+      [aggregationResult] as CountAggregationResult[];
     return countResult[0]?.total || 0;
-  }
-
-  /**
-   * Fallback methods when geospatial index is not available
-   */
-  private async getFeedErrandsFallback(
-    userId: string,
-    skip: number,
-    limit: number,
-  ): Promise<PaginatedErrands> {
-    const errands = await this.prisma.errand.findMany({
-      where: {
-        status: 'OPEN',
-        clientId: { not: userId },
-      },
-      include: {
-        reviews: true,
-      },
-      orderBy: [{ createdAt: 'desc' }],
-      skip,
-      take: limit,
-    });
-
-    const total = await this.prisma.errand.count({
-      where: {
-        status: 'OPEN',
-        clientId: { not: userId },
-      },
-    });
-
-    const page = Math.floor(skip / limit) + 1;
-    return this.buildPaginatedResponse(
-      errands.map((e) => ({ ...e, distance: 0 })),
-      total,
-      page,
-      limit,
-    );
-  }
-
-  private async getBestMatchErrandsFallback(
-    userId: string,
-    skip: number,
-    limit: number,
-  ): Promise<PaginatedErrands> {
-    const { user } = await this.getUserActiveAddress(userId);
-
-    const errands = await this.prisma.errand.findMany({
-      where: {
-        status: 'OPEN',
-        clientId: { not: userId },
-        ...(user?.worker?.workerType && {
-          profession: user.worker.workerType,
-        }),
-      },
-      include: {
-        reviews: true,
-      },
-      orderBy: [{ createdAt: 'desc' }],
-      skip,
-      take: limit,
-    });
-
-    const total = await this.prisma.errand.count({
-      where: {
-        status: 'OPEN',
-        clientId: { not: userId },
-        ...(user?.worker?.workerType && {
-          profession: user.worker.workerType,
-        }),
-      },
-    });
-
-    const page = Math.floor(skip / limit) + 1;
-    return this.buildPaginatedResponse(
-      errands.map((e) => ({ ...e, distance: 0 })),
-      total,
-      page,
-      limit,
-    );
-  }
-
-  private async getRecentErrandsFallback(
-    userId: string,
-    skip: number,
-    limit: number,
-  ): Promise<PaginatedErrands> {
-    const errands = await this.prisma.errand.findMany({
-      where: {
-        status: 'OPEN',
-        clientId: { not: userId },
-      },
-      include: {
-        reviews: true,
-      },
-      orderBy: [{ createdAt: 'desc' }],
-      skip,
-      take: limit,
-    });
-
-    const total = await this.prisma.errand.count({
-      where: {
-        status: 'OPEN',
-        clientId: { not: userId },
-      },
-    });
-
-    const page = Math.floor(skip / limit) + 1;
-    return this.buildPaginatedResponse(
-      errands.map((e) => ({ ...e, distance: 0 })),
-      total,
-      page,
-      limit,
-    );
-  }
-
-  private async searchErrandsFallback(
-    userId: string,
-    keyword: string,
-    skip: number,
-    limit: number,
-  ): Promise<PaginatedErrands> {
-    // Save the search keyword to user's search history (only if keyword is not empty)
-    if (keyword && keyword.trim().length > 0) {
-      try {
-        await this.usersService.saveSearchKeyword(userId, keyword.trim());
-      } catch (error) {
-        // Log the error but don't fail the search if saving keyword fails
-        console.warn(
-          'Failed to save search keyword in fallback:',
-          error.message,
-        );
-      }
-    }
-
-    const errands = await this.prisma.errand.findMany({
-      where: {
-        status: 'OPEN',
-        clientId: { not: userId },
-        OR: [
-          { title: { contains: keyword, mode: 'insensitive' } },
-          { description: { contains: keyword, mode: 'insensitive' } },
-          { service: { contains: keyword, mode: 'insensitive' } },
-          { profession: { contains: keyword, mode: 'insensitive' } },
-        ],
-      },
-      include: {
-        reviews: true,
-      },
-      orderBy: [{ createdAt: 'desc' }],
-      skip,
-      take: limit,
-    });
-
-    const total = await this.prisma.errand.count({
-      where: {
-        status: 'OPEN',
-        clientId: { not: userId },
-        OR: [
-          { title: { contains: keyword, mode: 'insensitive' } },
-          { description: { contains: keyword, mode: 'insensitive' } },
-          { service: { contains: keyword, mode: 'insensitive' } },
-          { profession: { contains: keyword, mode: 'insensitive' } },
-        ],
-      },
-    });
-
-    const page = Math.floor(skip / limit) + 1;
-    return this.buildPaginatedResponse(
-      errands.map((e) => ({ ...e, distance: 0 })),
-      total,
-      page,
-      limit,
-    );
-  }
-
-  /**
-   * Helper methods to safely parse MongoDB aggregation results
-   */
-  private parseAggregationResults(result: Prisma.JsonObject): Array<any> {
-    // MongoDB aggregateRaw returns results in a format compatible with the expected array
-    // We safely cast it since we know the structure from our aggregation pipeline
-    return JSON.parse(JSON.stringify(result)) as Array<any>;
-  }
-
-  private parseCountResult(
-    result: Prisma.JsonObject,
-  ): Array<{ total: number }> {
-    return JSON.parse(JSON.stringify(result)) as Array<{ total: number }>;
   }
 
   /**
    * Build paginated response
    */
-  private async buildPaginatedResponse(
-    errands: Array<any>,
-    total: number,
-    page: number,
-    limit: number,
-  ): Promise<PaginatedErrands> {
-    // Enrich each errand with clientName and clientRating
-    const enriched = await Promise.all(
-      errands.map(async (errand) => {
-        // Fetch client user name
-        const client = await this.prisma.client.findUnique({
-          where: { id: errand.clientId },
-          include: { user: true },
-        });
-        // Calculate average rating for client
-        const avg = await this.prisma.rating.aggregate({
-          where: { rateeId: errand.clientId },
-          _avg: { rating: true },
-        });
-        return {
-          ...errand,
-          clientName: client?.user?.name ?? null,
-          clientRating: avg._avg?.rating ?? null,
-        };
-      }),
-    );
+  private buildPaginatedResponse(errands: ErrandWithGeoData[], total: number, page: number, limit: number): PaginatedErrands {
     const totalPages = Math.ceil(total / limit);
+
     return {
-      data: enriched,
+      data: errands as Errand[],
       total,
       page,
       limit,

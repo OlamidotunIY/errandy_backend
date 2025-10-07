@@ -7,6 +7,7 @@ import { UseGuards } from '@nestjs/common';
 import { CreateAddressInput } from './dto/create-user.input';
 import { GqlAuthGuard } from 'src/auth/guard/graphql-auth.guard';
 import { CurrentUser } from 'src/auth/decorator/current-user.decorator';
+import { Search } from './entities/search-history.entities';
 
 @Resolver(() => User)
 @UseGuards(GqlAuthGuard)
@@ -39,5 +40,21 @@ export class UsersResolver {
     @CurrentUser() user: User,
   ) {
     return this.usersService.addServicesToWorker(dto.serviceIds, user.id);
+  }
+
+  @Query(() => [Search], {
+    name: 'userSearchHistory',
+    description: 'Get user search history for workers',
+  })
+  getUserSearchHistory(@CurrentUser() user: User) {
+    return this.usersService.getUserSearchHistory(user.id);
+  }
+
+  @Mutation(() => Boolean, {
+    description: 'Clear user search history',
+  })
+  async clearSearchHistory(@CurrentUser() user: User) {
+    const result = await this.usersService.clearSearchHistory(user.id);
+    return result.success;
   }
 }

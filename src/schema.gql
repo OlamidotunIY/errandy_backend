@@ -27,6 +27,13 @@ type Chat {
   exampleField: Int!
 }
 
+type Client {
+  errands: [Errand!]!
+  id: ID!
+  user: User!
+  userId: ID!
+}
+
 input CreateAddressInput {
   address: String!
   label: String!
@@ -67,6 +74,8 @@ scalar DateTime
 type Errand {
   applicationDeadline: DateTime
   assignedTo: String
+  client: Client!
+  clientId: String!
   completionDeadline: DateTime
   createdAt: DateTime!
   description: String
@@ -83,8 +92,21 @@ type Errand {
   status: ErrandStatus!
   title: String!
   updatedAt: DateTime!
-  userId: String!
   workerType: WorkerType
+}
+
+input ErrandQueryInput {
+  """Maximum distance in kilometers for location filtering"""
+  maxDistanceKm: Float = 20
+
+  """Pagination parameters"""
+  pagination: PaginationInput
+
+  """Search keyword for title, description, or category filtering"""
+  search: String
+
+  """Type of errand feed to retrieve"""
+  type: String! = "feed"
 }
 
 enum ErrandStatus {
@@ -93,6 +115,18 @@ enum ErrandStatus {
   DRAFT
   IN_PROGRESS
   OPEN
+}
+
+type ErrandSubscriptionPayload {
+  distance: Float
+  errand: Errand!
+  type: String!
+  userId: String
+}
+
+type GeoPoint {
+  coordinates: [Float!]!
+  type: String!
 }
 
 input GetAllErrandInput {
@@ -107,6 +141,9 @@ input GetServiceCategoriesInput {
 type Mutation {
   addAddress(dto: CreateAddressInput!): User!
   addWorkerServices(dto: AddWorkerServicesInput!): User!
+
+  """Clear user search history"""
+  clearSearchHistory: Boolean!
   createApplication(createApplicationInput: CreateApplicationInput!): Application!
   createChat(createChatInput: CreateChatInput!): Chat!
   createErrand(createErrandInput: CreateErrandInput!): Errand!
@@ -136,6 +173,24 @@ enum OnboardingProgress {
   SERVICES_SELECTED
 }
 
+type PaginatedErrands {
+  data: [Errand!]!
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  limit: Int!
+  page: Int!
+  total: Int!
+  totalPages: Int!
+}
+
+input PaginationInput {
+  """Number of items per page"""
+  limit: Int! = 20
+
+  """Page number (1-based)"""
+  page: Int! = 1
+}
+
 input PlaceDetailsInput {
   placeId: String!
 }
@@ -150,6 +205,11 @@ type Query {
   chat(id: Int!): Chat!
   errand(id: ID!): Errand!
   errands(dto: GetAllErrandInput!): [Errand!]!
+
+  """
+  Advanced errand query with personalized feeds and location-based filtering
+  """
+  getErrands(input: ErrandQueryInput!): PaginatedErrands!
   placeDetails(input: PlaceDetailsInput!): AddressDetails!
   review(id: Int!): Review!
   service(id: ID!): Service!
@@ -157,6 +217,9 @@ type Query {
   services(categoryType: ServiceCategoryType): [Service!]!
   suggestAddresses(input: SuggestAddressInput!): [AddressSuggestion!]!
   user: User!
+
+  """Get user search history for workers"""
+  userSearchHistory: [Search!]!
   wallet(id: Int!): Wallet!
 }
 
@@ -182,6 +245,14 @@ input SaveUserAddressInput {
   longitude: Float!
 }
 
+type Search {
+  createdAt: DateTime
+  id: ID!
+  keyword: String!
+  updatedAt: DateTime
+  workerId: ID
+}
+
 type Service {
   category: ServiceCategory
   categoryId: String!
@@ -200,6 +271,17 @@ type ServiceCategory {
 enum ServiceCategoryType {
   CASUAL
   PROFESSIONAL
+}
+
+type Subscription {
+  """Subscribe to new errands created nearby"""
+  errandCreated: ErrandSubscriptionPayload!
+
+  """Subscribe to errand deletions"""
+  errandDeleted: ErrandSubscriptionPayload!
+
+  """Subscribe to errand updates"""
+  errandUpdated: ErrandSubscriptionPayload!
 }
 
 input SuggestAddressInput {
@@ -281,7 +363,16 @@ type User {
   phoneNumberVerified: Boolean
   twoFactorEnabled: Boolean
   updatedAt: DateTime!
+  userAddress: [UserAddress]
   username: String
+}
+
+type UserAddress {
+  address: String!
+  id: ID!
+  label: String!
+  location: GeoPoint!
+  userId: String!
 }
 
 enum UserRole {

@@ -3,6 +3,8 @@ import { ErrandStatus } from './errandStatus.enum';
 import { WorkerType } from './workerType.enum';
 import { Review } from 'src/review/entities/review.entity';
 import { PricingType } from './pricingType.enum';
+import { User } from 'src/users/entities/user.entity';
+import Client from 'src/client/entities/client.entities';
 
 @ObjectType()
 export class Errand {
@@ -10,7 +12,7 @@ export class Errand {
   id: string;
 
   @Field()
-  userId: string;
+  clientId: string;
 
   @Field()
   title: string;
@@ -65,4 +67,7 @@ export class Errand {
 
   @Field(() => [Review])
   reviews: Review[];
+
+  @Field(() => Client)
+  client: Client
 }

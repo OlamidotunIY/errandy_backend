@@ -10,11 +10,16 @@ import { ApplicationModule } from './application/application.module';
 import { ChatModule } from './chat/chat.module';
 import { WalletModule } from './wallet/wallet.module';
 import { ErrandsModule } from './errands/errands.module';
+import { PubSubModule } from './pubsub/pubsub.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { GraphQLModule } from '@nestjs/graphql';
 import { join } from 'path';
 import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin/landingPage/default';
+import { ClientModule } from './client/client.module';
+import { WorkerModule } from './worker/worker.module';
+import { RatingResolver } from './rating/rating.resolver';
+import { RatingModule } from './rating/rating.module';
 
 @Module({
   imports: [
@@ -50,17 +55,21 @@ import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin
         };
       },
     }),
+    PubSubModule,
     AuthModule,
     UsersModule,
-  AddressModule,
+    AddressModule,
     ErrandsModule,
     WalletModule,
     ChatModule,
     ApplicationModule,
     ServiceModule,
     ReviewModule,
+    ClientModule,
+    WorkerModule,
+    RatingModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, RatingResolver],
 })
 export class AppModule {}

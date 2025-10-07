@@ -218,4 +218,67 @@ export class UsersService {
 
     return this.findOne(userId);
   }
+
+  async getUserSearchHistory(userId: string) {
+    const user = await this.findOne(userId);
+    if (!user || !user.worker) {
+      throw new BadRequestException('User is not a worker or does not exist');
+    }
+
+    return this.prisma.search.findMany({
+      where: {
+        workerId: user.worker.id,
+      },
+      orderBy: {
+        id: 'desc', // Most recent first
+      },
+      take: 20, // Limit to last 20 searches
+    });
+  }
+
+  async saveSearchKeyword(userId: string, keyword: string) {
+    const user = await this.findOne(userId);
+    if (!user || !user.worker) {
+      throw new BadRequestException('User is not a worker or does not exist');
+    }
+
+    // Check if this keyword already exists for this worker
+    const existingSearch = await this.prisma.search.findFirst({
+      where: {
+        workerId: user.worker.id,
+        keyword: keyword.toLowerCase().trim(),
+      },
+    });
+
+    if (existingSearch) {
+      // Update existing search to move it to top
+      return this.prisma.search.update({
+        where: { id: existingSearch.id },
+        data: { keyword: keyword.toLowerCase().trim() },
+      });
+    }
+
+    // Create new search record
+    return this.prisma.search.create({
+      data: {
+        keyword: keyword.toLowerCase().trim(),
+        workerId: user.worker.id,
+      },
+    });
+  }
+
+  async clearSearchHistory(userId: string) {
+    const user = await this.findOne(userId);
+    if (!user || !user.worker) {
+      throw new BadRequestException('User is not a worker or does not exist');
+    }
+
+    await this.prisma.search.deleteMany({
+      where: {
+        workerId: user.worker.id,
+      },
+    });
+
+    return { success: true, message: 'Search history cleared successfully' };
+  }
 }

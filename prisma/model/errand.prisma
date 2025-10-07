@@ -1,6 +1,6 @@
 model Errand {
     id                  String        @id @default(auto()) @map("_id") @db.ObjectId
-    userId              String        @db.ObjectId
+    clientId            String        @db.ObjectId
     title               String
     description         String?
     pricingType         PricingType   @default(FIXED)
@@ -18,6 +18,9 @@ model Errand {
     createdAt           DateTime      @default(now())
     updatedAt           DateTime      @updatedAt
     reviews             Review[]
+    ratings             Rating[]
+
+    client Client @relation(fields: [clientId], references: [id])
 
     @@map("errands")
 }
