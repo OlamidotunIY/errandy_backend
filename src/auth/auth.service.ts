@@ -1,5 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { lastValueFrom } from 'rxjs';
+import { Inject, Injectable } from '@nestjs/common';
 import { auth } from '../../auth';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';

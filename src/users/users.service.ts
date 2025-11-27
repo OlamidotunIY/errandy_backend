@@ -95,7 +95,7 @@ export class UsersService {
         ? GqlOnboardingProgress.COMPLETED
         : GqlOnboardingProgress.ROLE_SELECTED;
 
-    return this.prisma.user.update({
+    return this.prisma.user.update({  
       where: { id: userId },
       data: {
         ...(role === GqlUserRole.CLIENT

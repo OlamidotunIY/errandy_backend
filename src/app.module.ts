@@ -43,15 +43,6 @@ import { RatingModule } from './rating/rating.module';
             'subscriptions-transport-ws': true,
           },
           introspection: !isProduction,
-          // onConnect: (connectionParams) => {
-          //   return connectionParams;
-          // },
-          // context: ({ req, res, connection }) => {
-          //   if (connection) {
-          //     return { req, res, user: connection.context.user }; // Injecting pubSub into context
-          //   }
-          //   return { req, res };
-          // },
         };
       },
     }),

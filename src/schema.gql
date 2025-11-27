@@ -124,6 +124,32 @@ type ErrandSubscriptionPayload {
   userId: String
 }
 
+type ErrandWithClient {
+  applicationDeadline: DateTime
+  assignedTo: String
+  client: Client!
+  clientId: String!
+  clientName: String
+  clientRating: Float
+  completionDeadline: DateTime
+  createdAt: DateTime!
+  description: String
+  hourlyRate: Float
+  id: String!
+  latitude: Float
+  longitude: Float
+  price: Float
+  pricingType: PricingType!
+  profession: String
+  reviews: [Review!]!
+  service: String
+  serviceAddress: String
+  status: ErrandStatus!
+  title: String!
+  updatedAt: DateTime!
+  workerType: WorkerType
+}
+
 type GeoPoint {
   coordinates: [Float!]!
   type: String!
@@ -174,7 +200,7 @@ enum OnboardingProgress {
 }
 
 type PaginatedErrands {
-  data: [Errand!]!
+  data: [ErrandWithClient!]!
   hasNextPage: Boolean!
   hasPreviousPage: Boolean!
   limit: Int!
