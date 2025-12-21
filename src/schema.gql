@@ -134,6 +134,7 @@ type ErrandWithClient {
   completionDeadline: DateTime
   createdAt: DateTime!
   description: String
+  distance: Float
   hourlyRate: Float
   id: String!
   latitude: Float
@@ -412,6 +413,7 @@ type Wallet {
 }
 
 enum WorkerType {
+  ARTISAN
   GENERAL
   PROFESSIONAL
 }

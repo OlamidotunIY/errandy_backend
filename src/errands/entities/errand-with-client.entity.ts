@@ -8,4 +8,7 @@ export class ErrandWithClient extends Errand {
 
   @Field(() => Float, { nullable: true })
   clientRating?: number;
+
+  @Field(() => Float, { nullable: true })
+  distance?: number;
 }

@@ -29,7 +29,7 @@ export class ErrandsService {
     const errand = await this.prisma.errand.create({
       data: {
         ...createErrandInput,
-        clientId : userId,
+        clientId: userId,
       },
       include: {
         reviews: true,
@@ -231,7 +231,7 @@ export class ErrandsService {
     userId: string,
   ): Promise<PaginatedErrands> {
     const { type, search, pagination, maxDistanceKm = 20 } = queryInput;
-    const { page = 1, limit = 20 } = pagination || {};
+    const { page = 1, limit = 10 } = pagination || {};
 
     const skip = (page - 1) * limit;
 
@@ -270,6 +270,7 @@ export class ErrandsService {
             services: true,
           },
         },
+        client: true, // Include client to get the client.id for filtering
       },
     });
 
@@ -280,6 +281,7 @@ export class ErrandsService {
     return {
       user,
       location: user.activeAddress.location as unknown as GeoPoint,
+      clientId: user.client?.id, // Add clientId for filtering
     };
   }
 
@@ -292,7 +294,8 @@ export class ErrandsService {
     limit: number,
     maxDistanceKm: number,
   ): Promise<PaginatedErrands> {
-    const { user, location } = await this.getUserActiveAddress(userId);
+    const { user, location, clientId } =
+      await this.getUserActiveAddress(userId);
     const meters = maxDistanceKm * 1000;
     const userLat = location.coordinates[1];
     const userLng = location.coordinates[0];
@@ -315,7 +318,7 @@ export class ErrandsService {
       {
         $match: {
           status: 'OPEN',
-          userId: { $ne: userId }, // Exclude user's own errands
+          ...(clientId && { clientId: { $ne: clientId } }), // Exclude user's own errands if they have a client profile
         },
       },
       {
@@ -376,7 +379,8 @@ export class ErrandsService {
     limit: number,
     maxDistanceKm: number,
   ): Promise<PaginatedErrands> {
-    const { user, location } = await this.getUserActiveAddress(userId);
+    const { user, location, clientId } =
+      await this.getUserActiveAddress(userId);
     const meters = maxDistanceKm * 1000;
     const userLat = location.coordinates[1];
     const userLng = location.coordinates[0];
@@ -393,7 +397,7 @@ export class ErrandsService {
       {
         $match: {
           status: 'OPEN',
-          userId: { $ne: userId },
+          ...(clientId && { clientId: { $ne: clientId } }),
           $or: [
             { service: { $in: user.worker?.services || [] } },
             { profession: user.worker?.workerType },
@@ -463,7 +467,7 @@ export class ErrandsService {
     limit: number,
     maxDistanceKm: number,
   ): Promise<PaginatedErrands> {
-    const { location } = await this.getUserActiveAddress(userId);
+    const { location, clientId } = await this.getUserActiveAddress(userId);
     const meters = maxDistanceKm * 1000;
     const userLat = location.coordinates[1];
     const userLng = location.coordinates[0];
@@ -480,7 +484,7 @@ export class ErrandsService {
       {
         $match: {
           status: 'OPEN',
-          userId: { $ne: userId },
+          ...(clientId && { clientId: { $ne: clientId } }),
         },
       },
       {
@@ -638,7 +642,7 @@ export class ErrandsService {
     userId: string,
     maxDistanceKm: number,
   ): Promise<number> {
-    const { location } = await this.getUserActiveAddress(userId);
+    const { location, clientId } = await this.getUserActiveAddress(userId);
     const meters = maxDistanceKm * 1000;
     const userLat = location.coordinates[1];
     const userLng = location.coordinates[0];
@@ -656,7 +660,7 @@ export class ErrandsService {
         {
           $match: {
             status: 'OPEN',
-            userId: { $ne: userId },
+            ...(clientId && { clientId: { $ne: clientId } }),
           },
         },
         { $count: 'total' },
@@ -671,7 +675,8 @@ export class ErrandsService {
     userId: string,
     maxDistanceKm: number,
   ): Promise<number> {
-    const { user, location } = await this.getUserActiveAddress(userId);
+    const { user, location, clientId } =
+      await this.getUserActiveAddress(userId);
     const meters = maxDistanceKm * 1000;
     const userLat = location.coordinates[1];
     const userLng = location.coordinates[0];
@@ -689,7 +694,7 @@ export class ErrandsService {
         {
           $match: {
             status: 'OPEN',
-            userId: { $ne: userId },
+            ...(clientId && { clientId: { $ne: clientId } }),
             $or: [
               { service: { $in: user.worker?.services || [] } },
               { profession: user.worker?.workerType },
@@ -709,7 +714,7 @@ export class ErrandsService {
     keyword: string,
     maxDistanceKm: number,
   ): Promise<number> {
-    const { location } = await this.getUserActiveAddress(userId);
+    const { location, clientId } = await this.getUserActiveAddress(userId);
     const meters = maxDistanceKm * 1000;
     const userLat = location.coordinates[1];
     const userLng = location.coordinates[0];
@@ -727,7 +732,7 @@ export class ErrandsService {
         {
           $match: {
             status: 'OPEN',
-            userId: { $ne: userId },
+            ...(clientId && { clientId: { $ne: clientId } }),
             $or: [
               { title: { $regex: keyword, $options: 'i' } },
               { description: { $regex: keyword, $options: 'i' } },
@@ -752,10 +757,16 @@ export class ErrandsService {
     skip: number,
     limit: number,
   ): Promise<PaginatedErrands> {
+    // Get the user's client record and active address
+    const { user, location, clientId } =
+      await this.getUserActiveAddress(userId);
+    const userLat = location.coordinates[1];
+    const userLng = location.coordinates[0];
+
     const errands = await this.prisma.errand.findMany({
       where: {
         status: 'OPEN',
-        clientId: { not: userId },
+        ...(clientId && { clientId: { not: clientId } }),
       },
       include: {
         reviews: true,
@@ -768,13 +779,26 @@ export class ErrandsService {
     const total = await this.prisma.errand.count({
       where: {
         status: 'OPEN',
-        clientId: { not: userId },
+        ...(clientId && { clientId: { not: clientId } }),
       },
     });
 
     const page = Math.floor(skip / limit) + 1;
     return this.buildPaginatedResponse(
-      errands.map((e) => ({ ...e, distance: 0 })),
+      errands.map((e) => {
+        const location = e.location as unknown as GeoPoint;
+        return {
+          ...e,
+          distance: location?.coordinates
+            ? this.calculateDistance(
+                userLat,
+                userLng,
+                location.coordinates[1],
+                location.coordinates[0],
+              )
+            : 0,
+        };
+      }),
       total,
       page,
       limit,
@@ -786,12 +810,15 @@ export class ErrandsService {
     skip: number,
     limit: number,
   ): Promise<PaginatedErrands> {
-    const { user } = await this.getUserActiveAddress(userId);
+    const { user, location, clientId } =
+      await this.getUserActiveAddress(userId);
+    const userLat = location.coordinates[1];
+    const userLng = location.coordinates[0];
 
     const errands = await this.prisma.errand.findMany({
       where: {
         status: 'OPEN',
-        clientId: { not: userId },
+        ...(clientId && { clientId: { not: clientId } }),
         ...(user?.worker?.workerType && {
           profession: user.worker.workerType,
         }),
@@ -807,7 +834,7 @@ export class ErrandsService {
     const total = await this.prisma.errand.count({
       where: {
         status: 'OPEN',
-        clientId: { not: userId },
+        ...(clientId && { clientId: { not: clientId } }),
         ...(user?.worker?.workerType && {
           profession: user.worker.workerType,
         }),
@@ -816,7 +843,20 @@ export class ErrandsService {
 
     const page = Math.floor(skip / limit) + 1;
     return this.buildPaginatedResponse(
-      errands.map((e) => ({ ...e, distance: 0 })),
+      errands.map((e) => {
+        const location = e.location as unknown as GeoPoint;
+        return {
+          ...e,
+          distance: location?.coordinates
+            ? this.calculateDistance(
+                userLat,
+                userLng,
+                location.coordinates[1],
+                location.coordinates[0],
+              )
+            : 0,
+        };
+      }),
       total,
       page,
       limit,
@@ -828,10 +868,15 @@ export class ErrandsService {
     skip: number,
     limit: number,
   ): Promise<PaginatedErrands> {
+    // Get the user's client record and active address
+    const { location, clientId } = await this.getUserActiveAddress(userId);
+    const userLat = location.coordinates[1];
+    const userLng = location.coordinates[0];
+
     const errands = await this.prisma.errand.findMany({
       where: {
         status: 'OPEN',
-        clientId: { not: userId },
+        ...(clientId && { clientId: { not: clientId } }),
       },
       include: {
         reviews: true,
@@ -844,13 +889,26 @@ export class ErrandsService {
     const total = await this.prisma.errand.count({
       where: {
         status: 'OPEN',
-        clientId: { not: userId },
+        ...(clientId && { clientId: { not: clientId } }),
       },
     });
 
     const page = Math.floor(skip / limit) + 1;
     return this.buildPaginatedResponse(
-      errands.map((e) => ({ ...e, distance: 0 })),
+      errands.map((e) => {
+        const location = e.location as unknown as GeoPoint;
+        return {
+          ...e,
+          distance: location?.coordinates
+            ? this.calculateDistance(
+                userLat,
+                userLng,
+                location.coordinates[1],
+                location.coordinates[0],
+              )
+            : 0,
+        };
+      }),
       total,
       page,
       limit,
@@ -876,10 +934,15 @@ export class ErrandsService {
       }
     }
 
+    // Get the user's client record and active address
+    const { location, clientId } = await this.getUserActiveAddress(userId);
+    const userLat = location.coordinates[1];
+    const userLng = location.coordinates[0];
+
     const errands = await this.prisma.errand.findMany({
       where: {
         status: 'OPEN',
-        clientId: { not: userId },
+        ...(clientId && { clientId: { not: clientId } }),
         OR: [
           { title: { contains: keyword, mode: 'insensitive' } },
           { description: { contains: keyword, mode: 'insensitive' } },
@@ -898,7 +961,7 @@ export class ErrandsService {
     const total = await this.prisma.errand.count({
       where: {
         status: 'OPEN',
-        clientId: { not: userId },
+        ...(clientId && { clientId: { not: clientId } }),
         OR: [
           { title: { contains: keyword, mode: 'insensitive' } },
           { description: { contains: keyword, mode: 'insensitive' } },
@@ -910,11 +973,48 @@ export class ErrandsService {
 
     const page = Math.floor(skip / limit) + 1;
     return this.buildPaginatedResponse(
-      errands.map((e) => ({ ...e, distance: 0 })),
+      errands.map((e) => {
+        const location = e.location as unknown as GeoPoint;
+        return {
+          ...e,
+          distance: location?.coordinates
+            ? this.calculateDistance(
+                userLat,
+                userLng,
+                location.coordinates[1],
+                location.coordinates[0],
+              )
+            : 0,
+        };
+      }),
       total,
       page,
       limit,
     );
+  }
+
+  /**
+   * Calculate distance between two geographic points using Haversine formula
+   * Returns distance in meters
+   */
+  private calculateDistance(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ): number {
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = (lat1 * Math.PI) / 180;
+    const φ2 = (lat2 * Math.PI) / 180;
+    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+    const a =
+      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // Distance in meters
   }
 
   /**
@@ -941,7 +1041,7 @@ export class ErrandsService {
     page: number,
     limit: number,
   ): Promise<PaginatedErrands> {
-    // Enrich each errand with clientName and clientRating
+    // Enrich each errand with client data, clientName and clientRating
     const enriched = await Promise.all(
       errands.map(async (errand) => {
         // Fetch client user name
@@ -956,8 +1056,10 @@ export class ErrandsService {
         });
         return {
           ...errand,
+          client, // Add the full client object for GraphQL
           clientName: client?.user?.name ?? null,
           clientRating: avg._avg?.rating ?? null,
+          distance: errand.distance ?? 0, // Explicitly preserve distance from aggregation
         };
       }),
     );
