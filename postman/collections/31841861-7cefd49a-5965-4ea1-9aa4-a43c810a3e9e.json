@@ -1,7 +1,7 @@
 {
 	"info": {
 		"_postman_id": "31841861-7cefd49a-5965-4ea1-9aa4-a43c810a3e9e",
-		"name": "Postman Collection (from GraphQL)",
+		"name": "Errandy Collection - GraphQL",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
@@ -1002,7 +1002,7 @@
 	"variable": [
 		{
 			"key": "url",
-			"value": "",
+			"value": "http://localhost:3500/graphql",
 			"type": "any",
 			"description": "URL for the request."
 		}

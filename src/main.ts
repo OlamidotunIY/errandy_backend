@@ -2,13 +2,16 @@ import { NestFactory } from '@nestjs/core';
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { graphqlUploadExpress } from 'graphql-upload-ts';
+import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     bodyParser: false,
   });
 
-  const allowedOrigins = ['http://localhost:5173'];
+  const configService = app.get(ConfigService);
+
+  const allowedOrigins = ['http://localhost:3000'];
 
   app.enableCors({
     origin: allowedOrigins,
@@ -44,7 +47,9 @@ async function bootstrap() {
   );
   app.use(graphqlUploadExpress({ maxFileSize: 10000000, maxFiles: 10 }));
 
-  await app.listen(3001);
+  const port = configService.get<number>('PORT', 3001);
+  await app.listen(port);
+  console.log(`🚀 Application is running on: http://localhost:${port}`);
 }
 bootstrap().catch((error) => {
   console.error('Failed to start microservice:', error);
