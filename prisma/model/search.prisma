@@ -4,4 +4,6 @@ model Search {
 
     Worker   Worker? @relation(fields: [workerId], references: [id])
     workerId String? @db.ObjectId
+
+    @@map("searches")
 }

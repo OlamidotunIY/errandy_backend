@@ -6,4 +6,6 @@ model Client {
     user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
     Errands         Errand[]
     ratings         Rating[]
+
+    @@map("clients")
 }

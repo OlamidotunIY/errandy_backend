@@ -10,4 +10,6 @@ model Rating {
 	// Relations
 	errand    Errand?  @relation(fields: [errandId], references: [id])
 	ratee     Client   @relation(fields: [rateeId], references: [id])
+
+	@@map("ratings")
 }

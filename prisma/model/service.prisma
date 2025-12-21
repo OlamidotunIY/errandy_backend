@@ -8,6 +8,8 @@ model ServiceCategory {
   name     String              @unique
   type     ServiceCategoryType
   services Service[]
+
+  @@map("serviceCategories")
 }
 
 model Service {
@@ -17,6 +19,8 @@ model Service {
   categoryId String              @db.ObjectId
   category   ServiceCategory     @relation(fields: [categoryId], references: [id])
   workers    ServicesOnWorkers[]
+
+  @@map("services")
 }
 
 model ServicesOnWorkers {
@@ -28,4 +32,5 @@ model ServicesOnWorkers {
   worker  Worker  @relation(fields: [workerId], references: [id])
 
   @@unique([workerId, serviceId])
+  @@map("servicesOnWorkers")
 }
