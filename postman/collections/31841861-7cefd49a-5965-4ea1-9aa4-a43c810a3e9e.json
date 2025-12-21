@@ -1,0 +1,1010 @@
+{
+	"info": {
+		"_postman_id": "31841861-7cefd49a-5965-4ea1-9aa4-a43c810a3e9e",
+		"name": "Postman Collection (from GraphQL)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "mutations",
+			"item": [
+				{
+					"name": "addAddress",
+					"id": "31841861-f5f337ca-690d-4b15-aad5-ad0181f22eec",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "mutation addAddress ($dto: CreateAddressInput!) {\n    addAddress (dto: $dto) {\n        activeAddressId\n        activeRole\n        country\n        createdAt\n        displayUsername\n        email\n        emailVerified\n        id\n        image\n        name\n        onboardingProgress\n        phoneNumber\n        phoneNumberVerified\n        twoFactorEnabled\n        updatedAt\n        username\n    }\n}",
+								"variables": "{\n  \"dto\": {\n    \"address\": \"\",\n    \"label\": \"\",\n    \"latitude\": \"\",\n    \"longitude\": \"\"\n  }\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "addWorkerServices",
+					"id": "31841861-a470cca2-5387-4707-b341-fe5f9024e259",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "mutation addWorkerServices ($dto: AddWorkerServicesInput!) {\n    addWorkerServices (dto: $dto) {\n        activeAddressId\n        activeRole\n        country\n        createdAt\n        displayUsername\n        email\n        emailVerified\n        id\n        image\n        name\n        onboardingProgress\n        phoneNumber\n        phoneNumberVerified\n        twoFactorEnabled\n        updatedAt\n        username\n    }\n}",
+								"variables": "{\n  \"dto\": {\n    \"serviceIds\": [\n      0\n    ]\n  }\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "clearSearchHistory",
+					"id": "31841861-eea95bc9-bfb1-4c76-87f9-1ad53197b735",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "mutation clearSearchHistory {\n    clearSearchHistory\n}",
+								"variables": "{}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "createApplication",
+					"id": "31841861-5b3ab67b-3842-4605-b6f8-f40abc9574da",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "mutation createApplication ($createApplicationInput: CreateApplicationInput!) {\n    createApplication (createApplicationInput: $createApplicationInput) {\n        exampleField\n    }\n}",
+								"variables": "{\n  \"createApplicationInput\": {\n    \"exampleField\": 0\n  }\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "createChat",
+					"id": "31841861-4bd0245c-1ce7-4427-b576-f52d81a16a29",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "mutation createChat ($createChatInput: CreateChatInput!) {\n    createChat (createChatInput: $createChatInput) {\n        exampleField\n    }\n}",
+								"variables": "{\n  \"createChatInput\": {\n    \"exampleField\": 0\n  }\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "createErrand",
+					"id": "31841861-7a43eca6-5c49-4b49-973f-0f7d95010093",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "mutation createErrand ($createErrandInput: CreateErrandInput!) {\n    createErrand (createErrandInput: $createErrandInput) {\n        applicationDeadline\n        assignedTo\n        clientId\n        completionDeadline\n        createdAt\n        description\n        hourlyRate\n        id\n        latitude\n        longitude\n        price\n        pricingType\n        profession\n        service\n        serviceAddress\n        status\n        title\n        updatedAt\n        workerType\n    }\n}",
+								"variables": "{\n  \"createErrandInput\": {\n    \"title\": \"\"\n  }\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "createReview",
+					"id": "31841861-21eeb17e-24a6-4d51-84ef-c838e26e292e",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "mutation createReview ($createReviewInput: CreateReviewInput!) {\n    createReview (createReviewInput: $createReviewInput) {\n        comment\n        createdAt\n        errandId\n        id\n        rating\n        reviewerId\n        workerId\n    }\n}",
+								"variables": "{\n  \"createReviewInput\": {\n    \"exampleField\": 0\n  }\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "createUserRole",
+					"id": "31841861-54526de1-df9f-4155-bed7-3638fe3d2968",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "mutation createUserRole ($role: String!) {\n    createUserRole (role: $role) {\n        activeAddressId\n        activeRole\n        country\n        createdAt\n        displayUsername\n        email\n        emailVerified\n        id\n        image\n        name\n        onboardingProgress\n        phoneNumber\n        phoneNumberVerified\n        twoFactorEnabled\n        updatedAt\n        username\n    }\n}",
+								"variables": "{\n  \"role\": \"\"\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "createWallet",
+					"id": "31841861-cd7becce-8070-413e-a642-b86e0f8b1127",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "mutation createWallet ($createWalletInput: CreateWalletInput!) {\n    createWallet (createWalletInput: $createWalletInput) {\n        exampleField\n    }\n}",
+								"variables": "{\n  \"createWalletInput\": {\n    \"exampleField\": 0\n  }\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "removeApplication",
+					"id": "31841861-18d39f11-36e0-49d5-b99a-4e4abeab4752",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "mutation removeApplication ($id: Int!) {\n    removeApplication (id: $id) {\n        exampleField\n    }\n}",
+								"variables": "{\n  \"id\": 0\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "removeChat",
+					"id": "31841861-56c19acc-4433-469f-a937-10cdac02f7d0",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "mutation removeChat ($id: Int!) {\n    removeChat (id: $id) {\n        exampleField\n    }\n}",
+								"variables": "{\n  \"id\": 0\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "removeErrand",
+					"id": "31841861-7d924ce9-dd9b-448e-a1b0-0090bdcf921a",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "mutation removeErrand ($id: ID!) {\n    removeErrand (id: $id) {\n        applicationDeadline\n        assignedTo\n        clientId\n        completionDeadline\n        createdAt\n        description\n        hourlyRate\n        id\n        latitude\n        longitude\n        price\n        pricingType\n        profession\n        service\n        serviceAddress\n        status\n        title\n        updatedAt\n        workerType\n    }\n}",
+								"variables": "{\n  \"id\": 0\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "removeReview",
+					"id": "31841861-381d6328-0d2c-4ec5-9125-12984e91b5f4",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "mutation removeReview ($id: Int!) {\n    removeReview (id: $id) {\n        comment\n        createdAt\n        errandId\n        id\n        rating\n        reviewerId\n        workerId\n    }\n}",
+								"variables": "{\n  \"id\": 0\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "removeWallet",
+					"id": "31841861-2f25c107-4649-43b5-b5a2-57ace6251bc2",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "mutation removeWallet ($id: Int!) {\n    removeWallet (id: $id) {\n        exampleField\n    }\n}",
+								"variables": "{\n  \"id\": 0\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "saveUserAddress",
+					"id": "31841861-1e8f8252-77bb-4753-bb62-72fcd4cb02e1",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "mutation saveUserAddress ($dto: SaveUserAddressInput!) {\n    saveUserAddress (dto: $dto) {\n        activeAddressId\n        activeRole\n        country\n        createdAt\n        displayUsername\n        email\n        emailVerified\n        id\n        image\n        name\n        onboardingProgress\n        phoneNumber\n        phoneNumberVerified\n        twoFactorEnabled\n        updatedAt\n        username\n    }\n}",
+								"variables": "{\n  \"dto\": {\n    \"address\": \"\",\n    \"label\": \"\",\n    \"latitude\": \"\",\n    \"longitude\": \"\"\n  }\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "updateApplication",
+					"id": "31841861-8343b8f5-02c2-46b2-9a1c-55859e299569",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "mutation updateApplication ($updateApplicationInput: UpdateApplicationInput!) {\n    updateApplication (updateApplicationInput: $updateApplicationInput) {\n        exampleField\n    }\n}",
+								"variables": "{\n  \"updateApplicationInput\": {\n    \"exampleField\": 0,\n    \"id\": 0\n  }\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "updateChat",
+					"id": "31841861-08489fa9-7d18-4972-8927-c9154aff5e18",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "mutation updateChat ($updateChatInput: UpdateChatInput!) {\n    updateChat (updateChatInput: $updateChatInput) {\n        exampleField\n    }\n}",
+								"variables": "{\n  \"updateChatInput\": {\n    \"exampleField\": 0,\n    \"id\": 0\n  }\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "updateErrand",
+					"id": "31841861-51a147a9-ef86-4411-943c-e9e671ab4eca",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "mutation updateErrand ($updateErrandInput: UpdateErrandInput!) {\n    updateErrand (updateErrandInput: $updateErrandInput) {\n        applicationDeadline\n        assignedTo\n        clientId\n        completionDeadline\n        createdAt\n        description\n        hourlyRate\n        id\n        latitude\n        longitude\n        price\n        pricingType\n        profession\n        service\n        serviceAddress\n        status\n        title\n        updatedAt\n        workerType\n    }\n}",
+								"variables": "{\n  \"updateErrandInput\": {\n    \"applicationDeadline\": \"\",\n    \"assignedTo\": \"\",\n    \"completionDeadline\": \"\",\n    \"description\": \"\",\n    \"hourlyRate\": \"\",\n    \"id\": \"\",\n    \"location\": \"\",\n    \"price\": \"\",\n    \"pricingType\": \"\",\n    \"profession\": \"\",\n    \"service\": \"\",\n    \"serviceAddress\": \"\",\n    \"status\": \"\",\n    \"title\": \"\",\n    \"workerType\": \"\"\n  }\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "updateReview",
+					"id": "31841861-16f99866-4a2a-40e1-83e9-b021c2d70424",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "mutation updateReview ($updateReviewInput: UpdateReviewInput!) {\n    updateReview (updateReviewInput: $updateReviewInput) {\n        comment\n        createdAt\n        errandId\n        id\n        rating\n        reviewerId\n        workerId\n    }\n}",
+								"variables": "{\n  \"updateReviewInput\": {\n    \"exampleField\": 0,\n    \"id\": 0\n  }\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "updateUser",
+					"id": "31841861-64d53722-03ba-4beb-9eae-d1c0fd98f3e1",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "mutation updateUser ($updateUserInput: UpdateUserInput!) {\n    updateUser (updateUserInput: $updateUserInput) {\n        activeAddressId\n        activeRole\n        country\n        createdAt\n        displayUsername\n        email\n        emailVerified\n        id\n        image\n        name\n        onboardingProgress\n        phoneNumber\n        phoneNumberVerified\n        twoFactorEnabled\n        updatedAt\n        username\n    }\n}",
+								"variables": "{\n  \"updateUserInput\": {\n    \"displayUsername\": \"\",\n    \"exampleField\": 0,\n    \"id\": \"\",\n    \"image\": \"\",\n    \"name\": \"\",\n    \"phoneNumber\": \"\",\n    \"role\": \"\",\n    \"username\": \"\"\n  }\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "updateWallet",
+					"id": "31841861-585c1090-6a2c-44d4-ae10-3cdd7e7d1382",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "mutation updateWallet ($updateWalletInput: UpdateWalletInput!) {\n    updateWallet (updateWalletInput: $updateWalletInput) {\n        exampleField\n    }\n}",
+								"variables": "{\n  \"updateWalletInput\": {\n    \"exampleField\": 0,\n    \"id\": 0\n  }\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "useCurrentAddress",
+					"id": "31841861-39ccd419-3fb6-461a-a081-510d799eb695",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "mutation useCurrentAddress ($input: ReverseGeocodeInput!) {\n    useCurrentAddress (input: $input) {\n        activeAddressId\n        activeRole\n        country\n        createdAt\n        displayUsername\n        email\n        emailVerified\n        id\n        image\n        name\n        onboardingProgress\n        phoneNumber\n        phoneNumberVerified\n        twoFactorEnabled\n        updatedAt\n        username\n    }\n}",
+								"variables": "{\n  \"input\": {\n    \"latitude\": \"\",\n    \"longitude\": \"\"\n  }\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"id": "31841861-014a5130-4772-4292-82df-eda09dff5ea5"
+		},
+		{
+			"name": "queries",
+			"item": [
+				{
+					"name": "application",
+					"id": "31841861-c609f796-72cd-4a22-bad0-408a2d606543",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "query application ($id: Int!) {\n    application (id: $id) {\n        exampleField\n    }\n}",
+								"variables": "{\n  \"id\": 0\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "chat",
+					"id": "31841861-1644ff03-d3f4-4720-ab2e-21368c4baa59",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "query chat ($id: Int!) {\n    chat (id: $id) {\n        exampleField\n    }\n}",
+								"variables": "{\n  \"id\": 0\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "errand",
+					"id": "31841861-44792db0-95d9-4177-a265-d241d3c50a46",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "query errand ($id: ID!) {\n    errand (id: $id) {\n        applicationDeadline\n        assignedTo\n        clientId\n        completionDeadline\n        createdAt\n        description\n        hourlyRate\n        id\n        latitude\n        longitude\n        price\n        pricingType\n        profession\n        service\n        serviceAddress\n        status\n        title\n        updatedAt\n        workerType\n    }\n}",
+								"variables": "{\n  \"id\": 0\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "errands",
+					"id": "31841861-7c6b99f2-006a-4261-a570-3eb25b642285",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "query errands ($dto: GetAllErrandInput!) {\n    errands (dto: $dto) {\n        applicationDeadline\n        assignedTo\n        clientId\n        completionDeadline\n        createdAt\n        description\n        hourlyRate\n        id\n        latitude\n        longitude\n        price\n        pricingType\n        profession\n        service\n        serviceAddress\n        status\n        title\n        updatedAt\n        workerType\n    }\n}",
+								"variables": "{\n  \"dto\": {\n    \"maxDistanceKm\": \"\",\n    \"status\": \"\"\n  }\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "getErrands",
+					"id": "31841861-7ae0f69b-d4a5-4fcb-8097-3afa2a2300c2",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "query getErrands ($input: ErrandQueryInput!) {\n    getErrands (input: $input) {\n        hasNextPage\n        hasPreviousPage\n        limit\n        page\n        total\n        totalPages\n    }\n}",
+								"variables": "{\n  \"input\": {\n    \"maxDistanceKm\": \"\",\n    \"pagination\": {\n      \"limit\": 0,\n      \"page\": 0\n    },\n    \"search\": \"\",\n    \"type\": \"\"\n  }\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "placeDetails",
+					"id": "31841861-dd3f1cd5-9c22-42ab-90c4-3cd07ea968a1",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "query placeDetails ($input: PlaceDetailsInput!) {\n    placeDetails (input: $input) {\n        formattedAddress\n        latitude\n        longitude\n    }\n}",
+								"variables": "{\n  \"input\": {\n    \"placeId\": \"\"\n  }\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "review",
+					"id": "31841861-9dc6d9aa-ade8-4d80-a1e3-34da627c1f3d",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "query review ($id: Int!) {\n    review (id: $id) {\n        comment\n        createdAt\n        errandId\n        id\n        rating\n        reviewerId\n        workerId\n    }\n}",
+								"variables": "{\n  \"id\": 0\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "service",
+					"id": "31841861-0029daef-0a0f-49b8-acf2-3bcd8a51b4d2",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "query service ($id: ID!) {\n    service (id: $id) {\n        categoryId\n        id\n        name\n        type\n    }\n}",
+								"variables": "{\n  \"id\": 0\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "serviceCategories",
+					"id": "31841861-521f0ab3-50e5-4917-a55b-9cd2a286e852",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "query serviceCategories ($input: GetServiceCategoriesInput) {\n    serviceCategories (input: $input) {\n        id\n        name\n        type\n    }\n}",
+								"variables": "{\n  \"input\": {\n    \"type\": \"\"\n  }\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "services",
+					"id": "31841861-abb90e97-3994-4fee-8169-bfda845bfc06",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "query services ($categoryType: ServiceCategoryType) {\n    services (categoryType: $categoryType) {\n        categoryId\n        id\n        name\n        type\n    }\n}",
+								"variables": "{\n  \"categoryType\": \"\"\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "suggestAddresses",
+					"id": "31841861-ec1cf720-8ea3-4fa5-82cf-984bcbf59382",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "query suggestAddresses ($input: SuggestAddressInput!) {\n    suggestAddresses (input: $input) {\n        description\n        placeId\n    }\n}",
+								"variables": "{\n  \"input\": {\n    \"input\": \"\"\n  }\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "user",
+					"id": "31841861-cd9c6791-23ec-4049-8896-bb2d6376ef16",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "query user {\n    user {\n        activeAddressId\n        activeRole\n        country\n        createdAt\n        displayUsername\n        email\n        emailVerified\n        id\n        image\n        name\n        onboardingProgress\n        phoneNumber\n        phoneNumberVerified\n        twoFactorEnabled\n        updatedAt\n        username\n    }\n}",
+								"variables": "{}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "userSearchHistory",
+					"id": "31841861-05414641-8683-4930-97e1-a521b73d5274",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "query userSearchHistory {\n    userSearchHistory {\n        createdAt\n        id\n        keyword\n        updatedAt\n        workerId\n    }\n}",
+								"variables": "{}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "wallet",
+					"id": "31841861-1c616d7c-f700-4692-80c6-0cf015af37b8",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "query wallet ($id: Int!) {\n    wallet (id: $id) {\n        exampleField\n    }\n}",
+								"variables": "{\n  \"id\": 0\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"id": "31841861-12f541e1-72d6-43e9-a1dc-e284518ccdc1"
+		},
+		{
+			"name": "subscriptions",
+			"item": [
+				{
+					"name": "errandCreated",
+					"id": "31841861-06b61b4e-af72-4539-a77b-6b27fd415d8d",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "subscription errandCreated {\n    errandCreated {\n        distance\n        type\n        userId\n    }\n}",
+								"variables": "{}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "errandDeleted",
+					"id": "31841861-55ac99e3-607a-45cb-8314-71c199670c51",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "subscription errandDeleted {\n    errandDeleted {\n        distance\n        type\n        userId\n    }\n}",
+								"variables": "{}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "errandUpdated",
+					"id": "31841861-4d23b8c9-c4e4-4fc7-a24a-f74490676553",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "subscription errandUpdated {\n    errandUpdated {\n        distance\n        type\n        userId\n    }\n}",
+								"variables": "{}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"id": "31841861-39684658-f1c9-4c7a-be96-a6f75ebace9d"
+		}
+	],
+	"variable": [
+		{
+			"key": "url",
+			"value": "",
+			"type": "any",
+			"description": "URL for the request."
+		}
+	]
+}
