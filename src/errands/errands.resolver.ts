@@ -55,6 +55,16 @@ export class ErrandsResolver {
     @Args('input') input: ErrandQueryInput,
     @CurrentUser() user: User,
   ) {
+    console.log('ErrandsResolver.getErrands - Raw input:', input);
+    console.log('ErrandsResolver.getErrands - Input type:', typeof input);
+    console.log(
+      'ErrandsResolver.getErrands - Input keys:',
+      Object.keys(input || {}),
+    );
+    console.log(
+      'ErrandsResolver.getErrands received input:',
+      JSON.stringify(input, null, 2),
+    );
     return this.errandsService.getErrands(input, user.id);
   }
 

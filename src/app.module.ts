@@ -35,7 +35,25 @@ import { RatingModule } from './rating/rating.module';
         return {
           installSubscriptionHandlers: true,
           playground: false,
-          plugins: [ApolloServerPluginLandingPageLocalDefault()],
+          plugins: [
+            ApolloServerPluginLandingPageLocalDefault(),
+            {
+              async requestDidStart() {
+                return {
+                  async didResolveOperation(requestContext) {
+                    console.log(
+                      'GraphQL Operation:',
+                      requestContext.operationName,
+                    );
+                    console.log(
+                      'GraphQL Variables:',
+                      JSON.stringify(requestContext.request.variables, null, 2),
+                    );
+                  },
+                };
+              },
+            },
+          ],
           autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
           sortSchema: true,
           subscription: {

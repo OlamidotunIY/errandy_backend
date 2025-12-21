@@ -106,7 +106,7 @@ input ErrandQueryInput {
   search: String
 
   """Type of errand feed to retrieve"""
-  type: String! = "feed"
+  type: ErrandType = FEED
 }
 
 enum ErrandStatus {
@@ -122,6 +122,15 @@ type ErrandSubscriptionPayload {
   errand: Errand!
   type: String!
   userId: String
+}
+
+"""Type of errand feed to retrieve"""
+enum ErrandType {
+  BEST_MATCH
+  FEED
+  MOST_RECENT
+  SAVED
+  SEARCH
 }
 
 type ErrandWithClient {
