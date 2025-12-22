@@ -18,8 +18,18 @@ type AddressSuggestion {
 }
 
 type Application {
-  """Example field (placeholder)"""
-  exampleField: Int!
+  createdAt: DateTime!
+  errandId: String!
+  id: ID!
+  status: ApplicationStatus!
+  workerId: String!
+}
+
+enum ApplicationStatus {
+  ACCEPTED
+  CANCELLED
+  PENDING
+  REJECTED
 }
 
 type Chat {
@@ -42,8 +52,7 @@ input CreateAddressInput {
 }
 
 input CreateApplicationInput {
-  """Example field (placeholder)"""
-  exampleField: Int!
+  errandId: String!
 }
 
 input CreateChatInput {
@@ -146,6 +155,7 @@ type ErrandWithClient {
   distance: Float
   hourlyRate: Float
   id: String!
+  isSaved: Boolean
   latitude: Float
   longitude: Float
   price: Float
@@ -177,22 +187,21 @@ input GetServiceCategoriesInput {
 type Mutation {
   addAddress(dto: CreateAddressInput!): User!
   addWorkerServices(dto: AddWorkerServicesInput!): User!
+  apply(createApplicationInput: CreateApplicationInput!): Application!
 
   """Clear user search history"""
   clearSearchHistory: Boolean!
-  createApplication(createApplicationInput: CreateApplicationInput!): Application!
   createChat(createChatInput: CreateChatInput!): Chat!
   createErrand(createErrandInput: CreateErrandInput!): Errand!
   createReview(createReviewInput: CreateReviewInput!): Review!
   createUserRole(role: String!): User!
   createWallet(createWalletInput: CreateWalletInput!): Wallet!
-  removeApplication(id: Int!): Application!
   removeChat(id: Int!): Chat!
   removeErrand(id: ID!): Errand!
   removeReview(id: Int!): Review!
   removeWallet(id: Int!): Wallet!
+  saveErrand(errandId: ID!): SaveErrand!
   saveUserAddress(dto: SaveUserAddressInput!): User!
-  updateApplication(updateApplicationInput: UpdateApplicationInput!): Application!
   updateChat(updateChatInput: UpdateChatInput!): Chat!
   updateErrand(updateErrandInput: UpdateErrandInput!): Errand!
   updateReview(updateReviewInput: UpdateReviewInput!): Review!
@@ -237,7 +246,6 @@ enum PricingType {
 }
 
 type Query {
-  application(id: Int!): Application!
   chat(id: Int!): Chat!
   errand(id: ID!): Errand!
   errands(dto: GetAllErrandInput!): [Errand!]!
@@ -272,6 +280,12 @@ type Review {
   rating: Int!
   reviewerId: String!
   workerId: String!
+}
+
+type SaveErrand {
+  errandId: String!
+  id: String!
+  userId: String!
 }
 
 input SaveUserAddressInput {
@@ -322,12 +336,6 @@ type Subscription {
 
 input SuggestAddressInput {
   input: String!
-}
-
-input UpdateApplicationInput {
-  """Example field (placeholder)"""
-  exampleField: Int
-  id: Int!
 }
 
 input UpdateChatInput {

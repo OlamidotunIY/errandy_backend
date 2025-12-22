@@ -3,18 +3,20 @@ import { ApplicationService } from './application.service';
 import { Application } from './entities/application.entity';
 import { CreateApplicationInput } from './dto/create-application.input';
 import { UseGuards } from '@nestjs/common';
-import { AuthGuard, Session, UserSession } from '@thallesp/nestjs-better-auth';
+import { GqlAuthGuard } from 'src/auth/guard/graphql-auth.guard';
+import { CurrentUser } from 'src/auth/decorator/current-user.decorator';
+import { User } from 'src/users/entities/user.entity';
 
 @Resolver(() => Application)
 export class ApplicationResolver {
   constructor(private readonly applicationService: ApplicationService) {}
 
-  @UseGuards(AuthGuard)
+  @UseGuards(GqlAuthGuard)
   @Mutation(() => Application)
   apply(
     @Args('createApplicationInput') createApplicationInput: CreateApplicationInput,
-    @Session() session: UserSession,
+    @CurrentUser() user: User,
   ) {
-    return this.applicationService.apply(createApplicationInput, session.user.id);
+    return this.applicationService.apply(createApplicationInput, user.id);
   }
 }

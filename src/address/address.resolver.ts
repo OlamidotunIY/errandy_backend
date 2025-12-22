@@ -10,11 +10,12 @@ import {
   AddressDetails,
 } from './entities/address-suggestion.entity';
 import { SaveUserAddressInput } from './dto/save-user-address.input';
-import { User as GqlUser } from 'src/users/entities/user.entity';
-import { AuthGuard, Session, UserSession } from '@thallesp/nestjs-better-auth';
+import { User as GqlUser, User } from 'src/users/entities/user.entity';
+import { GqlAuthGuard } from 'src/auth/guard/graphql-auth.guard';
+import { CurrentUser } from 'src/auth/decorator/current-user.decorator';
 
 @Resolver()
-@UseGuards(AuthGuard)
+@UseGuards(GqlAuthGuard)
 export class AddressResolver {
   constructor(
     private readonly addressService: AddressService,
@@ -41,7 +42,7 @@ export class AddressResolver {
   @Mutation(() => GqlUser, { name: 'useCurrentAddress' })
   async useCurrentAddress(
     @Args('input') input: ReverseGeocodeInput,
-    @Session() session: UserSession,
+    @CurrentUser() user: User,
   ): Promise<any> {
     const details = await this.addressService.reverseGeocode(input);
     // Prepare CreateAddressInput for service
@@ -51,14 +52,14 @@ export class AddressResolver {
       latitude: details.latitude,
       longitude: details.longitude,
     };
-    return this.usersService.addAddress(createDto, session.user.id);
+    return this.usersService.addAddress(createDto, user.id);
   }
 
   @Mutation(() => GqlUser, { name: 'saveUserAddress' })
   saveUserAddress(
     @Args('dto') dto: SaveUserAddressInput,
-    @Session() session: UserSession,
+    @CurrentUser() user: User,
   ): Promise<any> {
-    return this.usersService.addAddress(dto, session.user.id);
+    return this.usersService.addAddress(dto, user.id);
   }
 }

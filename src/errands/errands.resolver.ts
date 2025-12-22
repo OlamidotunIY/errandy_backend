@@ -15,8 +15,10 @@ import { PaginatedErrands } from './entities/paginated-errands.entity';
 import { ErrandSubscriptionPayload } from './entities/errand-subscription.entity';
 import { UseGuards, Inject } from '@nestjs/common';
 import { GetAllErrandInput } from './dto/get-all-errand.input';
-import { AuthGuard, Session, UserSession } from '@thallesp/nestjs-better-auth';
 import { SaveErrand } from './entities/saveErrand.entity';
+import { GqlAuthGuard } from 'src/auth/guard/graphql-auth.guard';
+import { CurrentUser } from 'src/auth/decorator/current-user.decorator';
+import { User } from 'src/users/entities/user.entity';
 // PubSub interface
 interface PubSub {
   publish(event: string, data: any): Promise<void>;
@@ -30,25 +32,25 @@ export class ErrandsResolver {
     @Inject('PUB_SUB') private readonly pubSub: PubSub,
   ) {}
 
-  @UseGuards(AuthGuard)
+  @UseGuards(GqlAuthGuard)
   @Mutation(() => Errand)
   createErrand(
     @Args('createErrandInput') createErrandInput: CreateErrandInput,
-    @Session() session: UserSession,
+    @CurrentUser() user: User,
   ) {
-    return this.errandsService.create(createErrandInput, session.user.id);
+    return this.errandsService.create(createErrandInput, user.id);
   }
 
-  @UseGuards(AuthGuard)
+  @UseGuards(GqlAuthGuard)
   @Query(() => [Errand], { name: 'errands' })
   findAll(
     @Args('dto') dto: GetAllErrandInput,
-    @Session() session: UserSession,
+    @CurrentUser() user: User,
   ) {
-    return this.errandsService.findAll(dto, session.user.id);
+    return this.errandsService.findAll(dto, user.id);
   }
 
-  @UseGuards(AuthGuard)
+  @UseGuards(GqlAuthGuard)
   @Query(() => PaginatedErrands, {
     name: 'getErrands',
     description:
@@ -56,18 +58,18 @@ export class ErrandsResolver {
   })
   getErrands(
     @Args('input') input: ErrandQueryInput,
-    @Session() session: UserSession,
+    @CurrentUser() user: User,
   ) {
-    return this.errandsService.getErrands(input, session.user.id);
+    return this.errandsService.getErrands(input, user.id);
   }
 
-  @UseGuards(AuthGuard)
+  @UseGuards(GqlAuthGuard)
   @Query(() => Errand, { name: 'errand' })
   findOne(@Args('id', { type: () => ID }) id: string) {
     return this.errandsService.findOne(id);
   }
 
-  @UseGuards(AuthGuard)
+  @UseGuards(GqlAuthGuard)
   @Mutation(() => Errand)
   updateErrand(
     @Args('updateErrandInput') updateErrandInput: UpdateErrandInput,
@@ -75,19 +77,19 @@ export class ErrandsResolver {
     return this.errandsService.update(updateErrandInput);
   }
 
-  @UseGuards(AuthGuard)
+  @UseGuards(GqlAuthGuard)
   @Mutation(() => Errand)
   removeErrand(@Args('id', { type: () => ID }) id: string) {
     return this.errandsService.remove(id);
   }
 
-  @UseGuards(AuthGuard)
+  @UseGuards(GqlAuthGuard)
   @Mutation(() => SaveErrand)
   saveErrand(
     @Args('errandId', { type: () => ID }) errandId: string,
-    @Session() session: UserSession,
+    @CurrentUser() user: User,
   ) {
-    return this.errandsService.saveErrand(errandId, session.user.id);
+    return this.errandsService.saveErrand(errandId, user.id);
   }
 
   // Real-time Subscriptions

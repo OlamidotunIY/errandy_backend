@@ -10,7 +10,7 @@
 			"item": [
 				{
 					"name": "addAddress",
-					"id": "31841861-mjhd1jnb-l5jsw5a2gx",
+					"id": "31841861-mjhdzkcz-1rhx951pelk",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -35,7 +35,7 @@
 				},
 				{
 					"name": "addWorkerServices",
-					"id": "31841861-mjhd1jnc-j1d44an5ljp",
+					"id": "31841861-mjhdzkd0-8yfix1kcp5r",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -59,8 +59,33 @@
 					"response": []
 				},
 				{
+					"name": "apply",
+					"id": "31841861-mjhdzkd0-xtp2al1tmn",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "mutation ($createApplicationInput: CreateApplicationInput!) {\n    apply (createApplicationInput: $createApplicationInput) {\n        createdAt\n        errandId\n        id\n        status\n        workerId\n    }\n}",
+								"variables": "{\n  \"createApplicationInput\": {\n    \"errandId\": \"\"\n  }\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
 					"name": "clearSearchHistory",
-					"id": "31841861-mjhd1jnc-ishajoiz58l",
+					"id": "31841861-mjhdzkd0-5ommai37kz4",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -84,33 +109,8 @@
 					"response": []
 				},
 				{
-					"name": "createApplication",
-					"id": "31841861-mjhd1jnd-xnfa5qak4a",
-					"protocolProfileBehavior": {
-						"disableBodyPruning": true
-					},
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "graphql",
-							"graphql": {
-								"query": "mutation ($createApplicationInput: CreateApplicationInput!) {\n    createApplication (createApplicationInput: $createApplicationInput) {\n        exampleField\n    }\n}",
-								"variables": "{\n  \"createApplicationInput\": {\n    \"exampleField\": 0\n  }\n}"
-							}
-						},
-						"url": {
-							"raw": "{{url}}",
-							"host": [
-								"{{url}}"
-							]
-						}
-					},
-					"response": []
-				},
-				{
 					"name": "createChat",
-					"id": "31841861-mjhd1jnd-ndbaqd23ud",
+					"id": "31841861-mjhdzkd0-ogutv43gf2s",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -135,7 +135,7 @@
 				},
 				{
 					"name": "createErrand",
-					"id": "31841861-mjhd1jnd-te18vniyoxq",
+					"id": "31841861-mjhdzkd0-oh8lyscukq",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -160,7 +160,7 @@
 				},
 				{
 					"name": "createReview",
-					"id": "31841861-mjhd1jne-ttsyxrqbsjn",
+					"id": "31841861-mjhdzkd1-p8us1bvh4co",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -185,7 +185,7 @@
 				},
 				{
 					"name": "createUserRole",
-					"id": "31841861-mjhd1jne-83g5v7y8dth",
+					"id": "31841861-mjhdzkd1-57hchpcrqft",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -210,7 +210,7 @@
 				},
 				{
 					"name": "createWallet",
-					"id": "31841861-mjhd1jne-yuf6fzr12c9",
+					"id": "31841861-mjhdzkd1-lecdn7u5rij",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -234,33 +234,8 @@
 					"response": []
 				},
 				{
-					"name": "removeApplication",
-					"id": "31841861-mjhd1jnf-upyw1itqpv",
-					"protocolProfileBehavior": {
-						"disableBodyPruning": true
-					},
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "graphql",
-							"graphql": {
-								"query": "mutation ($id: Int!) {\n    removeApplication (id: $id) {\n        exampleField\n    }\n}",
-								"variables": "{\n  \"id\": 0\n}"
-							}
-						},
-						"url": {
-							"raw": "{{url}}",
-							"host": [
-								"{{url}}"
-							]
-						}
-					},
-					"response": []
-				},
-				{
 					"name": "removeChat",
-					"id": "31841861-mjhd1jnf-3hgn8eupe5g",
+					"id": "31841861-mjhdzkd1-jbajrqmycom",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -285,7 +260,7 @@
 				},
 				{
 					"name": "removeErrand",
-					"id": "31841861-mjhd1jnf-5gz43pd5s0h",
+					"id": "31841861-mjhdzkd1-3adxurrxl76",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -310,7 +285,7 @@
 				},
 				{
 					"name": "removeReview",
-					"id": "31841861-mjhd1jnf-5oar1oijew9",
+					"id": "31841861-mjhdzkd1-ziioq3arcg",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -335,7 +310,7 @@
 				},
 				{
 					"name": "removeWallet",
-					"id": "31841861-mjhd1jnf-ujnhyms5hn",
+					"id": "31841861-mjhdzkd1-jcku33bcjw",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -359,8 +334,33 @@
 					"response": []
 				},
 				{
+					"name": "saveErrand",
+					"id": "31841861-mjhdzkd1-9nw5yq4hfof",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "graphql",
+							"graphql": {
+								"query": "mutation ($errandId: ID!) {\n    saveErrand (errandId: $errandId) {\n        errandId\n        id\n        userId\n    }\n}",
+								"variables": "{\n  \"errandId\": \"\"\n}"
+							}
+						},
+						"url": {
+							"raw": "{{url}}",
+							"host": [
+								"{{url}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
 					"name": "saveUserAddress",
-					"id": "31841861-mjhd1jnf-r5ir3vwq32",
+					"id": "31841861-mjhdzkd1-dpca2cnt0yh",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -384,33 +384,8 @@
 					"response": []
 				},
 				{
-					"name": "updateApplication",
-					"id": "31841861-mjhd1jng-rhk4mywqfk",
-					"protocolProfileBehavior": {
-						"disableBodyPruning": true
-					},
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "graphql",
-							"graphql": {
-								"query": "mutation ($updateApplicationInput: UpdateApplicationInput!) {\n    updateApplication (updateApplicationInput: $updateApplicationInput) {\n        exampleField\n    }\n}",
-								"variables": "{\n  \"updateApplicationInput\": {\n    \"exampleField\": 0,\n    \"id\": 0\n  }\n}"
-							}
-						},
-						"url": {
-							"raw": "{{url}}",
-							"host": [
-								"{{url}}"
-							]
-						}
-					},
-					"response": []
-				},
-				{
 					"name": "updateChat",
-					"id": "31841861-mjhd1jng-yaz56scsqg",
+					"id": "31841861-mjhdzkd1-apdp05e597e",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -435,7 +410,7 @@
 				},
 				{
 					"name": "updateErrand",
-					"id": "31841861-mjhd1jng-mcczoymflvn",
+					"id": "31841861-mjhdzkd1-b5855rxdzw",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -446,7 +421,7 @@
 							"mode": "graphql",
 							"graphql": {
 								"query": "mutation ($updateErrandInput: UpdateErrandInput!) {\n    updateErrand (updateErrandInput: $updateErrandInput) {\n        applicationDeadline\n        assignedTo\n        client {\n        errands\n        id\n        user\n        userId\n        }\n        clientId\n        completionDeadline\n        createdAt\n        description\n        hourlyRate\n        id\n        latitude\n        longitude\n        price\n        pricingType\n        profession\n        reviews {\n        comment\n        createdAt\n        errandId\n        id\n        rating\n        reviewerId\n        workerId\n        }\n        service\n        serviceAddress\n        status\n        title\n        updatedAt\n        workerType\n    }\n}",
-								"variables": "{\n  \"updateErrandInput\": {\n    \"applicationDeadline\": \"2025-12-22T16:18:26.620Z\",\n    \"assignedTo\": \"\",\n    \"completionDeadline\": \"2025-12-22T16:18:26.620Z\",\n    \"description\": \"\",\n    \"hourlyRate\": 0,\n    \"id\": \"\",\n    \"location\": \"\",\n    \"price\": 0,\n    \"pricingType\": {},\n    \"profession\": \"\",\n    \"service\": \"\",\n    \"serviceAddress\": \"\",\n    \"status\": {},\n    \"title\": \"\",\n    \"workerType\": {}\n  }\n}"
+								"variables": "{\n  \"updateErrandInput\": {\n    \"applicationDeadline\": \"2025-12-22T16:44:53.846Z\",\n    \"assignedTo\": \"\",\n    \"completionDeadline\": \"2025-12-22T16:44:53.846Z\",\n    \"description\": \"\",\n    \"hourlyRate\": 0,\n    \"id\": \"\",\n    \"location\": \"\",\n    \"price\": 0,\n    \"pricingType\": {},\n    \"profession\": \"\",\n    \"service\": \"\",\n    \"serviceAddress\": \"\",\n    \"status\": {},\n    \"title\": \"\",\n    \"workerType\": {}\n  }\n}"
 							}
 						},
 						"url": {
@@ -460,7 +435,7 @@
 				},
 				{
 					"name": "updateReview",
-					"id": "31841861-mjhd1jnh-7t0t8z9bteh",
+					"id": "31841861-mjhdzkd2-ferdsnjp8zh",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -485,7 +460,7 @@
 				},
 				{
 					"name": "updateUser",
-					"id": "31841861-mjhd1jnh-w1pyoo3x52b",
+					"id": "31841861-mjhdzkd2-ievnvhxijv",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -510,7 +485,7 @@
 				},
 				{
 					"name": "updateWallet",
-					"id": "31841861-mjhd1jnh-828wujk0nwe",
+					"id": "31841861-mjhdzkd2-fm0utr1m1g4",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -535,7 +510,7 @@
 				},
 				{
 					"name": "useCurrentAddress",
-					"id": "31841861-mjhd1jnh-phlmrqw58n",
+					"id": "31841861-mjhdzkd2-triuq41yxtb",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -564,33 +539,8 @@
 			"name": "queries",
 			"item": [
 				{
-					"name": "application",
-					"id": "31841861-mjhd1jnh-pg9wzng7fqk",
-					"protocolProfileBehavior": {
-						"disableBodyPruning": true
-					},
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "graphql",
-							"graphql": {
-								"query": "query ($id: Int!) {\n    application (id: $id) {\n        exampleField\n    }\n}",
-								"variables": "{\n  \"id\": 0\n}"
-							}
-						},
-						"url": {
-							"raw": "{{url}}",
-							"host": [
-								"{{url}}"
-							]
-						}
-					},
-					"response": []
-				},
-				{
 					"name": "chat",
-					"id": "31841861-mjhd1jnh-g82tgbt6w5",
+					"id": "31841861-mjhdzkd2-9kzwab0jm6v",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -615,7 +565,7 @@
 				},
 				{
 					"name": "errand",
-					"id": "31841861-mjhd1jnh-c0dpc5qw1gl",
+					"id": "31841861-mjhdzkd2-lu7g13wl4x",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -640,7 +590,7 @@
 				},
 				{
 					"name": "errands",
-					"id": "31841861-mjhd1jnh-mr26cltcz2",
+					"id": "31841861-mjhdzkd2-nxsym60eixb",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -665,7 +615,7 @@
 				},
 				{
 					"name": "getErrands",
-					"id": "31841861-mjhd1jnh-v0i31yqb14r",
+					"id": "31841861-mjhdzkd2-e5vlday44y6",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -675,7 +625,7 @@
 						"body": {
 							"mode": "graphql",
 							"graphql": {
-								"query": "query ($input: ErrandQueryInput!) {\n    getErrands (input: $input) {\n        data {\n        applicationDeadline\n        assignedTo\n        client\n        clientId\n        clientName\n        clientRating\n        completionDeadline\n        createdAt\n        description\n        distance\n        hourlyRate\n        id\n        latitude\n        longitude\n        price\n        pricingType\n        profession\n        reviews\n        service\n        serviceAddress\n        status\n        title\n        updatedAt\n        workerType\n        }\n        hasNextPage\n        hasPreviousPage\n        limit\n        page\n        total\n        totalPages\n    }\n}",
+								"query": "query ($input: ErrandQueryInput!) {\n    getErrands (input: $input) {\n        data {\n        applicationDeadline\n        assignedTo\n        client\n        clientId\n        clientName\n        clientRating\n        completionDeadline\n        createdAt\n        description\n        distance\n        hourlyRate\n        id\n        isSaved\n        latitude\n        longitude\n        price\n        pricingType\n        profession\n        reviews\n        service\n        serviceAddress\n        status\n        title\n        updatedAt\n        workerType\n        }\n        hasNextPage\n        hasPreviousPage\n        limit\n        page\n        total\n        totalPages\n    }\n}",
 								"variables": "{\n  \"input\": {\n    \"maxDistanceKm\": 0,\n    \"pagination\": {\n      \"limit\": 0,\n      \"page\": 0\n    },\n    \"search\": \"\",\n    \"type\": {}\n  }\n}"
 							}
 						},
@@ -690,7 +640,7 @@
 				},
 				{
 					"name": "placeDetails",
-					"id": "31841861-mjhd1jnh-mgk09l1e3to",
+					"id": "31841861-mjhdzkd2-ofp7rdtlwd",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -715,7 +665,7 @@
 				},
 				{
 					"name": "review",
-					"id": "31841861-mjhd1jnh-qf4fh7hnix",
+					"id": "31841861-mjhdzkd2-efjmyzfcbe",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -740,7 +690,7 @@
 				},
 				{
 					"name": "service",
-					"id": "31841861-mjhd1jnh-bwx493hujrr",
+					"id": "31841861-mjhdzkd2-idf49v27f2",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -765,7 +715,7 @@
 				},
 				{
 					"name": "serviceCategories",
-					"id": "31841861-mjhd1jnh-94vagd93gm",
+					"id": "31841861-mjhdzkd3-i3vijkfahbb",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -790,7 +740,7 @@
 				},
 				{
 					"name": "services",
-					"id": "31841861-mjhd1jni-zdsa468bmgr",
+					"id": "31841861-mjhdzkd3-yy4btql9ib",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -815,7 +765,7 @@
 				},
 				{
 					"name": "suggestAddresses",
-					"id": "31841861-mjhd1jni-3ywhexz1d0r",
+					"id": "31841861-mjhdzkd3-xauzxb62xes",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -840,7 +790,7 @@
 				},
 				{
 					"name": "user",
-					"id": "31841861-mjhd1jni-ou5woy7oat",
+					"id": "31841861-mjhdzkd3-cfw7rd7cst7",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -865,7 +815,7 @@
 				},
 				{
 					"name": "userSearchHistory",
-					"id": "31841861-mjhd1jni-i1fpqgc0y5s",
+					"id": "31841861-mjhdzkd3-aubvr21ur9b",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -890,7 +840,7 @@
 				},
 				{
 					"name": "wallet",
-					"id": "31841861-mjhd1jni-98miao0f9eg",
+					"id": "31841861-mjhdzkd3-chxbbv04vra",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -920,7 +870,7 @@
 			"item": [
 				{
 					"name": "errandCreated",
-					"id": "31841861-mjhd1jni-19man1jp5o9",
+					"id": "31841861-mjhdzkd3-dkm0b429yc4",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -945,7 +895,7 @@
 				},
 				{
 					"name": "errandDeleted",
-					"id": "31841861-mjhd1jni-o5ilz415f5",
+					"id": "31841861-mjhdzkd3-92cg4f42977",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -970,7 +920,7 @@
 				},
 				{
 					"name": "errandUpdated",
-					"id": "31841861-mjhd1jni-ey14m1l4wjs",
+					"id": "31841861-mjhdzkd3-ek4p6xaali",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
