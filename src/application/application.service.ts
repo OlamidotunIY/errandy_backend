@@ -1,26 +1,30 @@
 import { Injectable } from '@nestjs/common';
 import { CreateApplicationInput } from './dto/create-application.input';
 import { UpdateApplicationInput } from './dto/update-application.input';
+import { PrismaService } from 'src/prisma.service';
 
 @Injectable()
 export class ApplicationService {
-  create(createApplicationInput: CreateApplicationInput) {
-    return 'This action adds a new application';
-  }
+  constructor(
+    private readonly prisma: PrismaService
+  ) {}
 
-  findAll() {
-    return `This action returns all application`;
-  }
+  async apply(createApplicationInput: CreateApplicationInput, userId: string) {
+    const worker = await this.prisma.worker.findUnique({
+      where: { userId },
+    });
 
-  findOne(id: number) {
-    return `This action returns a #${id} application`;
-  }
+    if(!worker) {
+      throw new Error('User does not have a worker profile');
+    }
 
-  update(id: number, updateApplicationInput: UpdateApplicationInput) {
-    return `This action updates a #${id} application`;
-  }
 
-  remove(id: number) {
-    return `This action removes a #${id} application`;
+    return this.prisma.application.create({
+      data: {
+        ...createApplicationInput,
+        workerId: worker.id,
+        status: 'PENDING',
+      },
+    });
   }
 }

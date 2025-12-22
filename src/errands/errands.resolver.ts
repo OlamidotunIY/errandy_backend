@@ -3,7 +3,6 @@ import {
   Query,
   Mutation,
   Args,
-  Int,
   ID,
   Subscription,
 } from '@nestjs/graphql';
@@ -16,16 +15,14 @@ import { PaginatedErrands } from './entities/paginated-errands.entity';
 import { ErrandSubscriptionPayload } from './entities/errand-subscription.entity';
 import { UseGuards, Inject } from '@nestjs/common';
 import { GetAllErrandInput } from './dto/get-all-errand.input';
-import { GqlAuthGuard } from 'src/auth/guard/graphql-auth.guard';
-import { CurrentUser } from 'src/auth/decorator/current-user.decorator';
-import { User } from 'src/users/entities/user.entity';
+import { AuthGuard, Session, UserSession } from '@thallesp/nestjs-better-auth';
+import { SaveErrand } from './entities/saveErrand.entity';
 // PubSub interface
 interface PubSub {
   publish(event: string, data: any): Promise<void>;
   asyncIterator(events: string | string[]): any;
 }
 
-@UseGuards(GqlAuthGuard)
 @Resolver(() => Errand)
 export class ErrandsResolver {
   constructor(
@@ -33,19 +30,25 @@ export class ErrandsResolver {
     @Inject('PUB_SUB') private readonly pubSub: PubSub,
   ) {}
 
+  @UseGuards(AuthGuard)
   @Mutation(() => Errand)
   createErrand(
     @Args('createErrandInput') createErrandInput: CreateErrandInput,
-    @CurrentUser() user: User,
+    @Session() session: UserSession,
   ) {
-    return this.errandsService.create(createErrandInput, user.id);
+    return this.errandsService.create(createErrandInput, session.user.id);
   }
 
+  @UseGuards(AuthGuard)
   @Query(() => [Errand], { name: 'errands' })
-  findAll(@Args('dto') dto: GetAllErrandInput, @CurrentUser() user: User) {
-    return this.errandsService.findAll(dto, user.id);
+  findAll(
+    @Args('dto') dto: GetAllErrandInput,
+    @Session() session: UserSession,
+  ) {
+    return this.errandsService.findAll(dto, session.user.id);
   }
 
+  @UseGuards(AuthGuard)
   @Query(() => PaginatedErrands, {
     name: 'getErrands',
     description:
@@ -53,26 +56,18 @@ export class ErrandsResolver {
   })
   getErrands(
     @Args('input') input: ErrandQueryInput,
-    @CurrentUser() user: User,
+    @Session() session: UserSession,
   ) {
-    console.log('ErrandsResolver.getErrands - Raw input:', input);
-    console.log('ErrandsResolver.getErrands - Input type:', typeof input);
-    console.log(
-      'ErrandsResolver.getErrands - Input keys:',
-      Object.keys(input || {}),
-    );
-    console.log(
-      'ErrandsResolver.getErrands received input:',
-      JSON.stringify(input, null, 2),
-    );
-    return this.errandsService.getErrands(input, user.id);
+    return this.errandsService.getErrands(input, session.user.id);
   }
 
+  @UseGuards(AuthGuard)
   @Query(() => Errand, { name: 'errand' })
   findOne(@Args('id', { type: () => ID }) id: string) {
     return this.errandsService.findOne(id);
   }
 
+  @UseGuards(AuthGuard)
   @Mutation(() => Errand)
   updateErrand(
     @Args('updateErrandInput') updateErrandInput: UpdateErrandInput,
@@ -80,9 +75,19 @@ export class ErrandsResolver {
     return this.errandsService.update(updateErrandInput);
   }
 
+  @UseGuards(AuthGuard)
   @Mutation(() => Errand)
   removeErrand(@Args('id', { type: () => ID }) id: string) {
     return this.errandsService.remove(id);
+  }
+
+  @UseGuards(AuthGuard)
+  @Mutation(() => SaveErrand)
+  saveErrand(
+    @Args('errandId', { type: () => ID }) errandId: string,
+    @Session() session: UserSession,
+  ) {
+    return this.errandsService.saveErrand(errandId, session.user.id);
   }
 
   // Real-time Subscriptions

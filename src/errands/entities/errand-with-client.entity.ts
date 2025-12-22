@@ -11,4 +11,7 @@ export class ErrandWithClient extends Errand {
 
   @Field(() => Float, { nullable: true })
   distance?: number;
+
+  @Field(() => Boolean, { nullable: true })
+  isSaved?: boolean;
 }

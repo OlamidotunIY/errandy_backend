@@ -5,18 +5,17 @@ import { AddWorkerServicesInput } from './dto/add-worker-services.input';
 import { UpdateUserInput } from './dto/update-user.input';
 import { UseGuards } from '@nestjs/common';
 import { CreateAddressInput } from './dto/create-user.input';
-import { GqlAuthGuard } from 'src/auth/guard/graphql-auth.guard';
-import { CurrentUser } from 'src/auth/decorator/current-user.decorator';
 import { Search } from './entities/search-history.entities';
+import { AuthGuard, Session, UserSession } from '@thallesp/nestjs-better-auth';
 
 @Resolver(() => User)
-@UseGuards(GqlAuthGuard)
+@UseGuards(AuthGuard)
 export class UsersResolver {
   constructor(private readonly usersService: UsersService) {}
 
   @Query(() => User, { name: 'user' })
-  findOne(@CurrentUser() user: User) {
-    return this.usersService.findOne(user.id);
+  findOne(@Session() session: UserSession) {
+    return this.usersService.findOne(session.user.id);
   }
 
   @Mutation(() => User)
@@ -25,36 +24,36 @@ export class UsersResolver {
   }
 
   @Mutation(() => User)
-  addAddress(@Args('dto') dto: CreateAddressInput, @CurrentUser() user: User) {
-    return this.usersService.addAddress(dto, user.id);
+  addAddress(@Args('dto') dto: CreateAddressInput, @Session() session: UserSession) {
+    return this.usersService.addAddress(dto, session.user.id);
   }
 
   @Mutation(() => User)
-  createUserRole(@Args('role') role: GqlUserRole, @CurrentUser() user: User) {
-    return this.usersService.createUserRole(user.id, role);
+  createUserRole(@Args('role') role: GqlUserRole, @Session() session: UserSession) {
+    return this.usersService.createUserRole(session.user.id, role);
   }
 
   @Mutation(() => User)
   addWorkerServices(
     @Args('dto') dto: AddWorkerServicesInput,
-    @CurrentUser() user: User,
+    @Session() session: UserSession,
   ) {
-    return this.usersService.addServicesToWorker(dto.serviceIds, user.id);
+    return this.usersService.addServicesToWorker(dto.serviceIds, session.user.id);
   }
 
   @Query(() => [Search], {
     name: 'userSearchHistory',
     description: 'Get user search history for workers',
   })
-  getUserSearchHistory(@CurrentUser() user: User) {
-    return this.usersService.getUserSearchHistory(user.id);
+  getUserSearchHistory(@Session() session: UserSession) {
+    return this.usersService.getUserSearchHistory(session.user.id);
   }
 
   @Mutation(() => Boolean, {
     description: 'Clear user search history',
   })
-  async clearSearchHistory(@CurrentUser() user: User) {
-    const result = await this.usersService.clearSearchHistory(user.id);
+  async clearSearchHistory(@Session() session: UserSession) {
+    const result = await this.usersService.clearSearchHistory(session.user.id);
     return result.success;
   }
 }

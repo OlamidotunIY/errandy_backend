@@ -178,6 +178,23 @@ export class ErrandsService {
     return errand;
   }
 
+  async saveErrand(id: string, userId: string) {
+    const errand = await this.findOne(id);
+    if (!errand) {
+      throw new Error('Errand not found');
+    }
+
+    const savedErrand = await this.prisma.savedErrand.create({
+      data: {
+        userId,
+        errandId: id,
+        savedAt: new Date(),
+      },
+    });
+
+    return savedErrand;
+  }
+
   updateLocation(UpdateErrandLocation: UpdateErrandLocation) {
     const geoLocation: Prisma.InputJsonValue = {
       type: 'Point',
@@ -363,7 +380,7 @@ export class ErrandsService {
     const total = await this.getErrandsCount(userId, maxDistanceKm);
     const page = Math.floor(skip / limit) + 1;
 
-    return this.buildPaginatedResponse(errands, total, page, limit);
+    return this.buildPaginatedResponse(errands, total, page, limit, userId);
   }
 
   /**
@@ -438,7 +455,7 @@ export class ErrandsService {
     const total = await this.getMatchingErrandsCount(userId, maxDistanceKm);
     const page = Math.floor(skip / limit) + 1;
 
-    return this.buildPaginatedResponse(errands, total, page, limit);
+    return this.buildPaginatedResponse(errands, total, page, limit, userId);
   }
 
   /**
@@ -485,7 +502,7 @@ export class ErrandsService {
     const total = await this.getErrandsCount(userId, maxDistanceKm);
     const page = Math.floor(skip / limit) + 1;
 
-    return this.buildPaginatedResponse(errands, total, page, limit);
+    return this.buildPaginatedResponse(errands, total, page, limit, userId);
   }
 
   /**
@@ -499,9 +516,7 @@ export class ErrandsService {
     // Assuming we have a SavedErrand table - adjust based on your schema
     const errands = await this.prisma.errand.findMany({
       where: {
-        // This would be adjusted based on your saved errands schema
-        // For now, using a mock condition
-        id: { in: [] }, // Replace with actual saved errands logic
+        savedErrands: { some: { userId } },
       },
       include: {
         reviews: true,
@@ -521,6 +536,7 @@ export class ErrandsService {
       total,
       page,
       limit,
+      userId,
     );
   }
 
@@ -589,7 +605,7 @@ export class ErrandsService {
     );
     const page = Math.floor(skip / limit) + 1;
 
-    return this.buildPaginatedResponse(errands, total, page, limit);
+    return this.buildPaginatedResponse(errands, total, page, limit, userId);
   }
 
   /**
@@ -784,6 +800,7 @@ export class ErrandsService {
     total: number,
     page: number,
     limit: number,
+    userId?: string,
   ): Promise<PaginatedErrands> {
     // Enrich each errand with client data, clientName and clientRating
     const enriched = await Promise.all(
@@ -802,6 +819,17 @@ export class ErrandsService {
         const reviews = await this.prisma.review.findMany({
           where: { errandId: errand.id },
         });
+        // Check if errand is saved by user
+        let isSaved = false;
+        if (userId) {
+          const savedErrand = await this.prisma.savedErrand.findFirst({
+            where: {
+              userId,
+              errandId: errand.id,
+            },
+          });
+          isSaved = !!savedErrand;
+        }
         return {
           ...errand,
           client, // Add the full client object for GraphQL
@@ -809,6 +837,7 @@ export class ErrandsService {
           clientRating: avg._avg?.rating ?? null,
           distance: errand.distance ?? 0, // Explicitly preserve distance from aggregation
           reviews: reviews || [], // Include reviews or empty array
+          isSaved,
         };
       }),
     );

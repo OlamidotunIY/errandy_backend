@@ -1,7 +1,20 @@
-import { ObjectType, Field, Int } from '@nestjs/graphql';
+import { ObjectType, Field, Int, ID } from '@nestjs/graphql';
+import { ApplicationStatus } from './applicationStatus.enum';
 
 @ObjectType()
 export class Application {
-  @Field(() => Int, { description: 'Example field (placeholder)' })
-  exampleField: number;
+  @Field(() => ID)
+  id: string;
+
+  @Field(() => String)
+  workerId: string;
+
+  @Field(() => String)
+  errandId: string;
+
+  @Field(() => ApplicationStatus)
+  status: ApplicationStatus;
+
+  @Field(() => Date)
+  createdAt: Date;
 }

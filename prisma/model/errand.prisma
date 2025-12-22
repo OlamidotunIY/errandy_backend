@@ -20,9 +20,22 @@ model Errand {
     reviews             Review[]
     ratings             Rating[]
 
-    client Client @relation(fields: [clientId], references: [id])
+    client       Client        @relation(fields: [clientId], references: [id])
+    savedErrands SavedErrand[]
 
     @@map("errands")
+}
+
+model SavedErrand {
+    id       String   @id @default(auto()) @map("_id") @db.ObjectId
+    userId   String
+    errandId String   @db.ObjectId
+    savedAt  DateTime @default(now())
+
+    // Relation
+    errand Errand @relation(fields: [errandId], references: [id])
+
+    @@map("saved_errands")
 }
 
 model Review {
