@@ -41,14 +41,14 @@ import { RatingModule } from './rating/rating.module';
               async requestDidStart() {
                 return {
                   async didResolveOperation(requestContext) {
-                    console.log(
-                      'GraphQL Operation:',
-                      requestContext.operationName,
-                    );
-                    console.log(
-                      'GraphQL Variables:',
-                      JSON.stringify(requestContext.request.variables, null, 2),
-                    );
+                    // console.log(
+                    //   'GraphQL Operation:',
+                    //   requestContext.operationName,
+                    // );
+                    // console.log(
+                    //   'GraphQL Variables:',
+                    //   JSON.stringify(requestContext.request.variables, null, 2),
+                    // );
                   },
                 };
               },
