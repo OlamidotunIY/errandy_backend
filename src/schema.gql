@@ -194,7 +194,7 @@ type Mutation {
   createChat(createChatInput: CreateChatInput!): Chat!
   createErrand(createErrandInput: CreateErrandInput!): Errand!
   createReview(createReviewInput: CreateReviewInput!): Review!
-  createUserRole(role: String!): User!
+  createUserRole(role: UserRole!): User!
   createWallet(createWalletInput: CreateWalletInput!): Wallet!
   removeChat(id: Int!): Chat!
   removeErrand(id: ID!): Errand!

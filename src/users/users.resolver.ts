@@ -30,7 +30,7 @@ export class UsersResolver {
   }
 
   @Mutation(() => User)
-  createUserRole(@Args('role') role: GqlUserRole, @CurrentUser() user: User) {
+  createUserRole(@Args('role', { type: () => GqlUserRole }) role: GqlUserRole, @CurrentUser() user: User) {
     return this.usersService.createUserRole(user.id, role);
   }
 
