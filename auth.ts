@@ -38,7 +38,12 @@ export const auth = betterAuth({
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID as string,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+      mapProfileToUser: async (profile) => {
+        return {
+          username: profile.email.split('@')[0] + Math.random().toString(36).slice(2, 7),
+        };
+      },
     },
   },
-  trustedOrigins: ['errandy://*', "http://localhost:3000"],
+  trustedOrigins: ['errandy://*', "http://localhost:3000", "exp://*", "exp://172.19.130.114:8081"],
 });

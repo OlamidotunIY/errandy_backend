@@ -3,15 +3,17 @@ import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { graphqlUploadExpress } from 'graphql-upload-ts';
 import { ConfigService } from '@nestjs/config';
+import * as dns from 'node:dns';
+dns.setDefaultResultOrder('ipv4first');
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
-    bodyParser: false,   
+    bodyParser: false,
   });
 
   const configService = app.get(ConfigService);
 
-  const allowedOrigins = ['http://localhost:3000'];
+  const allowedOrigins = ['http://localhost:3000', 'http://localhost:8081', 'exp://localhost:8081'];
 
   app.enableCors({
     origin: allowedOrigins,
@@ -48,7 +50,7 @@ async function bootstrap() {
   app.use(graphqlUploadExpress({ maxFileSize: 10000000, maxFiles: 10 }));
 
   const port = configService.get<number>('PORT', 3001);
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
   console.log(`🚀 Application is running on: http://localhost:${port}`);
 }
 bootstrap().catch((error) => {
