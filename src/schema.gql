@@ -44,6 +44,17 @@ type Client {
   userId: ID!
 }
 
+type ClientDashboard {
+  activeErrands: [Errand!]!
+  activeErrandsCount: Int!
+  completedRequirementsCount: Int!
+  draftErrands: [Errand!]!
+  draftErrandsCount: Int!
+  requirements: [DashboardRequirement!]!
+  totalErrandsCount: Int!
+  totalRequirementsCount: Int!
+}
+
 input CreateAddressInput {
   address: String!
   label: String!
@@ -73,6 +84,15 @@ input CreateReviewInput {
 input CreateWalletInput {
   """Example field (placeholder)"""
   exampleField: Int!
+}
+
+type DashboardRequirement {
+  actionRoute: String
+  description: String!
+  isCompleted: Boolean!
+  key: String!
+  requiredTo: String!
+  title: String!
 }
 
 """
@@ -247,6 +267,9 @@ enum PricingType {
 
 type Query {
   chat(id: Int!): Chat!
+
+  """Get client dashboard data including requirements and errands"""
+  clientDashboard: ClientDashboard!
   errand(id: ID!): Errand!
   errands(dto: GetAllErrandInput!): [Errand!]!
 
