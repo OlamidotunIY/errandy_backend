@@ -1,0 +1,406 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String             @id @map("_id")
+  name                String
+  email               String
+  emailVerified       Boolean
+  image               String?
+  createdAt           DateTime
+  updatedAt           DateTime
+  phoneNumber         String?
+  phoneNumberVerified Boolean?
+  username            String?
+  displayUsername     String?
+  country             String?
+  twoFactorEnabled    Boolean?
+  onboardingProgress  OnboardingProgress @default(NONE)
+  sessions            Session[]
+  accounts            Account[]
+  twofactors          TwoFactor[]
+  userAddress         UserAddress[] // all addresses
+  activeRole          UserRole?
+
+  // Active address reference
+  activeAddressId String?      @db.ObjectId
+  activeAddress   UserAddress? @relation("ActiveAddress", fields: [activeAddressId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  worker Worker?
+  client Client?
+
+  @@unique([email])
+  @@unique([username])
+  @@map("users")
+}
+
+model UserAddress {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String
+  label     String
+  address   String
+  location  Json // GeoJSON { type: "Point", coordinates: [lng, lat] }
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // normal relation (one user → many addresses)
+  user User @relation(fields: [userId], references: [id])
+
+  // back relation to activeAddress (ONE, not array)
+  activeFor User[] @relation("ActiveAddress")
+
+  @@map("userAddresses")
+}
+
+model Session {
+  id        String   @id @map("_id")
+  expiresAt DateTime
+  token     String
+  createdAt DateTime
+  updatedAt DateTime
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@map("sessions")
+}
+
+model Account {
+  id                    String    @id @map("_id")
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime
+  updatedAt             DateTime
+
+  @@map("accounts")
+}
+
+model Verification {
+  id         String    @id @map("_id")
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime?
+  updatedAt  DateTime?
+
+  @@map("verifications")
+}
+
+model TwoFactor {
+  id          String @id @map("_id")
+  secret      String
+  backupCodes String
+  userId      String
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("twoFactors")
+}
+
+enum UserRole {
+  WORKER
+  CLIENT
+}
+
+enum OnboardingProgress {
+  NONE
+  ROLE_SELECTED
+  SERVICES_SELECTED
+  ADDRESS_ADDED
+  COMPLETED
+}
+model Application {
+    id        String    @id @default(auto()) @map("_id") @db.ObjectId
+    errandId  String    @db.ObjectId
+    workerId  String    @db.ObjectId
+    status    AppStatus // ENUM: "PENDING", "ACCEPTED", "REJECTED", "CANCELLED"
+    createdAt DateTime  @default(now())
+
+    @@map("applications")
+}
+
+enum AppStatus {
+    PENDING
+    ACCEPTED
+    REJECTED
+    CANCELLED
+}
+model ChatRoom {
+    id           String    @id @default(auto()) @map("_id") @db.ObjectId
+    name         String?
+    participants String[] // array of user IDs
+    createdAt    DateTime  @default(now())
+    updatedAt    DateTime  @updatedAt
+    messages     Message[]
+
+    @@map("rooms")
+}
+
+model Message {
+    id         String      @id @default(auto()) @map("_id") @db.ObjectId
+    roomId     String      @db.ObjectId
+    senderId   String
+    receiverId String
+    content    String?
+    contentUrl String? // used for voice, images, files
+    type       MessageType @default(TEXT)
+    seen       Boolean     @default(false)
+    delivered  Boolean     @default(false)
+    reactions  Reaction[]
+    createdAt  DateTime    @default(now())
+
+    // Relation
+    room ChatRoom @relation(fields: [roomId], references: [id])
+
+    @@map("messages")
+}
+
+model Reaction {
+    id        String  @id @default(auto()) @map("_id") @db.ObjectId
+    messageId String  @db.ObjectId
+    userId    String
+    emoji     String // e.g. "👍", "❤️", etc.
+    Message   Message @relation(fields: [messageId], references: [id])
+
+    @@map("reactions")
+}
+
+enum MessageType {
+    TEXT
+    IMAGE
+    VIDEO
+    FILE
+    VOICE
+}
+model Client {
+    id     String @id @default(auto()) @map("_id") @db.ObjectId
+    userId String @unique
+
+    paymentMethods PaymentMethod[]
+    user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+    Errands         Errand[]
+    ratings         Rating[]
+
+    @@map("clients")
+}
+model Errand {
+    id                  String        @id @default(auto()) @map("_id") @db.ObjectId
+    clientId            String        @db.ObjectId
+    title               String
+    description         String?
+    pricingType         PricingType   @default(FIXED)
+    price               Float?
+    hourlyRate          Float?
+    status              ErrandStatus? @default(DRAFT)
+    workerType          WorkerType?
+    serviceId           String?       @db.ObjectId
+    assignedTo          String?       @db.ObjectId
+    applicationDeadline DateTime?
+    completionDeadline  DateTime?
+    serviceAddress      String? // e.g., "12 Palm Street, Lagos"
+    location            Json?
+    createdAt           DateTime      @default(now())
+    updatedAt           DateTime      @updatedAt
+    ratings             Rating[]
+
+    client       Client        @relation(fields: [clientId], references: [id])
+    savedErrands SavedErrand[]
+    service      Service?       @relation(fields: [serviceId], references: [id])
+
+    @@map("errands")
+}
+
+model SavedErrand {
+    id       String   @id @default(auto()) @map("_id") @db.ObjectId
+    userId   String
+    errandId String   @db.ObjectId
+    savedAt  DateTime @default(now())
+
+    // Relation
+    errand Errand @relation(fields: [errandId], references: [id])
+
+    @@map("saved_errands")
+}
+
+enum ErrandStatus {
+    DRAFT
+    OPEN
+    IN_PROGRESS
+    COMPLETED
+    CANCELLED
+    OVERDUE
+}
+
+enum WorkerType {
+    PROFESSIONAL
+    GENERAL
+    ARTISAN
+}
+
+enum PricingType {
+    FIXED
+    HOURLY
+}
+model Organization {
+    id String @id @default(auto()) @map("_id") @db.ObjectId
+    name String
+    description String?
+    logo String?
+    ownerId String @db.ObjectId
+    owner Worker @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+    // Relations
+
+
+}model PaymentMethod {
+    id     String @id @default(auto()) @map("_id") @db.ObjectId
+    userId String @db.ObjectId
+    client Client @relation(fields: [userId], references: [id])
+
+    provider    String // "paystack", "stripe", "paypal", "adyen"
+    providerRef String // e.g. Paystack authorization_code, Stripe paymentMethodId
+    type        String // "card", "bank_account", "wallet", "paypal"
+
+    cardBrand String? // Visa, Mastercard, Amex
+    last4     String? // Last 4 digits for display
+    expMonth  Int?
+    expYear   Int?
+
+    isDefault Boolean @default(false)
+    verified  Boolean @default(false)
+
+    createdAt DateTime @default(now())
+
+    @@map("paymentMethods")
+}
+model Rating {
+	id        String   @id @default(auto()) @map("_id") @db.ObjectId
+	raterId   String   @db.ObjectId
+	rateeId   String   @db.ObjectId
+	errandId  String?  @db.ObjectId
+	rating    Int
+	comment   String?
+	createdAt DateTime @default(now())
+
+	// Relations
+	errand    Errand?  @relation(fields: [errandId], references: [id])
+	ratee     Client   @relation(fields: [rateeId], references: [id])
+
+	@@map("ratings")
+}
+model Search {
+    id      String @id @default(auto()) @map("_id") @db.ObjectId
+    keyword String
+
+    Worker   Worker? @relation(fields: [workerId], references: [id])
+    workerId String? @db.ObjectId
+
+    @@map("searches")
+}
+enum ServiceCategoryType {
+  CASUAL
+  PROFESSIONAL
+  ARTISAN
+}
+
+model ServiceCategory {
+  id       String              @id @default(auto()) @map("_id") @db.ObjectId
+  name     String              @unique
+  type     ServiceCategoryType
+  services Service[]
+
+  @@map("service_categories")
+}
+
+model Service {
+  id         String              @id @default(auto()) @map("_id") @db.ObjectId
+  name       String              @unique
+  type       ServiceCategoryType
+  categoryId String              @db.ObjectId
+  category   ServiceCategory     @relation(fields: [categoryId], references: [id])
+  workers    ServicesOnWorkers[]
+  errands    Errand[]
+
+  @@map("services")
+}
+
+model ServicesOnWorkers {
+  id        String @id @default(auto()) @map("_id") @db.ObjectId
+  serviceId String @db.ObjectId
+  workerId  String @db.ObjectId
+
+  service Service @relation(fields: [serviceId], references: [id])
+  worker  Worker  @relation(fields: [workerId], references: [id])
+
+  @@unique([workerId, serviceId])
+  @@map("services_on_workers")
+}
+model Wallet {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    workerId  String   @unique @db.ObjectId
+    available Float    @default(0) // Can withdraw
+    held      Float    @default(0) // Pending release
+    currency  String?
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    worker Worker @relation(fields: [workerId], references: [id])
+
+    @@map("wallets")
+}
+
+model Transaction {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    userId    String   @db.ObjectId
+    amount    Float
+    type      TxType
+    status    TxStatus
+    reference String   @unique
+    metadata  Json? // e.g. { jobId: "...", workerId: "...", fee: 20 }
+    createdAt DateTime @default(now())
+
+    @@map("transactions")
+}
+
+enum TxType {
+    FUND
+    ESCROW_HOLD
+    ESCROW_RELEASE
+    WITHDRAWAL
+}
+
+enum TxStatus {
+    PENDING
+    SUCCESS
+    FAILED
+}
+model Worker {
+    id         String      @id @default(auto()) @map("_id") @db.ObjectId
+    workerType WorkerType?
+    userId     String      @unique
+
+    // Relations
+    user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+    searchHistory Search[]
+    services      ServicesOnWorkers[]
+    wallet        Wallet?
+    organizations Organization[]
+
+    @@map("workers")
+}

@@ -1,6 +1,7 @@
 enum ServiceCategoryType {
   CASUAL
   PROFESSIONAL
+  ARTISAN
 }
 
 model ServiceCategory {
@@ -9,7 +10,7 @@ model ServiceCategory {
   type     ServiceCategoryType
   services Service[]
 
-  @@map("serviceCategories")
+  @@map("service_categories")
 }
 
 model Service {
@@ -19,6 +20,7 @@ model Service {
   categoryId String              @db.ObjectId
   category   ServiceCategory     @relation(fields: [categoryId], references: [id])
   workers    ServicesOnWorkers[]
+  errands    Errand[]
 
   @@map("services")
 }
@@ -32,5 +34,5 @@ model ServicesOnWorkers {
   worker  Worker  @relation(fields: [workerId], references: [id])
 
   @@unique([workerId, serviceId])
-  @@map("servicesOnWorkers")
+  @@map("services_on_workers")
 }

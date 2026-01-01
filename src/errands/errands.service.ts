@@ -1,7 +1,6 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { CreateErrandInput } from './dto/create-errand.input';
-import
-{
+import {
   UpdateErrandInput,
   UpdateErrandLocation,
 } from './dto/update-errand.input';
@@ -14,36 +13,34 @@ import { PaginatedErrands } from './entities/paginated-errands.entity';
 import { UsersService } from 'src/users/users.service';
 import { PubSubInterface } from 'src/pubsub';
 
-export interface GeoPoint
-{
+export interface GeoPoint {
   type: 'Point';
   coordinates: [number, number]; // [lng, lat]
 }
 
 @Injectable()
-export class ErrandsService
-{
+export class ErrandsService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject('PUB_SUB') private readonly pubSub: PubSubInterface,
     private readonly usersService: UsersService,
-  ) { }
+  ) {}
 
-  async create(createErrandInput: CreateErrandInput, userId: string)
-  {
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, include: { client: true } });
-    if (!user)
-    {
-      throw new Error('User not found');
+  async create(createErrandInput: CreateErrandInput, userId: string) {
+    const client = await this.prisma.client.findUnique({ where: { userId } });
+    if (!client) {
+      throw new Error('Client not found');
     }
-    if (user?.client)
-    {
-      throw new Error('User is not a client');
-    }
+
+    console.log(createErrandInput);
+
     const errand = await this.prisma.errand.create({
       data: {
         ...createErrandInput,
-        clientId: user.client?.id || '',
+        clientId: client?.id,
+      },
+      include: {
+        client: true,
       },
     });
 
@@ -59,8 +56,7 @@ export class ErrandsService
     return errand;
   }
 
-  async findAll(dto: GetAllErrandInput, userId: string)
-  {
+  async findAll(dto: GetAllErrandInput, userId: string) {
     const meters = (dto.maxDistanceKm ?? 5) * 1000; // default to 5km
 
     // Get user's active address + workerType + skills
@@ -76,8 +72,7 @@ export class ErrandsService
       },
     });
 
-    if (!user?.activeAddress?.location)
-    {
+    if (!user?.activeAddress?.location) {
       throw new Error('No active address set for user');
     }
 
@@ -87,13 +82,11 @@ export class ErrandsService
 
     // Create conditions for matching jobs
     let priorityMatch: Record<string, any> = {};
-    if (user?.worker?.services?.length)
-    {
+    if (user?.worker?.services?.length) {
       priorityMatch.service = { $in: user.worker.services };
     }
 
-    try
-    {
+    try {
       return this.prisma.errand.aggregateRaw({
         pipeline: [
           {
@@ -133,14 +126,12 @@ export class ErrandsService
           },
         ],
       });
-    } catch (error)
-    {
+    } catch (error) {
       // Fallback to regular query if geospatial index is not available
       if (
         error.code === 'P2010' &&
         error.message?.includes('$geoNear requires')
-      )
-      {
+      ) {
         console.warn(
           'Geospatial index not found in findAll, falling back to regular query',
         );
@@ -152,7 +143,7 @@ export class ErrandsService
             }),
           },
           include: {
-            reviews: true,
+            ratings: true,
           },
           orderBy: {
             createdAt: 'desc',
@@ -163,8 +154,7 @@ export class ErrandsService
     }
   }
 
-  findOne(id: string)
-  {
+  findOne(id: string) {
     return this.prisma.errand.findUnique({
       where: {
         id,
@@ -172,15 +162,25 @@ export class ErrandsService
     });
   }
 
-  async update(updateErrandInput: UpdateErrandInput)
-  {
+  async update(updateErrandInput: UpdateErrandInput) {
+    const { id, serviceId, ...updateData } = updateErrandInput;
+
     const errand = await this.prisma.errand.update({
       where: {
-        id: updateErrandInput.id,
+        id,
       },
-      data: updateErrandInput,
+      data: {
+        ...updateData,
+        ...(serviceId && {
+          service: {
+            connect: {
+              id: serviceId,
+            },
+          },
+        }),
+      },
       include: {
-        reviews: true,
+        client: true,
       },
     });
 
@@ -196,11 +196,9 @@ export class ErrandsService
     return errand;
   }
 
-  async saveErrand(id: string, userId: string)
-  {
+  async saveErrand(id: string, userId: string) {
     const errand = await this.findOne(id);
-    if (!errand)
-    {
+    if (!errand) {
       throw new Error('Errand not found');
     }
 
@@ -215,8 +213,7 @@ export class ErrandsService
     return savedErrand;
   }
 
-  updateLocation(UpdateErrandLocation: UpdateErrandLocation)
-  {
+  updateLocation(UpdateErrandLocation: UpdateErrandLocation) {
     const geoLocation: Prisma.InputJsonValue = {
       type: 'Point',
       coordinates: [
@@ -236,15 +233,13 @@ export class ErrandsService
     });
   }
 
-  async remove(id: string)
-  {
+  async remove(id: string) {
     const errand = await this.prisma.errand.findUnique({
       where: { id },
-      include: { reviews: true },
+      include: { ratings: true },
     });
 
-    if (!errand)
-    {
+    if (!errand) {
       throw new Error('Errand not found');
     }
 
@@ -270,8 +265,7 @@ export class ErrandsService
   async getErrands(
     queryInput: ErrandQueryInput,
     userId: string,
-  ): Promise<PaginatedErrands>
-  {
+  ): Promise<PaginatedErrands> {
     console.log(
       'ErrandsService.getErrands called with:',
       JSON.stringify(queryInput, null, 2),
@@ -286,8 +280,7 @@ export class ErrandsService
 
     const skip = (page - 1) * limit;
 
-    switch (type)
-    {
+    switch (type) {
       case ErrandType.FEED:
         return this.getFeedErrands(userId, skip, limit, maxDistanceKm);
       case ErrandType.BEST_MATCH:
@@ -312,8 +305,7 @@ export class ErrandsService
   /**
    * Get user's active address for location-based filtering
    */
-  private async getUserActiveAddress(userId: string)
-  {
+  private async getUserActiveAddress(userId: string) {
     const user = await this.prisma.user.findFirst({
       where: { id: userId },
       include: {
@@ -327,8 +319,7 @@ export class ErrandsService
       },
     });
 
-    if (!user?.activeAddress?.location)
-    {
+    if (!user?.activeAddress?.location) {
       throw new Error('No active address set for user');
     }
 
@@ -347,8 +338,7 @@ export class ErrandsService
     skip: number,
     limit: number,
     maxDistanceKm: number,
-  ): Promise<PaginatedErrands>
-  {
+  ): Promise<PaginatedErrands> {
     const { user, location, clientId } =
       await this.getUserActiveAddress(userId);
     const meters = maxDistanceKm * 1000;
@@ -357,8 +347,7 @@ export class ErrandsService
 
     // Build priority matching criteria
     let priorityMatch: Record<string, any> = {};
-    if (user?.worker?.services?.length)
-    {
+    if (user?.worker?.services?.length) {
       priorityMatch.service = { $in: user.worker.services };
     }
 
@@ -420,8 +409,7 @@ export class ErrandsService
     skip: number,
     limit: number,
     maxDistanceKm: number,
-  ): Promise<PaginatedErrands>
-  {
+  ): Promise<PaginatedErrands> {
     const { user, location, clientId } =
       await this.getUserActiveAddress(userId);
     const meters = maxDistanceKm * 1000;
@@ -496,8 +484,7 @@ export class ErrandsService
     skip: number,
     limit: number,
     maxDistanceKm: number,
-  ): Promise<PaginatedErrands>
-  {
+  ): Promise<PaginatedErrands> {
     const { location, clientId } = await this.getUserActiveAddress(userId);
     const meters = maxDistanceKm * 1000;
     const userLat = location.coordinates[1];
@@ -543,15 +530,14 @@ export class ErrandsService
     userId: string,
     skip: number,
     limit: number,
-  ): Promise<PaginatedErrands>
-  {
+  ): Promise<PaginatedErrands> {
     // Assuming we have a SavedErrand table - adjust based on your schema
     const errands = await this.prisma.errand.findMany({
       where: {
         savedErrands: { some: { userId } },
       },
       include: {
-        reviews: true,
+        ratings: true,
       },
       orderBy: {
         createdAt: 'desc',
@@ -581,16 +567,12 @@ export class ErrandsService
     skip: number,
     limit: number,
     maxDistanceKm: number,
-  ): Promise<PaginatedErrands>
-  {
+  ): Promise<PaginatedErrands> {
     // Save the search keyword to user's search history (only if keyword is not empty)
-    if (keyword && keyword.trim().length > 0)
-    {
-      try
-      {
+    if (keyword && keyword.trim().length > 0) {
+      try {
         await this.usersService.saveSearchKeyword(userId, keyword.trim());
-      } catch (error)
-      {
+      } catch (error) {
         // Log the error but don't fail the search if saving keyword fails
         console.warn('Failed to save search keyword:', error.message);
       }
@@ -650,8 +632,7 @@ export class ErrandsService
   private async getErrandsCount(
     userId: string,
     maxDistanceKm: number,
-  ): Promise<number>
-  {
+  ): Promise<number> {
     const { location, clientId } = await this.getUserActiveAddress(userId);
     const meters = maxDistanceKm * 1000;
     const userLat = location.coordinates[1];
@@ -684,8 +665,7 @@ export class ErrandsService
   private async getMatchingErrandsCount(
     userId: string,
     maxDistanceKm: number,
-  ): Promise<number>
-  {
+  ): Promise<number> {
     const { user, location, clientId } =
       await this.getUserActiveAddress(userId);
     const meters = maxDistanceKm * 1000;
@@ -724,8 +704,7 @@ export class ErrandsService
     userId: string,
     keyword: string,
     maxDistanceKm: number,
-  ): Promise<number>
-  {
+  ): Promise<number> {
     const { location, clientId } = await this.getUserActiveAddress(userId);
     const meters = maxDistanceKm * 1000;
     const userLat = location.coordinates[1];
@@ -770,8 +749,7 @@ export class ErrandsService
     lon1: number,
     lat2: number,
     lon2: number,
-  ): number
-  {
+  ): number {
     const R = 6371e3; // Earth's radius in meters
     const φ1 = (lat1 * Math.PI) / 180;
     const φ2 = (lat2 * Math.PI) / 180;
@@ -789,8 +767,7 @@ export class ErrandsService
   /**
    * Helper methods to safely parse MongoDB aggregation results
    */
-  private parseAggregationResults(result: Prisma.JsonObject): Array<any>
-  {
+  private parseAggregationResults(result: Prisma.JsonObject): Array<any> {
     // MongoDB aggregateRaw returns results in a format compatible with the expected array
     // We safely cast it since we know the structure from our aggregation pipeline
     const parsed = JSON.parse(JSON.stringify(result)) as Array<any>;
@@ -802,8 +779,7 @@ export class ErrandsService
   /**
    * Recursively convert MongoDB ObjectId format to strings
    */
-  private convertObjectIds(obj: any): any
-  {
+  private convertObjectIds(obj: any): any {
     if (!obj || typeof obj !== 'object') return obj;
 
     // Handle ObjectId format { $oid: "..." }
@@ -813,15 +789,13 @@ export class ErrandsService
     if (obj.$date) return new Date(obj.$date);
 
     // Handle arrays
-    if (Array.isArray(obj))
-    {
+    if (Array.isArray(obj)) {
       return obj.map((item) => this.convertObjectIds(item));
     }
 
     // Handle objects - convert all properties recursively
     const converted: any = {};
-    for (const [key, value] of Object.entries(obj))
-    {
+    for (const [key, value] of Object.entries(obj)) {
       // Map MongoDB's _id to id
       const newKey = key === '_id' ? 'id' : key;
       converted[newKey] = this.convertObjectIds(value);
@@ -832,8 +806,7 @@ export class ErrandsService
 
   private parseCountResult(
     result: Prisma.JsonObject,
-  ): Array<{ total: number }>
-  {
+  ): Array<{ total: number }> {
     return JSON.parse(JSON.stringify(result)) as Array<{ total: number }>;
   }
 
@@ -846,12 +819,10 @@ export class ErrandsService
     page: number,
     limit: number,
     userId?: string,
-  ): Promise<PaginatedErrands>
-  {
+  ): Promise<PaginatedErrands> {
     // Enrich each errand with client data, clientName and clientRating
     const enriched = await Promise.all(
-      errands.map(async (errand) =>
-      {
+      errands.map(async (errand) => {
         // Fetch client user name
         const client = await this.prisma.client.findUnique({
           where: { id: errand.clientId },
@@ -863,13 +834,12 @@ export class ErrandsService
           _avg: { rating: true },
         });
         // Fetch reviews for this errand
-        const reviews = await this.prisma.review.findMany({
+        const reviews = await this.prisma.rating.findMany({
           where: { errandId: errand.id },
         });
         // Check if errand is saved by user
         let isSaved = false;
-        if (userId)
-        {
+        if (userId) {
           const savedErrand = await this.prisma.savedErrand.findFirst({
             where: {
               userId,

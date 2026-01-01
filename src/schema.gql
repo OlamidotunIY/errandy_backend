@@ -114,10 +114,9 @@ type Errand {
   longitude: Float
   price: Float
   pricingType: PricingType!
-  profession: String
-  reviews: [Review!]!
-  service: String
+  service: Service
   serviceAddress: String
+  serviceId: String
   status: ErrandStatus!
   title: String!
   updatedAt: DateTime!
@@ -180,10 +179,9 @@ type ErrandWithClient {
   longitude: Float
   price: Float
   pricingType: PricingType!
-  profession: String
-  reviews: [Review!]!
-  service: String
+  service: Service
   serviceAddress: String
+  serviceId: String
   status: ErrandStatus!
   title: String!
   updatedAt: DateTime!
@@ -342,6 +340,7 @@ type ServiceCategory {
 }
 
 enum ServiceCategoryType {
+  ARTISAN
   CASUAL
   PROFESSIONAL
 }
@@ -379,9 +378,8 @@ input UpdateErrandInput {
   location: String
   price: Float
   pricingType: PricingType
-  profession: String
-  service: String
   serviceAddress: String
+  serviceId: String
   status: ErrandStatus
 
   """Errand title"""

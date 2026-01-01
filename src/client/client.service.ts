@@ -56,7 +56,7 @@ export class ClientService
                     },
                 },
                 include: {
-                    reviews: true,
+                    ratings: true,
                     client: {
                         include: {
                             user: true,
@@ -76,7 +76,7 @@ export class ClientService
                     status: 'DRAFT',
                 },
                 include: {
-                    reviews: true,
+                    ratings: true,
                     client: {
                         include: {
                             user: true,

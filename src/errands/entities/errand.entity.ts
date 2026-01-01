@@ -1,10 +1,9 @@
 import { ObjectType, Field, Float } from '@nestjs/graphql';
 import { ErrandStatus } from './errandStatus.enum';
 import { WorkerType } from './workerType.enum';
-import { Review } from 'src/review/entities/review.entity';
 import { PricingType } from './pricingType.enum';
-import { User } from 'src/users/entities/user.entity';
 import Client from 'src/client/entities/client.entities';
+import { Service } from 'src/service/entities/service.entity';
 
 @ObjectType()
 export class Errand {
@@ -36,10 +35,10 @@ export class Errand {
   workerType?: WorkerType;
 
   @Field({ nullable: true })
-  profession?: string;
+  serviceId?: string;
 
-  @Field({ nullable: true })
-  service?: string;
+  @Field(() => Service, { nullable: true })
+  service?: Service;
 
   @Field({ nullable: true })
   assignedTo?: string;
@@ -65,9 +64,6 @@ export class Errand {
   @Field()
   updatedAt: Date;
 
-  @Field(() => [Review])
-  reviews: Review[];
-
   @Field(() => Client)
-  client: Client
+  client: Client;
 }

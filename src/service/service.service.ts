@@ -19,7 +19,7 @@ export class ServiceService {
   async getServiceCategories(input?: GetServiceCategoriesInput) {
     const where = input?.type ? { type: input.type } : {};
 
-    return this.prisma.serviceCategory.findMany({
+    const serviceCategory = await this.prisma.serviceCategory.findMany({
       where,
       include: {
         services: true,
@@ -28,6 +28,8 @@ export class ServiceService {
         name: 'asc',
       },
     });
+
+    return serviceCategory;
   }
 
   async getServices(categoryType?: GqlServiceCategoryType) {

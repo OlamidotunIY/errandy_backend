@@ -8,20 +8,19 @@ model Errand {
     hourlyRate          Float?
     status              ErrandStatus? @default(DRAFT)
     workerType          WorkerType?
-    profession          String? // e.g., "Electrician"
-    service             String? // e.g., "Wiring Installation"
-    assignedTo          String?       @db.ObjectId // Worker ID
+    serviceId           String?       @db.ObjectId
+    assignedTo          String?       @db.ObjectId
     applicationDeadline DateTime?
     completionDeadline  DateTime?
     serviceAddress      String? // e.g., "12 Palm Street, Lagos"
     location            Json?
     createdAt           DateTime      @default(now())
     updatedAt           DateTime      @updatedAt
-    reviews             Review[]
     ratings             Rating[]
 
     client       Client        @relation(fields: [clientId], references: [id])
     savedErrands SavedErrand[]
+    service      Service?       @relation(fields: [serviceId], references: [id])
 
     @@map("errands")
 }
@@ -36,20 +35,6 @@ model SavedErrand {
     errand Errand @relation(fields: [errandId], references: [id])
 
     @@map("saved_errands")
-}
-
-model Review {
-    id        String   @id @default(auto()) @map("_id") @db.ObjectId
-    workerId  String
-    errandId  String   @db.ObjectId
-    rating    Int // 1 to 5
-    comment   String?
-    createdAt DateTime @default(now())
-
-    // Relation
-    errand Errand @relation(fields: [errandId], references: [id])
-
-    @@map("reviews")
 }
 
 enum ErrandStatus {
