@@ -1,13 +1,12 @@
 model Wallet {
-    id        String   @id @default(auto()) @map("_id") @db.ObjectId
-    workerId  String   @unique @db.ObjectId
-    available Float    @default(0) // Can withdraw
-    held      Float    @default(0) // Pending release
+    id        String      @id @default(auto()) @map("_id") @db.ObjectId
+    ownerId   String      @db.ObjectId
+    ownerType UserRole // CLIENT | WORKER
+    available Float       @default(0) // Can withdraw
+    held      Float       @default(0) // Pending release
     currency  String?
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-
-    worker Worker @relation(fields: [workerId], references: [id])
+    createdAt DateTime    @default(now())
+    updatedAt DateTime    @updatedAt
 
     @@map("wallets")
 }

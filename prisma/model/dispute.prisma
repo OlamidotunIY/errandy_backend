@@ -1,0 +1,15 @@
+model Dispute {
+  id        String @id @default(auto()) @map("_id") @db.ObjectId
+  errandId  String
+  clientId  String
+  workerId  String
+  status    DisputeStatus
+  reason    String
+  createdAt DateTime @default(now())
+}
+
+enum DisputeStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}

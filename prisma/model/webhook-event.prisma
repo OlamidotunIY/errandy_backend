@@ -1,0 +1,10 @@
+model WebhookEvent {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    eventId   String   @unique
+    provider  String // paystack
+    eventType String // refund.processed, refund.failed
+    data      Json
+    createdAt DateTime @default(now())
+
+    @@map("webhookEvents")
+}

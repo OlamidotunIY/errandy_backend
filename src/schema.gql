@@ -218,6 +218,7 @@ type Mutation {
   createReview(createReviewInput: CreateReviewInput!): Review!
   createUserRole(role: UserRole!): User!
   createWallet(createWalletInput: CreateWalletInput!): Wallet!
+  initializePaymentMethod(provider: String = "paystack"): PaymentInitializationResponse!
   removeChat(id: Int!): Chat!
   removeErrand(id: ID!): Errand!
   removeReview(id: Int!): Review!
@@ -230,6 +231,7 @@ type Mutation {
   updateUser(updateUserInput: UpdateUserInput!): User!
   updateWallet(updateWalletInput: UpdateWalletInput!): Wallet!
   useCurrentAddress(input: ReverseGeocodeInput!): User!
+  verifyAndSavePaymentMethod(provider: String = "paystack", reference: String!): PaymentMethod!
 }
 
 enum OnboardingProgress {
@@ -256,6 +258,30 @@ input PaginationInput {
 
   """Page number (1-based)"""
   page: Int! = 1
+}
+
+type PaymentInitializationData {
+  access_code: String
+  authorization_url: String
+  reference: String!
+}
+
+type PaymentInitializationResponse {
+  data: PaymentInitializationData
+  message: String!
+  status: Boolean!
+}
+
+type PaymentMethod {
+  cardBrand: String
+  expMonth: Int
+  expYear: Int
+  id: ID!
+  isDefault: Boolean!
+  last4: String
+  provider: String!
+  type: String!
+  verified: Boolean!
 }
 
 input PlaceDetailsInput {

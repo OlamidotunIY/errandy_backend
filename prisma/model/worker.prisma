@@ -7,7 +7,6 @@ model Worker {
     user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
     searchHistory Search[]
     services      ServicesOnWorkers[]
-    wallet        Wallet?
     organizations Organization[]
 
     @@map("workers")

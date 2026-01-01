@@ -20,6 +20,7 @@ import { ClientModule } from './client/client.module';
 import { WorkerModule } from './worker/worker.module';
 import { RatingResolver } from './rating/rating.resolver';
 import { RatingModule } from './rating/rating.module';
+import { PaymentGatewayModule } from './payment-gateway/payment-gateway.module';
 
 @Module({
   imports: [
@@ -77,6 +78,7 @@ import { RatingModule } from './rating/rating.module';
     ClientModule,
     WorkerModule,
     RatingModule,
+    PaymentGatewayModule,
   ],
   controllers: [AppController],
   providers: [AppService, RatingResolver],
