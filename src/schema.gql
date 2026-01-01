@@ -198,6 +198,10 @@ input GetAllErrandInput {
   status: String
 }
 
+input GetErrandInput {
+  id: ID!
+}
+
 input GetServiceCategoriesInput {
   type: ServiceCategoryType
 }
@@ -268,13 +272,14 @@ type Query {
 
   """Get client dashboard data including requirements and errands"""
   clientDashboard: ClientDashboard!
-  errand(id: ID!): Errand!
+  errand(input: GetErrandInput!): Errand!
   errands(dto: GetAllErrandInput!): [Errand!]!
 
   """
   Advanced errand query with personalized feeds and location-based filtering
   """
   getErrands(input: ErrandQueryInput!): PaginatedErrands!
+  getUserAddresses: [UserAddress!]!
   placeDetails(input: PlaceDetailsInput!): AddressDetails!
   review(id: Int!): Review!
   service(id: ID!): Service!
@@ -433,10 +438,14 @@ type User {
 }
 
 type UserAddress {
+  activeFor: [User!]
   address: String!
+  createdAt: DateTime!
   id: ID!
   label: String!
   location: GeoPoint!
+  updatedAt: DateTime!
+  user: User
   userId: String!
 }
 

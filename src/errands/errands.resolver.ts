@@ -15,6 +15,7 @@ import { PaginatedErrands } from './entities/paginated-errands.entity';
 import { ErrandSubscriptionPayload } from './entities/errand-subscription.entity';
 import { UseGuards, Inject } from '@nestjs/common';
 import { GetAllErrandInput } from './dto/get-all-errand.input';
+import { GetErrandInput } from './dto/get-errand.input';
 import { SaveErrand } from './entities/saveErrand.entity';
 import { GqlAuthGuard } from 'src/auth/guard/graphql-auth.guard';
 import { CurrentUser } from 'src/auth/decorator/current-user.decorator';
@@ -43,10 +44,7 @@ export class ErrandsResolver {
 
   @UseGuards(GqlAuthGuard)
   @Query(() => [Errand], { name: 'errands' })
-  findAll(
-    @Args('dto') dto: GetAllErrandInput,
-    @CurrentUser() user: User,
-  ) {
+  findAll(@Args('dto') dto: GetAllErrandInput, @CurrentUser() user: User) {
     return this.errandsService.findAll(dto, user.id);
   }
 
@@ -65,8 +63,8 @@ export class ErrandsResolver {
 
   @UseGuards(GqlAuthGuard)
   @Query(() => Errand, { name: 'errand' })
-  findOne(@Args('id', { type: () => ID }) id: string) {
-    return this.errandsService.findOne(id);
+  findOne(@Args('input') input: GetErrandInput) {
+    return this.errandsService.findOne(input.id);
   }
 
   @UseGuards(GqlAuthGuard)

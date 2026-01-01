@@ -1,6 +1,5 @@
 import { InputType, Int, Field, Float } from '@nestjs/graphql';
-import { GeoPoint } from '../entities/user-address.entities';
-import { IsLatitude, IsLongitude } from 'class-validator';
+import { IsLatitude, IsLongitude, IsNotEmpty, IsString } from 'class-validator';
 
 @InputType()
 export class CreateUserInput {
@@ -11,9 +10,13 @@ export class CreateUserInput {
 @InputType()
 export class CreateAddressInput {
   @Field(() => String)
+  @IsNotEmpty()
+  @IsString()
   label: string;
 
   @Field(() => String)
+  @IsNotEmpty()
+  @IsString()
   address: string;
 
   @Field(() => Float)

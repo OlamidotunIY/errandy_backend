@@ -13,6 +13,7 @@ import { SaveUserAddressInput } from './dto/save-user-address.input';
 import { User as GqlUser, User } from 'src/users/entities/user.entity';
 import { GqlAuthGuard } from 'src/auth/guard/graphql-auth.guard';
 import { CurrentUser } from 'src/auth/decorator/current-user.decorator';
+import { UserAddress } from './entities/address.entity';
 
 @Resolver()
 @UseGuards(GqlAuthGuard)
@@ -47,7 +48,7 @@ export class AddressResolver {
     const details = await this.addressService.reverseGeocode(input);
     // Prepare CreateAddressInput for service
     const createDto = {
-      label: details.formattedAddress,
+      label: details.formattedAddress || 'Pinned Location',
       address: details.formattedAddress,
       latitude: details.latitude,
       longitude: details.longitude,
@@ -61,5 +62,10 @@ export class AddressResolver {
     @CurrentUser() user: User,
   ): Promise<any> {
     return this.usersService.addAddress(dto, user.id);
+  }
+
+  @Query(() => [UserAddress], { name: 'getUserAddresses' })
+  getUserAddresses(@CurrentUser() user: User): Promise<UserAddress[]> {
+    return this.addressService.getUserAddresses(user.id);
   }
 }

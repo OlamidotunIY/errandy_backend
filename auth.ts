@@ -8,6 +8,7 @@ import {
 } from 'better-auth/plugins';
 import { betterAuth } from 'better-auth';
 import { expo } from '@better-auth/expo';
+import { sendOTP } from './src/utils/otp.utils';
 
 const client = new PrismaClient();
 
@@ -25,7 +26,26 @@ export const auth = betterAuth({
         console.log('type', type);
       },
     }),
-    phoneNumber(),
+    phoneNumber({
+      async sendOTP({ phoneNumber: phone, code }, request) {
+        console.log('Sending OTP to phone:', phone);
+
+        // Format phone number (remove any non-digit characters except +)
+        let formattedPhone = phone.replace(/[^\d+]/g, '');
+
+        // Ensure +234 prefix if missing
+        if (!formattedPhone.startsWith('+')) {
+          // Remove leading 0 if present (e.g., 081... -> 81...)
+          if (formattedPhone.startsWith('0')) {
+            formattedPhone = formattedPhone.substring(1);
+          }
+          formattedPhone = '+234' + formattedPhone;
+        }
+
+        // Twilio generates its own OTP code
+        await sendOTP(formattedPhone, code);
+      },
+    }),
     username({
       minUsernameLength: 5,
     }),
@@ -40,10 +60,17 @@ export const auth = betterAuth({
       clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
       mapProfileToUser: async (profile) => {
         return {
-          username: profile.email.split('@')[0] + Math.random().toString(36).slice(2, 7),
+          username:
+            profile.email.split('@')[0] +
+            Math.random().toString(36).slice(2, 7),
         };
       },
     },
   },
-  trustedOrigins: ['errandy://*', "http://localhost:3000", "exp://*", "exp://172.19.130.114:8081"],
+  trustedOrigins: [
+    'errandy://*',
+    'http://localhost:3000',
+    'exp://*',
+    'exp://172.19.130.114:8081',
+  ],
 });

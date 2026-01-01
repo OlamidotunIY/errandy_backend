@@ -154,12 +154,26 @@ export class ErrandsService {
     }
   }
 
-  findOne(id: string) {
-    return this.prisma.errand.findUnique({
+  async findOne(id: string) {
+    const errand = await this.prisma.errand.findUnique({
       where: {
         id,
       },
+      include: {
+        service: true,
+        client: {
+          include: {
+            user: true,
+          },
+        },
+      },
     });
+
+    if (!errand) {
+      throw new Error('Errand not found');
+    }
+
+    return errand;
   }
 
   async update(updateErrandInput: UpdateErrandInput) {
