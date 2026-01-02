@@ -144,14 +144,8 @@ export class PaymentGatewayService {
         paymentMethod.isDefault = true;
       }
 
-      // Trigger Refund
+      // Trigger Refund - use transaction ID (not authorization_code which is for charging)
       try {
-        // Refund the full amount (5000 kobo)
-        await gateway.refundTransaction(auth.authorization_code, 5000);
-        // Note: Paystack might prefer transaction reference? Reference is "re4lyvq3s3".
-        // auth.authorization_code is "AUTH_...".
-        // The user snippet uses "transaction": "qufywna9w9a5d8v".
-        // The gateway implementation takes transactionOrReference. Use reference from response.data (passed as arg).
         await gateway.refundTransaction(
           response.data.id.toString(),
           response.data.amount,
@@ -160,10 +154,60 @@ export class PaymentGatewayService {
         this.logger.error(
           `Failed to initiate refund for ${reference}: ${refundError.message}`,
         );
-        // We don't fail the verification if refund fails?
-        // Ideally we should alert admin or user, but let's log for now.
-        // Or maybe we treat it as critical? The user wants "make sure I do not process 1 refund twice".
-        // But valid verification MUST save the card. Refund is cleanup.
+
+        // Fallback: Credit user's wallet instead of card refund
+        try {
+          const refundAmountNaira = response.data.amount / 100; // Convert kobo to Naira
+
+          // Find or create wallet for this client
+          let wallet = await this.prisma.wallet.findFirst({
+            where: { ownerId: client.id, ownerType: 'CLIENT' },
+          });
+
+          if (!wallet) {
+            wallet = await this.prisma.wallet.create({
+              data: {
+                ownerId: client.id,
+                ownerType: 'CLIENT',
+                available: 0,
+                held: 0,
+                currency: 'NGN',
+              },
+            });
+          }
+
+          // Credit wallet
+          await this.prisma.wallet.update({
+            where: { id: wallet.id },
+            data: { available: { increment: refundAmountNaira } },
+          });
+
+          // Create transaction record for audit
+          await this.prisma.transaction.create({
+            data: {
+              userId: client.id,
+              amount: refundAmountNaira,
+              type: 'FUND',
+              status: 'SUCCESS',
+              reference: `REFUND_FALLBACK_${reference}`,
+              metadata: {
+                originalReference: reference,
+                reason: 'Paystack refund failed, credited to wallet',
+                paystackError: refundError.message,
+              },
+            },
+          });
+
+          this.logger.log(
+            `Credited ₦${refundAmountNaira} to wallet for user ${client.id} (refund fallback)`,
+          );
+        } catch (walletError) {
+          this.logger.error(
+            `Failed to credit wallet for ${reference}: ${walletError.message}`,
+          );
+          // At this point, we've saved the card but couldn't refund or credit wallet.
+          // This needs admin attention - could add alerting here.
+        }
       }
 
       return paymentMethod;
