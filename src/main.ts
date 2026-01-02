@@ -4,6 +4,7 @@ import { AppModule } from './app.module';
 import { graphqlUploadExpress } from 'graphql-upload-ts';
 import { ConfigService } from '@nestjs/config';
 import * as dns from 'node:dns';
+import { json, urlencoded } from 'express';
 dns.setDefaultResultOrder('ipv4first');
 
 async function bootstrap() {
@@ -13,7 +14,11 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
 
-  const allowedOrigins = ['http://localhost:3000', 'http://localhost:8081', 'exp://localhost:8081'];
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:8081',
+    'exp://localhost:8081',
+  ];
 
   app.enableCors({
     origin: allowedOrigins,
@@ -48,6 +53,8 @@ async function bootstrap() {
     }),
   );
   app.use(graphqlUploadExpress({ maxFileSize: 10000000, maxFiles: 10 }));
+  app.use(json({ limit: '50mb' }));
+  app.use(urlencoded({ extended: true, limit: '50mb' }));
 
   const port = configService.get<number>('PORT', 3001);
   await app.listen(port, '0.0.0.0');

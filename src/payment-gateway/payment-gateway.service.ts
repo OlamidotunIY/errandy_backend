@@ -12,6 +12,21 @@ export class PaymentGatewayService {
     private readonly prisma: PrismaService,
   ) {}
 
+  async getPaymentMethods(user: User) {
+    const client = await this.prisma.client.findUnique({
+      where: { userId: user.id },
+    });
+
+    if (!client) {
+      return [];
+    }
+
+    return this.prisma.paymentMethod.findMany({
+      where: { userId: client.id }, // paymentMethod.userId links to Client.id
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async initializeAddPaymentMethod(user: User, provider: string = 'paystack') {
     // 1. Validate User/Client
     // We assume only Clients add payment methods for now, or both?

@@ -1,4 +1,4 @@
-import { Resolver, Mutation, Args } from '@nestjs/graphql';
+import { Resolver, Mutation, Args, Query } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { GqlAuthGuard } from '../auth/guard/graphql-auth.guard';
 import { CurrentUser } from '../auth/decorator/current-user.decorator';
@@ -10,6 +10,12 @@ import { PaymentMethod } from './entities/payment-method.entity';
 @Resolver()
 export class PaymentGatewayResolver {
   constructor(private readonly paymentGatewayService: PaymentGatewayService) {}
+
+  @Query(() => [PaymentMethod])
+  @UseGuards(GqlAuthGuard)
+  async myPaymentMethods(@CurrentUser() user: User) {
+    return this.paymentGatewayService.getPaymentMethods(user);
+  }
 
   @Mutation(() => PaymentInitializationResponse)
   @UseGuards(GqlAuthGuard)

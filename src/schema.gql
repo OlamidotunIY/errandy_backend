@@ -306,6 +306,7 @@ type Query {
   """
   getErrands(input: ErrandQueryInput!): PaginatedErrands!
   getUserAddresses: [UserAddress!]!
+  myPaymentMethods: [PaymentMethod!]!
   placeDetails(input: PlaceDetailsInput!): AddressDetails!
   review(id: Int!): Review!
   service(id: ID!): Service!
