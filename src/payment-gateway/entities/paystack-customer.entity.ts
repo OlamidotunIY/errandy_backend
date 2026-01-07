@@ -1,4 +1,5 @@
 import { ObjectType, Field, ID } from '@nestjs/graphql';
+import GraphQLJSON from 'graphql-type-json';
 
 @ObjectType()
 export class PaystackCustomer {
@@ -13,4 +14,7 @@ export class PaystackCustomer {
 
   @Field()
   userId: string;
+
+  @Field(() => GraphQLJSON, { nullable: true })
+  paystackData?: any;
 }

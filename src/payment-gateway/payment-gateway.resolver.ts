@@ -6,6 +6,7 @@ import { User } from '@prisma/client';
 import { PaymentGatewayService } from './payment-gateway.service';
 import { PaymentInitializationResponse } from './dto/payment-initialization.response';
 import { PaymentMethod } from './entities/payment-method.entity';
+import { PaystackCustomer } from './entities/paystack-customer.entity';
 
 @Resolver()
 export class PaymentGatewayResolver {
@@ -43,5 +44,13 @@ export class PaymentGatewayResolver {
       reference,
       provider,
     );
+  }
+
+  // ==================== Paystack Customer (Query only - creation handled via events) ====================
+
+  @Query(() => PaystackCustomer, { nullable: true })
+  @UseGuards(GqlAuthGuard)
+  async myPaystackCustomer(@CurrentUser() user: User) {
+    return this.paymentGatewayService.getPaystackCustomer(user.id);
   }
 }

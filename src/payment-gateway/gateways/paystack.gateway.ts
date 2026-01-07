@@ -119,4 +119,105 @@ export class PaystackGateway implements PaymentGateway {
       throw error;
     }
   }
+
+  /**
+   * Create a Paystack customer
+   */
+  async createCustomer(
+    email: string,
+    firstName?: string,
+    lastName?: string,
+    phone?: string,
+    metadata?: any,
+  ): Promise<any> {
+    try {
+      const response = await axios.post(
+        `${this.baseUrl}/customer`,
+        {
+          email,
+          first_name: firstName,
+          last_name: lastName,
+          phone,
+          metadata,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${this.secretKey}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      return response.data;
+    } catch (error) {
+      this.logger.error(
+        'Error creating Paystack customer',
+        error?.response?.data || error.message,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Update a Paystack customer by customer code
+   */
+  async updateCustomer(
+    customerCode: string,
+    updates: {
+      firstName?: string;
+      lastName?: string;
+      phone?: string;
+      metadata?: any;
+    },
+  ): Promise<any> {
+    try {
+      const response = await axios.put(
+        `${this.baseUrl}/customer/${customerCode}`,
+        {
+          first_name: updates.firstName,
+          last_name: updates.lastName,
+          phone: updates.phone,
+          metadata: updates.metadata,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${this.secretKey}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      return response.data;
+    } catch (error) {
+      this.logger.error(
+        `Error updating Paystack customer: ${customerCode}`,
+        error?.response?.data || error.message,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch a Paystack customer by customer code
+   */
+  async fetchCustomer(customerCode: string): Promise<any> {
+    try {
+      const response = await axios.get(
+        `${this.baseUrl}/customer/${customerCode}`,
+        {
+          headers: {
+            Authorization: `Bearer ${this.secretKey}`,
+          },
+        },
+      );
+
+      return response.data;
+    } catch (error) {
+      this.logger.error(
+        `Error fetching Paystack customer: ${customerCode}`,
+        error?.response?.data || error.message,
+      );
+      throw error;
+    }
+  }
 }

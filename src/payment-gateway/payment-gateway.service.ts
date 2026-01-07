@@ -217,4 +217,162 @@ export class PaymentGatewayService {
       `Payment verification failed: ${response.message || 'Unknown error'}`,
     );
   }
+
+  /**
+   * Create a Paystack customer for a user (client or provider)
+   */
+  async createPaystackCustomer(
+    userId: string,
+    input: {
+      firstName?: string;
+      lastName?: string;
+      phone?: string;
+    },
+  ) {
+    // Get user
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Check if customer already exists
+    const existingCustomer = await this.prisma.paystackCustomer.findUnique({
+      where: { userId: userId },
+    });
+
+    if (existingCustomer) {
+      // Customer already exists, return it instead of throwing
+      this.logger.log(`Paystack customer already exists for user ${userId}`);
+      return existingCustomer;
+    }
+
+    // Create customer in Paystack
+    const gateway = this.paymentGatewayFactory.getGateway('paystack') as any;
+
+    this.logger.log(`Creating Paystack customer for user ${userId}`);
+
+    const response = await gateway.createCustomer(
+      user.email,
+      input.firstName || user.name?.split(' ')[0],
+      input.lastName || user.name?.split(' ').slice(1).join(' '),
+      input.phone || user.phoneNumber,
+      { userId: userId },
+    );
+
+    if (!response.status) {
+      throw new BadRequestException(
+        `Failed to create Paystack customer: ${response.message || 'Unknown error'}`,
+      );
+    }
+
+    // Save to database
+    const paystackCustomer = await this.prisma.paystackCustomer.create({
+      data: {
+        customer_code: response.data.customer_code,
+        customer_id: response.data.id.toString(),
+        userId: userId,
+      },
+    });
+
+    return {
+      ...paystackCustomer,
+      paystackData: response.data,
+    };
+  }
+
+  /**
+   * Update a Paystack customer
+   */
+  async updatePaystackCustomer(
+    userId: string,
+    input: {
+      firstName?: string;
+      lastName?: string;
+      phone?: string;
+    },
+  ) {
+    // Get existing customer record
+    const existingCustomer = await this.prisma.paystackCustomer.findUnique({
+      where: { userId: userId },
+    });
+
+    if (!existingCustomer) {
+      throw new BadRequestException(
+        'Paystack customer not found for this user',
+      );
+    }
+
+    // Update in Paystack
+    const gateway = this.paymentGatewayFactory.getGateway('paystack') as any;
+
+    this.logger.log(`Updating Paystack customer for user ${userId}`);
+
+    const response = await gateway.updateCustomer(
+      existingCustomer.customer_code,
+      input,
+    );
+
+    if (!response.status) {
+      throw new BadRequestException(
+        `Failed to update Paystack customer: ${response.message || 'Unknown error'}`,
+      );
+    }
+
+    return {
+      ...existingCustomer,
+      paystackData: response.data,
+    };
+  }
+
+  /**
+   * Get Paystack customer for a user
+   */
+  async getPaystackCustomer(userId: string) {
+    const existingCustomer = await this.prisma.paystackCustomer.findUnique({
+      where: { userId: userId },
+    });
+
+    if (!existingCustomer) {
+      return null;
+    }
+
+    // Optionally fetch latest data from Paystack
+    try {
+      const gateway = this.paymentGatewayFactory.getGateway('paystack') as any;
+      const response = await gateway.fetchCustomer(
+        existingCustomer.customer_code,
+      );
+
+      return {
+        ...existingCustomer,
+        paystackData: response.status ? response.data : null,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Failed to fetch Paystack customer data: ${error.message}`,
+      );
+      return existingCustomer;
+    }
+  }
+
+  /**
+   * Create or get existing Paystack customer (idempotent)
+   */
+  async getOrCreatePaystackCustomer(
+    userId: string,
+    input?: {
+      firstName?: string;
+      lastName?: string;
+      phone?: string;
+    },
+  ) {
+    const existing = await this.getPaystackCustomer(userId);
+    if (existing) {
+      return existing;
+    }
+    return this.createPaystackCustomer(userId, input || {});
+  }
 }

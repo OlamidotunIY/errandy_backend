@@ -1,77 +1,37 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { auth } from '../../auth';
-import { RegisterDto } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
+import { Injectable } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from 'src/prisma.service';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
-
-    @Inject('BETTER_AUTH_INSTANCE')
-    private readonly authInstance: typeof auth,
-
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async signUpWithEmail(dto: RegisterDto) {
-    try {
-      const result = await this.authInstance.api.signUpEmail({
-        body: {
-          name: dto.name,
-          email: dto.email,
-          password: dto.password,
-          username: dto.username,
-        },
-      });
+  /**
+   * Called after a user signs up via email
+   * Emits user.created event for Paystack customer and wallet creation
+   */
+  async handleSignUpComplete(email: string) {
+    // Get the newly created user
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
 
-      if (result.token) {
-        await this.authInstance.api.sendVerificationEmail({
-          body: {
-            email: dto.email,
-          },
-        });
-      }
-
-      return {
-        user: result.user,
-      };
-    } catch (error) {
-      throw error;
+    if (!user) {
+      throw new Error('User not found after sign up');
     }
-  }
 
-  async signInWithUsername(dto: LoginDto) {
-    try {
-      const result = await this.authInstance.api.signInUsername({
-        body: {
-          username: dto.username,
-          password: dto.password,
-        },
-      });
+    // Emit user.created event
+    this.eventEmitter.emit('user.created', {
+      userId: user.id,
+      email: user.email,
+      firstName: user.name?.split(' ')[0],
+      lastName: user.name?.split(' ').slice(1).join(' '),
+      phone: user.phoneNumber,
+    });
 
-      return {
-        user: result,
-      };
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  async signInWithGoogle() {
-    try {
-      const result = await this.authInstance.api.signInSocial({
-        body: {
-          provider: 'google',
-        },
-      });
-      if ('user' in result) {
-        return { user: result.user };
-      } else {
-        return result;
-      }
-    } catch (error) {
-      throw error;
-    }
+    return user;
   }
 }

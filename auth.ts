@@ -73,4 +73,5 @@ export const auth = betterAuth({
     'exp://*',
     'exp://172.19.130.114:8081',
   ],
+   hooks: {}
 });

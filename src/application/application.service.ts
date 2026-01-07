@@ -5,24 +5,21 @@ import { PrismaService } from 'src/prisma.service';
 
 @Injectable()
 export class ApplicationService {
-  constructor(
-    private readonly prisma: PrismaService
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async apply(createApplicationInput: CreateApplicationInput, userId: string) {
-    const worker = await this.prisma.worker.findUnique({
+    const provider = await this.prisma.provider.findUnique({
       where: { userId },
     });
 
-    if(!worker) {
-      throw new Error('User does not have a worker profile');
+    if (!provider) {
+      throw new Error('User does not have a provider profile');
     }
-
 
     return this.prisma.application.create({
       data: {
         ...createApplicationInput,
-        workerId: worker.id,
+        workerId: provider.id,
         status: 'PENDING',
       },
     });

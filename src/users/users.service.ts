@@ -14,7 +14,7 @@ export class UsersService {
       where: { id },
       include: {
         activeAddress: true,
-        worker: {
+        provider: {
           include: {
             services: true,
           },
@@ -72,7 +72,7 @@ export class UsersService {
       },
     });
 
-    // Update onboarding progress if user is a worker
+    // Update onboarding progress if user is a provider
     if (user.activeRole === 'WORKER') {
       await this.updateOnboardingProgress(userId);
     }
@@ -108,9 +108,9 @@ export class UsersService {
               },
             }
           : {
-              worker: {
+              provider: {
                 connectOrCreate: {
-                  where: { userId: userId }, // assumes unique userId field in Worker
+                  where: { userId: userId }, // assumes unique userId field in Provider
                   create: {},
                 },
               },
@@ -126,7 +126,7 @@ export class UsersService {
     if (!user || user.activeRole !== 'WORKER') return;
 
     const hasServices =
-      user.worker?.services && user.worker.services.length > 0;
+      user.provider?.services && user.provider.services.length > 0;
     const hasAddress = user.userAddress && user.userAddress.length > 0;
 
     let newProgress = user.onboardingProgress;
@@ -167,15 +167,15 @@ export class UsersService {
   }
 
   /**
-   * Add services to the worker. serviceIds are Prisma Service.id values.
-   * This creates ServicesOnWorkers records for the worker and updates onboarding progress.
+   * Add services to the provider. serviceIds are Prisma Service.id values.
+   * This creates ServicesOnProviders records for the provider and updates onboarding progress.
    */
   async addServicesToWorker(serviceIds: string[], userId: string) {
     const user = await this.findOne(userId);
     if (!user) throw new BadRequestException('User not found');
-    if (!user.worker) throw new BadRequestException('User is not a worker');
+    if (!user.provider) throw new BadRequestException('User is not a provider');
 
-    const workerId = user.worker.id;
+    const providerId = user.provider.id;
 
     // Deduplicate input
     const uniqueServiceIds = Array.from(new Set(serviceIds));
@@ -196,15 +196,15 @@ export class UsersService {
 
     // Create link records; use deterministic composite id to avoid duplicates
     const ops = uniqueServiceIds.map((serviceId) =>
-      this.prisma.servicesOnWorkers.upsert({
+      this.prisma.servicesOnProviders.upsert({
         where: {
-          workerId_serviceId: {
-            workerId,
+          providerId_serviceId: {
+            providerId,
             serviceId,
           },
         },
         create: {
-          workerId,
+          providerId,
           serviceId,
         },
         update: {},
@@ -221,13 +221,13 @@ export class UsersService {
 
   async getUserSearchHistory(userId: string) {
     const user = await this.findOne(userId);
-    if (!user || !user.worker) {
-      throw new BadRequestException('User is not a worker or does not exist');
+    if (!user || !user.provider) {
+      throw new BadRequestException('User is not a provider or does not exist');
     }
 
     return this.prisma.search.findMany({
       where: {
-        workerId: user.worker.id,
+        providerId: user.provider.id,
       },
       orderBy: {
         id: 'desc', // Most recent first
@@ -238,14 +238,14 @@ export class UsersService {
 
   async saveSearchKeyword(userId: string, keyword: string) {
     const user = await this.findOne(userId);
-    if (!user || !user.worker) {
-      throw new BadRequestException('User is not a worker or does not exist');
+    if (!user || !user.provider) {
+      throw new BadRequestException('User is not a provider or does not exist');
     }
 
-    // Check if this keyword already exists for this worker
+    // Check if this keyword already exists for this provider
     const existingSearch = await this.prisma.search.findFirst({
       where: {
-        workerId: user.worker.id,
+        providerId: user.provider.id,
         keyword: keyword.toLowerCase().trim(),
       },
     });
@@ -262,20 +262,20 @@ export class UsersService {
     return this.prisma.search.create({
       data: {
         keyword: keyword.toLowerCase().trim(),
-        workerId: user.worker.id,
+        providerId: user.provider.id,
       },
     });
   }
 
   async clearSearchHistory(userId: string) {
     const user = await this.findOne(userId);
-    if (!user || !user.worker) {
-      throw new BadRequestException('User is not a worker or does not exist');
+    if (!user || !user.provider) {
+      throw new BadRequestException('User is not a provider or does not exist');
     }
 
     await this.prisma.search.deleteMany({
       where: {
-        workerId: user.worker.id,
+        providerId: user.provider.id,
       },
     });
 

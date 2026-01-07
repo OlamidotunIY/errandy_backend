@@ -25,6 +25,7 @@ import { OrganizationModule } from './organization/organization.module';
 import { NotificationModule } from './notification/notification.module';
 import { VerificationModule } from './verification/verification.module';
 import { TrustedCircleModule } from './trusted-circle/trusted-circle.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { TrustedCircleModule } from './trusted-circle/trusted-circle.module';
         };
       },
     }),
+    EventEmitterModule.forRoot(),
     PubSubModule,
     AuthModule,
     UsersModule,

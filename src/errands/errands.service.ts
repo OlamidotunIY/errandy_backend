@@ -59,12 +59,12 @@ export class ErrandsService {
   async findAll(dto: GetAllErrandInput, userId: string) {
     const meters = (dto.maxDistanceKm ?? 5) * 1000; // default to 5km
 
-    // Get user's active address + workerType + skills
+    // Get user's active address + providerType + skills
     const user = await this.prisma.user.findFirst({
       where: { id: userId },
       include: {
         activeAddress: true,
-        worker: {
+        provider: {
           include: {
             services: true,
           },
@@ -82,8 +82,8 @@ export class ErrandsService {
 
     // Create conditions for matching jobs
     let priorityMatch: Record<string, any> = {};
-    if (user?.worker?.services?.length) {
-      priorityMatch.service = { $in: user.worker.services };
+    if (user?.provider?.services?.length) {
+      priorityMatch.service = { $in: user.provider.services };
     }
 
     try {
@@ -100,7 +100,7 @@ export class ErrandsService {
           {
             $match: {
               status: 'OPEN',
-              workerType: user.worker?.workerType,
+              providerType: user.provider?.providerType,
             },
           },
           {
@@ -109,7 +109,7 @@ export class ErrandsService {
                 $cond: [
                   {
                     $or: priorityMatch.service
-                      ? [{ $in: ['$service', user.worker?.services] }]
+                      ? [{ $in: ['$service', user.provider?.services] }]
                       : [],
                   },
                   1,
@@ -138,8 +138,8 @@ export class ErrandsService {
         return this.prisma.errand.findMany({
           where: {
             status: 'OPEN',
-            ...(user.worker?.workerType && {
-              workerType: user.worker.workerType,
+            ...(user.provider?.providerType && {
+              providerType: user.provider.providerType,
             }),
           },
           include: {
@@ -324,7 +324,7 @@ export class ErrandsService {
       where: { id: userId },
       include: {
         activeAddress: true,
-        worker: {
+        provider: {
           include: {
             services: true,
           },
@@ -361,8 +361,8 @@ export class ErrandsService {
 
     // Build priority matching criteria
     let priorityMatch: Record<string, any> = {};
-    if (user?.worker?.services?.length) {
-      priorityMatch.service = { $in: user.worker.services };
+    if (user?.provider?.services?.length) {
+      priorityMatch.service = { $in: user.provider.services };
     }
 
     const pipeline = [
@@ -386,7 +386,7 @@ export class ErrandsService {
             $cond: [
               {
                 $or: priorityMatch.service
-                  ? [{ $in: ['$service', user.worker?.services] }]
+                  ? [{ $in: ['$service', user.provider?.services] }]
                   : [],
               },
               1,
@@ -444,8 +444,8 @@ export class ErrandsService {
           status: 'OPEN',
           ...(clientId && { clientId: { $ne: clientId } }),
           $or: [
-            { service: { $in: user.worker?.services || [] } },
-            { profession: user.worker?.workerType },
+            { service: { $in: user.provider?.services || [] } },
+            { profession: user.provider?.providerType },
           ],
         },
       },
@@ -455,14 +455,14 @@ export class ErrandsService {
             $add: [
               {
                 $cond: [
-                  { $in: ['$service', user.worker?.services || []] },
+                  { $in: ['$service', user.provider?.services || []] },
                   2,
                   0,
                 ],
               },
               {
                 $cond: [
-                  { $eq: ['$profession', user.worker?.workerType] },
+                  { $eq: ['$profession', user.provider?.providerType] },
                   1,
                   0,
                 ],
@@ -701,8 +701,8 @@ export class ErrandsService {
             status: 'OPEN',
             ...(clientId && { clientId: { $ne: clientId } }),
             $or: [
-              { service: { $in: user.worker?.services || [] } },
-              { profession: user.worker?.workerType },
+              { service: { $in: user.provider?.services || [] } },
+              { profession: user.provider?.providerType },
             ],
           },
         },

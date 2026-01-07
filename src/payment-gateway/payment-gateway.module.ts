@@ -4,6 +4,7 @@ import { PaymentGatewayResolver } from './payment-gateway.resolver';
 import { PaymentGatewayFactory } from './payment-gateway.factory';
 import { PaystackGateway } from './gateways/paystack.gateway';
 import { PrismaService } from '../prisma.service';
+import { PaymentGatewayEventListener } from './payment-gateway.events';
 
 import { PaymentGatewayController } from './payment-gateway.controller';
 
@@ -15,6 +16,8 @@ import { PaymentGatewayController } from './payment-gateway.controller';
     PaymentGatewayFactory,
     PaystackGateway,
     PrismaService,
+    PaymentGatewayEventListener,
   ],
+  exports: [PaymentGatewayService],
 })
 export class PaymentGatewayModule {}
