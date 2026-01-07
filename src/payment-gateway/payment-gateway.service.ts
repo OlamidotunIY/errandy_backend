@@ -375,4 +375,45 @@ export class PaymentGatewayService {
     }
     return this.createPaystackCustomer(userId, input || {});
   }
+
+  /**
+   * Create a dedicated virtual bank account for a user
+   * This allows the user to receive transfers via NUBAN
+   */
+  async createDedicatedAccount(
+    userId: string,
+    preferredBank: string = 'wema-bank',
+  ) {
+    // Get the Paystack customer for this user
+    const paystackCustomer = await this.prisma.paystackCustomer.findUnique({
+      where: { userId: userId },
+    });
+
+    if (!paystackCustomer) {
+      throw new BadRequestException(
+        'Paystack customer not found for this user. Create customer first.',
+      );
+    }
+
+    const gateway = this.paymentGatewayFactory.getGateway('paystack') as any;
+
+    this.logger.log(`Creating dedicated account for user ${userId}`);
+
+    const response = await gateway.createDedicatedAccount(
+      paystackCustomer.customer_id,
+      preferredBank,
+    );
+
+    if (!response.status) {
+      throw new BadRequestException(
+        `Failed to create dedicated account: ${response.message || 'Unknown error'}`,
+      );
+    }
+
+    this.logger.log(
+      `Dedicated account created for user ${userId}: ${response.data.account_number}`,
+    );
+
+    return response.data;
+  }
 }

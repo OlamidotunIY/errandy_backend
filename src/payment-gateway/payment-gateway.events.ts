@@ -93,33 +93,53 @@ export class PaymentGatewayEventListener implements OnModuleInit {
   }
 
   /**
-   * When a user is updated, update their Paystack customer info
+   * When a user is updated (firstName, lastName, or phone):
+   * 1. Update Paystack customer info
+   * 2. Create dedicated virtual bank account (only when phone is updated)
    */
   @OnEvent('user.updated')
   async handleUserUpdated(payload: UserUpdatedEvent) {
     this.logger.log(`User updated event received for user ${payload.userId}`);
 
-    try {
-      if (!payload.firstName && !payload.lastName && !payload.phone) {
-        return;
+    // Update Paystack customer with any changed fields
+    if (payload.firstName || payload.lastName || payload.phone) {
+      try {
+        const customer =
+          await this.paymentGatewayService.updatePaystackCustomer(
+            payload.userId,
+            {
+              firstName: payload.firstName,
+              lastName: payload.lastName,
+              phone: payload.phone,
+            },
+          );
+
+        this.logger.log(
+          `Paystack customer updated for user ${payload.userId}: ${customer.customer_code}`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Failed to update Paystack customer for user ${payload.userId}: ${error.message}`,
+        );
       }
+    }
 
-      const customer = await this.paymentGatewayService.updatePaystackCustomer(
-        payload.userId,
-        {
-          firstName: payload.firstName,
-          lastName: payload.lastName,
-          phone: payload.phone,
-        },
-      );
+    // Create dedicated virtual bank account ONLY when phone is updated
+    if (payload.phone) {
+      try {
+        const dedicatedAccount =
+          await this.paymentGatewayService.createDedicatedAccount(
+            payload.userId,
+          );
 
-      this.logger.log(
-        `Paystack customer updated for user ${payload.userId}: ${customer.customer_code}`,
-      );
-    } catch (error) {
-      this.logger.error(
-        `Failed to update Paystack customer for user ${payload.userId}: ${error.message}`,
-      );
+        this.logger.log(
+          `Dedicated account created for user ${payload.userId}: ${dedicatedAccount.account_number} (${dedicatedAccount.bank.name})`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Failed to create dedicated account for user ${payload.userId}: ${error.message}`,
+        );
+      }
     }
   }
 

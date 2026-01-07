@@ -220,4 +220,37 @@ export class PaystackGateway implements PaymentGateway {
       throw error;
     }
   }
+
+  /**
+   * Create a dedicated virtual account for a customer
+   * Returns a NUBAN that can receive transfers
+   */
+  async createDedicatedAccount(
+    customerIdOrCode: string,
+    preferredBank: string = 'wema-bank',
+  ): Promise<any> {
+    try {
+      const response = await axios.post(
+        `${this.baseUrl}/dedicated_account`,
+        {
+          customer: customerIdOrCode,
+          preferred_bank: preferredBank,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${this.secretKey}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      return response.data;
+    } catch (error) {
+      this.logger.error(
+        `Error creating dedicated account for customer: ${customerIdOrCode}`,
+        error?.response?.data || error.message,
+      );
+      throw error;
+    }
+  }
 }
