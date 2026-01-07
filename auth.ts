@@ -9,6 +9,7 @@ import {
 import { betterAuth } from 'better-auth';
 import { expo } from '@better-auth/expo';
 import { sendOTP } from './src/utils/otp.utils';
+import { globalEventEmitter } from './src/utils/event-emitter.utils';
 
 const client = new PrismaClient();
 
@@ -45,6 +46,13 @@ export const auth = betterAuth({
         // Twilio generates its own OTP code
         await sendOTP(formattedPhone, code);
       },
+      callbackOnVerification({ phoneNumber, user }, ctx) {
+        // Emit user.updated event when phone is verified
+        globalEventEmitter.emit('user.updated', {
+          userId: user.id,
+          phone: phoneNumber,
+        });
+      },
     }),
     username({
       minUsernameLength: 5,
@@ -73,5 +81,5 @@ export const auth = betterAuth({
     'exp://*',
     'exp://172.19.130.114:8081',
   ],
-   hooks: {}
+  hooks: {},
 });

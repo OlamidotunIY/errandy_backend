@@ -1,32 +1,42 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PaymentGatewayService } from './payment-gateway.service';
 import { PrismaService } from '../prisma.service';
-
-// Event payload types
-export interface UserCreatedEvent {
-  userId: string;
-  email: string;
-  firstName?: string;
-  lastName?: string;
-  phone?: string;
-}
-
-export interface UserUpdatedEvent {
-  userId: string;
-  firstName?: string;
-  lastName?: string;
-  phone?: string;
-}
+import {
+  globalEventEmitter,
+  UserCreatedEvent,
+  UserUpdatedEvent,
+} from '../utils/event-emitter.utils';
 
 @Injectable()
-export class PaymentGatewayEventListener {
+export class PaymentGatewayEventListener implements OnModuleInit {
   private readonly logger = new Logger(PaymentGatewayEventListener.name);
 
   constructor(
     private readonly paymentGatewayService: PaymentGatewayService,
     private readonly prisma: PrismaService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
+
+  /**
+   * Bridge global event emitter to NestJS EventEmitter2
+   * This allows events from better-auth callbacks to reach NestJS listeners
+   */
+  onModuleInit() {
+    // Forward global events to NestJS event system
+    globalEventEmitter.on('user.created', (payload: UserCreatedEvent) => {
+      this.eventEmitter.emit('user.created', payload);
+    });
+
+    globalEventEmitter.on('user.updated', (payload: UserUpdatedEvent) => {
+      this.eventEmitter.emit('user.updated', payload);
+    });
+
+    this.logger.log(
+      'PaymentGatewayEventListener initialized - bridged global events',
+    );
+  }
 
   /**
    * When a user is created:
