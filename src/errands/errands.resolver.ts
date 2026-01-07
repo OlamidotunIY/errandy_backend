@@ -16,7 +16,7 @@ import { ErrandSubscriptionPayload } from './entities/errand-subscription.entity
 import { UseGuards, Inject } from '@nestjs/common';
 import { GetAllErrandInput } from './dto/get-all-errand.input';
 import { GetErrandInput } from './dto/get-errand.input';
-import { SaveErrand } from './entities/saveErrand.entity';
+import { SavedErrand } from './entities/saveErrand.entity';
 import { GqlAuthGuard } from 'src/auth/guard/graphql-auth.guard';
 import { CurrentUser } from 'src/auth/decorator/current-user.decorator';
 import { User } from 'src/users/entities/user.entity';
@@ -82,7 +82,7 @@ export class ErrandsResolver {
   }
 
   @UseGuards(GqlAuthGuard)
-  @Mutation(() => SaveErrand)
+  @Mutation(() => SavedErrand)
   saveErrand(
     @Args('errandId', { type: () => ID }) errandId: string,
     @CurrentUser() user: User,

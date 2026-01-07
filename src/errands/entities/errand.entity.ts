@@ -1,13 +1,15 @@
-import { ObjectType, Field, Float } from '@nestjs/graphql';
+import { ObjectType, Field, Float, Int, ID } from '@nestjs/graphql';
 import { ErrandStatus } from './errandStatus.enum';
-import { WorkerType } from './workerType.enum';
+import { ProviderType } from './providerType.enum';
 import { PricingType } from './pricingType.enum';
 import Client from 'src/client/entities/client.entities';
 import { Service } from 'src/service/entities/service.entity';
+import { Rating } from 'src/rating/entities/rating.entity';
+import GraphQLJSON from 'graphql-type-json';
 
 @ObjectType()
 export class Errand {
-  @Field()
+  @Field(() => ID)
   id: string;
 
   @Field()
@@ -28,11 +30,11 @@ export class Errand {
   @Field(() => Float, { nullable: true })
   hourlyRate?: number;
 
-  @Field(() => ErrandStatus)
-  status: ErrandStatus;
+  @Field(() => ErrandStatus, { nullable: true })
+  status?: ErrandStatus;
 
-  @Field(() => WorkerType, { nullable: true })
-  workerType?: WorkerType;
+  @Field(() => ProviderType, { nullable: true })
+  providerType?: ProviderType;
 
   @Field({ nullable: true })
   serviceId?: string;
@@ -44,7 +46,10 @@ export class Errand {
   assignedTo?: string;
 
   @Field({ nullable: true })
-  applicationDeadline?: Date;
+  assignedAt?: Date;
+
+  @Field(() => Int, { nullable: true })
+  completionDurationDays?: number;
 
   @Field({ nullable: true })
   completionDeadline?: Date;
@@ -52,11 +57,14 @@ export class Errand {
   @Field({ nullable: true })
   serviceAddress?: string;
 
-  @Field(() => Float, { nullable: true })
-  latitude?: number;
+  @Field(() => GraphQLJSON, { nullable: true })
+  location?: any;
 
-  @Field(() => Float, { nullable: true })
-  longitude?: number;
+  @Field({ nullable: true })
+  templateId?: string;
+
+  @Field()
+  isRecurring: boolean;
 
   @Field()
   createdAt: Date;
@@ -66,4 +74,7 @@ export class Errand {
 
   @Field(() => Client)
   client: Client;
+
+  @Field(() => [Rating], { nullable: 'itemsAndList' })
+  ratings?: Rating[];
 }

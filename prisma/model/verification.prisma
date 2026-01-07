@@ -1,0 +1,33 @@
+model Verification {
+    id         String             @id @map("_id")
+    identifier String
+    value      String
+    providerId String             @db.ObjectId
+    type       VerificationType
+    status     VerificationStatus
+    metadata   Json?
+    verifiedAt DateTime?
+    expiresAt  DateTime?
+    createdAt  DateTime           @default(now())
+
+    provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+    @@unique([providerId, type])
+    @@map("verifications")
+}
+
+enum VerificationType {
+    IDENTITY
+    PHONE
+    ADDRESS
+    BANK_ACCOUNT
+    PROFESSIONAL_LICENSE
+    BUSINESS_REGISTRATION
+}
+
+enum VerificationStatus {
+    PENDING
+    APPROVED
+    REJECTED
+    EXPIRED
+}

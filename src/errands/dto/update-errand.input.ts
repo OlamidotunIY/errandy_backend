@@ -2,7 +2,7 @@ import { InputType, Field, Float, PartialType } from '@nestjs/graphql';
 import { CreateErrandInput } from './create-errand.input';
 import { ErrandStatus } from '../entities/errandStatus.enum';
 import { PricingType } from '../entities/pricingType.enum';
-import { WorkerType } from '../entities/workerType.enum';
+import { ProviderType } from '../entities/providerType.enum';
 import {
   IsDate,
   IsEnum,
@@ -53,10 +53,10 @@ export class UpdateErrandInput extends PartialType(CreateErrandInput) {
   @IsEnum(ErrandStatus)
   status?: ErrandStatus;
 
-  @Field(() => WorkerType, { nullable: true })
+  @Field(() => ProviderType, { nullable: true })
   @IsOptional()
-  @IsEnum(WorkerType)
-  workerType?: WorkerType;
+  @IsEnum(ProviderType)
+  providerType?: ProviderType;
 
   @Field({ nullable: true })
   @IsOptional()

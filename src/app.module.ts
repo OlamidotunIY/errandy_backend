@@ -21,6 +21,10 @@ import { WorkerModule } from './worker/worker.module';
 import { RatingResolver } from './rating/rating.resolver';
 import { RatingModule } from './rating/rating.module';
 import { PaymentGatewayModule } from './payment-gateway/payment-gateway.module';
+import { OrganizationModule } from './organization/organization.module';
+import { NotificationModule } from './notification/notification.module';
+import { VerificationModule } from './verification/verification.module';
+import { TrustedCircleModule } from './trusted-circle/trusted-circle.module';
 
 @Module({
   imports: [
@@ -79,6 +83,10 @@ import { PaymentGatewayModule } from './payment-gateway/payment-gateway.module';
     WorkerModule,
     RatingModule,
     PaymentGatewayModule,
+    OrganizationModule,
+    NotificationModule,
+    VerificationModule,
+    TrustedCircleModule,
   ],
   controllers: [AppController],
   providers: [AppService, RatingResolver],

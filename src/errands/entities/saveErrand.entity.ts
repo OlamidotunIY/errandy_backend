@@ -1,13 +1,20 @@
 import { Field, ID, ObjectType } from '@nestjs/graphql';
+import { Errand } from './errand.entity';
 
 @ObjectType()
-export class SaveErrand {
-  @Field(() => String)
+export class SavedErrand {
+  @Field(() => ID)
   id: string;
 
-  @Field(() => String)
+  @Field()
+  userId: string;
+
+  @Field()
   errandId: string;
 
-  @Field(() => String)
-  userId: string;
+  @Field()
+  savedAt: Date;
+
+  @Field(() => Errand, { nullable: true })
+  errand?: Errand;
 }

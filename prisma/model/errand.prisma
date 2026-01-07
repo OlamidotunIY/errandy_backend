@@ -1,26 +1,31 @@
 model Errand {
-    id                  String        @id @default(auto()) @map("_id") @db.ObjectId
-    clientId            String        @db.ObjectId
-    title               String
-    description         String?
-    pricingType         PricingType   @default(FIXED)
-    price               Float?
-    hourlyRate          Float?
-    status              ErrandStatus? @default(DRAFT)
-    workerType          WorkerType?
-    serviceId           String?       @db.ObjectId
-    assignedTo          String?       @db.ObjectId
-    applicationDeadline DateTime?
-    completionDeadline  DateTime?
-    serviceAddress      String? // e.g., "12 Palm Street, Lagos"
-    location            Json?
-    createdAt           DateTime      @default(now())
-    updatedAt           DateTime      @updatedAt
-    ratings             Rating[]
+    id                     String        @id @default(auto()) @map("_id") @db.ObjectId
+    clientId               String        @db.ObjectId
+    title                  String
+    description            String?
+    pricingType            PricingType   @default(FIXED)
+    price                  Float?
+    hourlyRate             Float?
+    status                 ErrandStatus? @default(DRAFT)
+    providerType           ProviderType?
+    serviceId              String?       @db.ObjectId
+    assignedTo             String?       @db.ObjectId
+    assignedAt             DateTime?
+    completionDurationDays Int? // e.g. 10
+    completionDeadline     DateTime? // computed AFTER assignment
 
-    client       Client        @relation(fields: [clientId], references: [id])
+    serviceAddress String?
+    location       Json?
+    templateId     String?            @db.ObjectId
+    isRecurring    Boolean            @default(false)
+    createdAt      DateTime           @default(now())
+    updatedAt      DateTime           @updatedAt
+    ratings        Rating[]
+
+    client       Client          @relation(fields: [clientId], references: [id])
     savedErrands SavedErrand[]
-    service      Service?       @relation(fields: [serviceId], references: [id])
+    service      Service?        @relation(fields: [serviceId], references: [id])
+    template     ErrandTemplate? @relation(fields: [templateId], references: [id])
 
     @@map("errands")
 }
@@ -37,6 +42,73 @@ model SavedErrand {
     @@map("saved_errands")
 }
 
+model RecurringErrand {
+    id         String @id @default(auto()) @map("_id") @db.ObjectId
+    clientId   String @db.ObjectId
+    templateId String @db.ObjectId
+
+    frequency RecurrenceFrequency
+    nextRunAt DateTime
+    active    Boolean             @default(true)
+
+    client   Client         @relation(fields: [clientId], references: [id])
+    template ErrandTemplate @relation(fields: [templateId], references: [id])
+
+    @@map("recurring_errands")
+}
+
+model ErrandBundle {
+    id          String  @id @default(auto()) @map("_id") @db.ObjectId
+    name        String
+    description String
+    basePrice   Float
+    active      Boolean @default(true)
+
+    items BundleItem[]
+
+    @@map("errand_bundles")
+}
+
+model BundleItem {
+    id         String @id @default(auto()) @map("_id") @db.ObjectId
+    bundleId   String @db.ObjectId
+    templateId String @db.ObjectId
+
+    bundle   ErrandBundle   @relation(fields: [bundleId], references: [id])
+    template ErrandTemplate @relation(fields: [templateId], references: [id])
+
+    @@map("bundle_items")
+}
+
+model ErrandTemplate {
+    id String @id @default(auto()) @map("_id") @db.ObjectId
+
+    title       String
+    description String?
+    pricingType PricingType
+    price       Float?
+    hourlyRate  Float?
+
+    serviceId    String?       @db.ObjectId
+    providerType ProviderType?
+
+    serviceAddress String?
+    location       Json?
+
+    createdAt DateTime @default(now())
+
+    recurringErrands RecurringErrand[]
+    errands          Errand[]
+    bundleItems      BundleItem[]
+
+    @@map("errand_templates")
+}
+
+enum RecurrenceFrequency {
+    WEEKLY
+    MONTHLY
+}
+
 enum ErrandStatus {
     DRAFT
     OPEN
@@ -46,7 +118,7 @@ enum ErrandStatus {
     OVERDUE
 }
 
-enum WorkerType {
+enum ProviderType {
     PROFESSIONAL
     GENERAL
     ARTISAN

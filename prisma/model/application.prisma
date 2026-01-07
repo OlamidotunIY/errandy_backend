@@ -1,10 +1,16 @@
 model Application {
-    id        String    @id @default(auto()) @map("_id") @db.ObjectId
-    errandId  String    @db.ObjectId
-    workerId  String    @db.ObjectId
-    status    AppStatus // ENUM: "PENDING", "ACCEPTED", "REJECTED", "CANCELLED"
-    createdAt DateTime  @default(now())
+    id       String @id @default(auto()) @map("_id") @db.ObjectId
+    errandId String @db.ObjectId
+    workerId String @db.ObjectId
 
+    status     AppStatus @default(PENDING)
+    acceptedAt DateTime?
+
+    source ApplicationSource @default(PUBLIC)
+
+    createdAt DateTime @default(now())
+
+    @@unique([errandId, workerId])
     @@map("applications")
 }
 
@@ -13,4 +19,9 @@ enum AppStatus {
     ACCEPTED
     REJECTED
     CANCELLED
+}
+
+enum ApplicationSource {
+    PUBLIC
+    INVITED
 }

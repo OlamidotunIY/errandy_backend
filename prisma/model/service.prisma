@@ -19,20 +19,20 @@ model Service {
   type       ServiceCategoryType
   categoryId String              @db.ObjectId
   category   ServiceCategory     @relation(fields: [categoryId], references: [id])
-  workers    ServicesOnWorkers[]
+  providers    ServicesOnProviders[]
   errands    Errand[]
 
   @@map("services")
 }
 
-model ServicesOnWorkers {
+model ServicesOnProviders {
   id        String @id @default(auto()) @map("_id") @db.ObjectId
   serviceId String @db.ObjectId
-  workerId  String @db.ObjectId
+  providerId  String @db.ObjectId
 
   service Service @relation(fields: [serviceId], references: [id])
-  worker  Worker  @relation(fields: [workerId], references: [id])
+  provider  Provider  @relation(fields: [providerId], references: [id])
 
-  @@unique([workerId, serviceId])
-  @@map("services_on_workers")
+  @@unique([providerId, serviceId])
+  @@map("services_on_providers")
 }

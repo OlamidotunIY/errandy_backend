@@ -1,4 +1,5 @@
 import { ObjectType, Field, ID, Int } from '@nestjs/graphql';
+import Client from 'src/client/entities/client.entities';
 
 @ObjectType()
 export class PaymentMethod {
@@ -6,7 +7,13 @@ export class PaymentMethod {
   id: string;
 
   @Field()
+  userId: string;
+
+  @Field()
   provider: string;
+
+  @Field()
+  providerRef: string;
 
   @Field()
   type: string;
@@ -28,4 +35,10 @@ export class PaymentMethod {
 
   @Field()
   verified: boolean;
+
+  @Field()
+  createdAt: Date;
+
+  @Field(() => Client, { nullable: true })
+  client?: Client;
 }

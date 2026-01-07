@@ -19,3 +19,15 @@ model PaymentMethod {
 
     @@map("paymentMethods")
 }
+
+model PaystackCustomer {
+    id String @id @default(auto()) @map("_id") @db.ObjectId
+    customer_code String
+    customer_id String
+
+    userId String
+    user   User   @relation(fields: [userId], references: [id])
+
+    @@map("paystackCustomers")
+    @@unique([userId])
+}

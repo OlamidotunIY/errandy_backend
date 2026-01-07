@@ -1,11 +1,13 @@
-    model Client {
-        id     String @id @default(auto()) @map("_id") @db.ObjectId
-        userId String @unique
+model Client {
+    id     String @id @default(auto()) @map("_id") @db.ObjectId
+    userId String @unique
 
-        paymentMethods PaymentMethod[]
-        user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-        Errands         Errand[]
-        ratings         Rating[]
+    paymentMethods   PaymentMethod[]
+    user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+    Errands          Errand[]
+    ratings          Rating[]
+    trustedCircles   TrustedCircle[]
+    recurringErrands RecurringErrand[]
 
-        @@map("clients")
-    }
+    @@map("clients")
+}

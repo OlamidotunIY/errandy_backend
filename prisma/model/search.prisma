@@ -2,8 +2,8 @@ model Search {
     id      String @id @default(auto()) @map("_id") @db.ObjectId
     keyword String
 
-    Worker   Worker? @relation(fields: [workerId], references: [id])
-    workerId String? @db.ObjectId
+    Provider   Provider? @relation(fields: [providerId], references: [id])
+    providerId String? @db.ObjectId
 
     @@map("searches")
 }

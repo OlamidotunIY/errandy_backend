@@ -32,8 +32,9 @@ model User {
   activeAddressId String?      @db.ObjectId
   activeAddress   UserAddress? @relation("ActiveAddress", fields: [activeAddressId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  worker Worker?
-  client Client?
+  provider          Provider?
+  client            Client?
+  paystackCustomers PaystackCustomer?
 
   @@unique([email])
   @@unique([username])
@@ -90,17 +91,6 @@ model Account {
   updatedAt             DateTime
 
   @@map("accounts")
-}
-
-model Verification {
-  id         String    @id @map("_id")
-  identifier String
-  value      String
-  expiresAt  DateTime
-  createdAt  DateTime?
-  updatedAt  DateTime?
-
-  @@map("verifications")
 }
 
 model TwoFactor {

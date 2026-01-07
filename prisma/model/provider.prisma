@@ -1,0 +1,25 @@
+model Provider {
+    id           String        @id @default(auto()) @map("_id") @db.ObjectId
+    providerType ProviderType?
+    userId       String        @unique
+
+    tier          ProviderTier @default(COMMUNITY)
+    tierUpdatedAt DateTime?
+
+    // Relations
+    user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+    searchHistory        Search[]
+    services             ServicesOnProviders[]
+    organizations        Organization[]
+    trustedCircleMembers TrustedCircleMember[]
+    verifications        Verification[]
+
+    @@map("providers")
+}
+
+enum ProviderTier {
+    COMMUNITY // basic errands
+    VERIFIED // ID + bank verified
+    CERTIFIED // professional license verified
+    COMPANY_PARTNER // registered business
+}

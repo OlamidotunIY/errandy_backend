@@ -1,6 +1,9 @@
 import { ObjectType, Field, ID } from '@nestjs/graphql';
 import { Errand } from 'src/errands/entities/errand.entity';
 import { User } from 'src/users/entities/user.entity';
+import { PaymentMethod } from 'src/payment-gateway/entities/payment-method.entity';
+import { Rating } from 'src/rating/entities/rating.entity';
+import { RecurringErrand } from 'src/errands/entities/recurring-errand.entity';
 
 @ObjectType()
 export class Client {
@@ -13,10 +16,17 @@ export class Client {
   @Field(() => User)
   user: User;
 
-  @Field(() => [Errand])
-  errands: Errand[];
+  @Field(() => [Errand], { nullable: 'itemsAndList' })
+  errands?: Errand[];
 
-  // paymentMethods and Errands relations can be added as needed
+  @Field(() => [PaymentMethod], { nullable: 'itemsAndList' })
+  paymentMethods?: PaymentMethod[];
+
+  @Field(() => [Rating], { nullable: 'itemsAndList' })
+  ratings?: Rating[];
+
+  @Field(() => [RecurringErrand], { nullable: 'itemsAndList' })
+  recurringErrands?: RecurringErrand[];
 }
 
 export default Client;

@@ -1,13 +1,16 @@
 import { ObjectType, Field, ID } from '@nestjs/graphql';
 
 @ObjectType()
-export class Search {
+export class Reaction {
   @Field(() => ID)
   id: string;
 
   @Field()
-  keyword: string;
+  messageId: string;
 
-  @Field(() => ID, { nullable: true })
-  providerId?: string;
+  @Field()
+  userId: string;
+
+  @Field()
+  emoji: string;
 }
