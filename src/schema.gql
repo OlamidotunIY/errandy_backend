@@ -18,11 +18,18 @@ type AddressSuggestion {
 }
 
 type Application {
+  acceptedAt: DateTime
   createdAt: DateTime!
   errandId: String!
   id: ID!
+  source: ApplicationSource!
   status: ApplicationStatus!
   workerId: String!
+}
+
+enum ApplicationSource {
+  INVITED
+  PUBLIC
 }
 
 enum ApplicationStatus {
@@ -32,14 +39,21 @@ enum ApplicationStatus {
   REJECTED
 }
 
-type Chat {
-  """Example field (placeholder)"""
-  exampleField: Int!
+type ChatRoom {
+  createdAt: DateTime!
+  id: ID!
+  messages: [Message]
+  name: String
+  participants: [String!]!
+  updatedAt: DateTime!
 }
 
 type Client {
-  errands: [Errand!]!
+  errands: [Errand]
   id: ID!
+  paymentMethods: [PaymentMethod]
+  ratings: [Rating]
+  recurringErrands: [RecurringErrand]
   user: User!
   userId: ID!
 }
@@ -101,26 +115,29 @@ A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date
 scalar DateTime
 
 type Errand {
-  applicationDeadline: DateTime
+  assignedAt: DateTime
   assignedTo: String
   client: Client!
   clientId: String!
   completionDeadline: DateTime
+  completionDurationDays: Int
   createdAt: DateTime!
   description: String
   hourlyRate: Float
-  id: String!
-  latitude: Float
-  longitude: Float
+  id: ID!
+  isRecurring: Boolean!
+  location: JSON
   price: Float
   pricingType: PricingType!
+  providerType: ProviderType
+  ratings: [Rating]
   service: Service
   serviceAddress: String
   serviceId: String
-  status: ErrandStatus!
+  status: ErrandStatus
+  templateId: String
   title: String!
   updatedAt: DateTime!
-  workerType: WorkerType
 }
 
 input ErrandQueryInput {
@@ -143,6 +160,7 @@ enum ErrandStatus {
   DRAFT
   IN_PROGRESS
   OPEN
+  OVERDUE
 }
 
 type ErrandSubscriptionPayload {
@@ -150,6 +168,20 @@ type ErrandSubscriptionPayload {
   errand: Errand!
   type: String!
   userId: String
+}
+
+type ErrandTemplate {
+  createdAt: DateTime!
+  description: String
+  hourlyRate: Float
+  id: ID!
+  location: JSON
+  price: Float
+  pricingType: PricingType!
+  providerType: ProviderType
+  serviceAddress: String
+  serviceId: String
+  title: String!
 }
 
 """Type of errand feed to retrieve"""
@@ -162,30 +194,33 @@ enum ErrandType {
 }
 
 type ErrandWithClient {
-  applicationDeadline: DateTime
+  assignedAt: DateTime
   assignedTo: String
   client: Client!
   clientId: String!
   clientName: String
   clientRating: Float
   completionDeadline: DateTime
+  completionDurationDays: Int
   createdAt: DateTime!
   description: String
   distance: Float
   hourlyRate: Float
-  id: String!
+  id: ID!
+  isRecurring: Boolean!
   isSaved: Boolean
-  latitude: Float
-  longitude: Float
+  location: JSON
   price: Float
   pricingType: PricingType!
+  providerType: ProviderType
+  ratings: [Rating]
   service: Service
   serviceAddress: String
   serviceId: String
-  status: ErrandStatus!
+  status: ErrandStatus
+  templateId: String
   title: String!
   updatedAt: DateTime!
-  workerType: WorkerType
 }
 
 type GeoPoint {
@@ -206,6 +241,33 @@ input GetServiceCategoriesInput {
   type: ServiceCategoryType
 }
 
+"""
+The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
+"""
+scalar JSON
+
+type Message {
+  content: String
+  contentUrl: String
+  createdAt: DateTime!
+  delivered: Boolean!
+  id: ID!
+  reactions: [Reaction]
+  receiverId: String!
+  roomId: String!
+  seen: Boolean!
+  senderId: String!
+  type: MessageType!
+}
+
+enum MessageType {
+  FILE
+  IMAGE
+  TEXT
+  VIDEO
+  VOICE
+}
+
 type Mutation {
   addAddress(dto: CreateAddressInput!): User!
   addWorkerServices(dto: AddWorkerServicesInput!): User!
@@ -213,19 +275,19 @@ type Mutation {
 
   """Clear user search history"""
   clearSearchHistory: Boolean!
-  createChat(createChatInput: CreateChatInput!): Chat!
+  createChat(createChatInput: CreateChatInput!): ChatRoom!
   createErrand(createErrandInput: CreateErrandInput!): Errand!
   createReview(createReviewInput: CreateReviewInput!): Review!
   createUserRole(role: UserRole!): User!
   createWallet(createWalletInput: CreateWalletInput!): Wallet!
   initializePaymentMethod(provider: String = "paystack"): PaymentInitializationResponse!
-  removeChat(id: Int!): Chat!
+  removeChat(id: Int!): ChatRoom!
   removeErrand(id: ID!): Errand!
   removeReview(id: Int!): Review!
   removeWallet(id: Int!): Wallet!
-  saveErrand(errandId: ID!): SaveErrand!
+  saveErrand(errandId: ID!): SavedErrand!
   saveUserAddress(dto: SaveUserAddressInput!): User!
-  updateChat(updateChatInput: UpdateChatInput!): Chat!
+  updateChat(updateChatInput: UpdateChatInput!): ChatRoom!
   updateErrand(updateErrandInput: UpdateErrandInput!): Errand!
   updateReview(updateReviewInput: UpdateReviewInput!): Review!
   updateUser(updateUserInput: UpdateUserInput!): User!
@@ -274,14 +336,26 @@ type PaymentInitializationResponse {
 
 type PaymentMethod {
   cardBrand: String
+  client: Client
+  createdAt: DateTime!
   expMonth: Int
   expYear: Int
   id: ID!
   isDefault: Boolean!
   last4: String
   provider: String!
+  providerRef: String!
   type: String!
+  userId: String!
   verified: Boolean!
+}
+
+type PaystackCustomer {
+  customer_code: String!
+  customer_id: String!
+  id: ID!
+  paystackData: JSON
+  userId: String!
 }
 
 input PlaceDetailsInput {
@@ -293,8 +367,15 @@ enum PricingType {
   HOURLY
 }
 
+enum ProviderType {
+  ARTISAN
+  GENERAL
+  PROFESSIONAL
+}
+
 type Query {
-  chat(id: Int!): Chat!
+  chatRoom(id: Int!): ChatRoom!
+  chatRooms: [ChatRoom!]!
 
   """Get client dashboard data including requirements and errands"""
   clientDashboard: ClientDashboard!
@@ -307,6 +388,7 @@ type Query {
   getErrands(input: ErrandQueryInput!): PaginatedErrands!
   getUserAddresses: [UserAddress!]!
   myPaymentMethods: [PaymentMethod!]!
+  myPaystackCustomer: PaystackCustomer
   placeDetails(input: PlaceDetailsInput!): AddressDetails!
   review(id: Int!): Review!
   service(id: ID!): Service!
@@ -318,6 +400,39 @@ type Query {
   """Get user search history for workers"""
   userSearchHistory: [Search!]!
   wallet(id: Int!): Wallet!
+}
+
+type Rating {
+  comment: String
+  createdAt: DateTime!
+  errandId: String
+  id: String!
+  rateeId: String!
+  raterId: String!
+  rating: Int!
+}
+
+type Reaction {
+  emoji: String!
+  id: ID!
+  messageId: String!
+  userId: String!
+}
+
+enum RecurrenceFrequency {
+  MONTHLY
+  WEEKLY
+}
+
+type RecurringErrand {
+  active: Boolean!
+  client: Client
+  clientId: String!
+  frequency: RecurrenceFrequency!
+  id: ID!
+  nextRunAt: DateTime!
+  template: ErrandTemplate
+  templateId: String!
 }
 
 input ReverseGeocodeInput {
@@ -335,12 +450,6 @@ type Review {
   workerId: String!
 }
 
-type SaveErrand {
-  errandId: String!
-  id: String!
-  userId: String!
-}
-
 input SaveUserAddressInput {
   address: String!
   label: String!
@@ -348,12 +457,18 @@ input SaveUserAddressInput {
   longitude: Float!
 }
 
+type SavedErrand {
+  errand: Errand
+  errandId: String!
+  id: ID!
+  savedAt: DateTime!
+  userId: String!
+}
+
 type Search {
-  createdAt: DateTime
   id: ID!
   keyword: String!
-  updatedAt: DateTime
-  workerId: ID
+  providerId: ID
 }
 
 type Service {
@@ -410,13 +525,13 @@ input UpdateErrandInput {
   location: String
   price: Float
   pricingType: PricingType
+  providerType: ProviderType
   serviceAddress: String
   serviceId: String
   status: ErrandStatus
 
   """Errand title"""
   title: String
-  workerType: WorkerType
 }
 
 input UpdateReviewInput {
@@ -482,12 +597,12 @@ enum UserRole {
 }
 
 type Wallet {
-  """Example field (placeholder)"""
-  exampleField: Int!
-}
-
-enum WorkerType {
-  ARTISAN
-  GENERAL
-  PROFESSIONAL
+  available: Float!
+  createdAt: DateTime!
+  currency: String
+  held: Float!
+  id: ID!
+  ownerId: String!
+  ownerType: UserRole!
+  updatedAt: DateTime!
 }

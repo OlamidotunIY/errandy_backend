@@ -27,6 +27,7 @@ import { VerificationModule } from './verification/verification.module';
 import { TrustedCircleModule } from './trusted-circle/trusted-circle.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { EmailModule } from './email/email.module';
+import { PushModule } from './push/push.module';
 
 @Module({
   imports: [
@@ -91,6 +92,7 @@ import { EmailModule } from './email/email.module';
     VerificationModule,
     TrustedCircleModule,
     EmailModule,
+    PushModule,
   ],
   controllers: [AppController],
   providers: [AppService, RatingResolver],

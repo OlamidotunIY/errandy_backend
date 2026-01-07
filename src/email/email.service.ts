@@ -4,42 +4,38 @@ import { Transporter } from 'nodemailer';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as Handlebars from 'handlebars';
+import { SendEmailOptions } from './email.interface';
 
-export interface SendEmailOptions {
-  to: string | string[];
-  subject: string;
-  text?: string;
-  html?: string;
-  template?: string; // Template name (without .hbs extension)
-  context?: Record<string, any>; // Template variables
-  from?: string;
-  replyTo?: string;
-  attachments?: Array<{
-    filename: string;
-    content?: string | Buffer;
-    path?: string;
-    contentType?: string;
-  }>;
-}
+export type EmailType = 'promotional' | 'transactional';
 
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
-  private transporter: Transporter;
+  private promotionalTransporter: Transporter;
+  private transactionalTransporter: Transporter;
   private templateCache: Map<string, Handlebars.TemplateDelegate> = new Map();
   private readonly templatesDir: string;
+  private logoBase64: string = '';
 
   constructor() {
-    this.templatesDir = path.join(process.cwd(), 'src/email/templates');
-    this.initializeTransporter();
+    // Try dist path first (production), fallback to src (development)
+    const distPath = path.join(__dirname, 'templates');
+    const srcPath = path.join(process.cwd(), 'src/email/templates');
+
+    this.templatesDir = fs.existsSync(distPath) ? distPath : srcPath;
+
+    this.initializeTransporters();
+    this.registerPartials();
+    this.loadLogo();
   }
 
-  private initializeTransporter() {
+  private initializeTransporters() {
     const host = process.env.SMTP_HOST || 'smtp.gmail.com';
     const port = parseInt(process.env.SMTP_PORT || '587');
     const secure = process.env.SMTP_SECURE === 'true';
 
-    this.transporter = nodemailer.createTransport({
+    // Promotional transporter (user1) - for welcome emails, marketing, etc.
+    this.promotionalTransporter = nodemailer.createTransport({
       host,
       port,
       secure,
@@ -47,23 +43,72 @@ export class EmailService {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
       },
+      tls: {
+        rejectUnauthorized: true,
+      },
+      connectionTimeout: 20_000,
     });
 
-    this.transporter.verify((error) => {
+    // Transactional transporter (user2/no-reply) - for OTPs, verifications.
+    this.transactionalTransporter = nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth: {
+        user: process.env.SMTP_USER2,
+        pass: process.env.SMTP_PASS2,
+      },
+      tls: {
+        rejectUnauthorized: true,
+      },
+      connectionTimeout: 20_000,
+    });
+
+    this.promotionalTransporter.verify((error) => {
       if (error) {
         this.logger.error(
-          'Email transporter verification failed:',
+          'Promotional email transporter failed:',
           error.message,
         );
       } else {
-        this.logger.log('Email transporter is ready to send emails');
+        this.logger.log('Promotional email transporter ready');
+      }
+    });
+
+    this.transactionalTransporter.verify((error) => {
+      if (error) {
+        this.logger.error(
+          'Transactional email transporter failed:',
+          error.message,
+        );
+      } else {
+        this.logger.log('Transactional email transporter ready');
       }
     });
   }
 
-  /**
-   * Load and compile a template
-   */
+  private loadLogo() {
+    const logoPath = path.join(this.templatesDir, 'logo.png');
+
+    if (fs.existsSync(logoPath)) {
+      const logoBuffer = fs.readFileSync(logoPath);
+      this.logoBase64 = `data:image/png;base64,${logoBuffer.toString('base64')}`;
+      this.logger.log('Logo loaded successfully');
+    } else {
+      this.logger.warn('Logo file not found at templates/logo.png');
+    }
+  }
+
+  private registerPartials() {
+    const basePath = path.join(this.templatesDir, 'base.hbs');
+
+    if (fs.existsSync(basePath)) {
+      const baseSource = fs.readFileSync(basePath, 'utf-8');
+      Handlebars.registerPartial('base', baseSource);
+      this.logger.log('Registered base template partial');
+    }
+  }
+
   private loadTemplate(templateName: string): Handlebars.TemplateDelegate {
     if (this.templateCache.has(templateName)) {
       return this.templateCache.get(templateName)!;
@@ -84,20 +129,39 @@ export class EmailService {
 
   /**
    * Send an email
+   * @param options - Email options
+   * @param type - 'promotional' (default) for marketing/welcome emails, 'transactional' for OTP/verification
    */
-  async sendEmail(options: SendEmailOptions): Promise<boolean> {
-    const from = options.from || process.env.SMTP_FROM || process.env.SMTP_USER;
+  async sendEmail(
+    options: SendEmailOptions,
+    type: EmailType = 'promotional',
+  ): Promise<boolean> {
+    const transporter =
+      type === 'transactional'
+        ? this.transactionalTransporter
+        : this.promotionalTransporter;
+
+    const defaultFrom =
+      type === 'transactional' ? process.env.SMTP_USER2 : process.env.SMTP_USER;
+
+    const from = options.from || defaultFrom;
 
     let html = options.html;
 
-    // If template is specified, compile it with context
     if (options.template) {
       const template = this.loadTemplate(options.template);
-      html = template(options.context || {});
+      const context = {
+        ...options.context,
+        logoUrl: this.logoBase64,
+        year: options.context?.year || new Date().getFullYear(),
+        unsubscribeUrl:
+          options.context?.unsubscribeUrl || 'https://errandy.app/unsubscribe',
+      };
+      html = template(context);
     }
 
     try {
-      const info = await this.transporter.sendMail({
+      const info = await transporter.sendMail({
         from,
         to: Array.isArray(options.to) ? options.to.join(', ') : options.to,
         subject: options.subject,
@@ -108,12 +172,12 @@ export class EmailService {
       });
 
       this.logger.log(
-        `Email sent successfully to ${options.to}: ${info.messageId}`,
+        `[${type}] Email sent to ${options.to}: ${info.messageId}`,
       );
       return true;
     } catch (error) {
       this.logger.error(
-        `Failed to send email to ${options.to}: ${error.message}`,
+        `[${type}] Failed to send email to ${options.to}: ${error.message}`,
       );
       throw error;
     }
