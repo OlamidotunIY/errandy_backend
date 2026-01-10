@@ -56,7 +56,7 @@ model UserAddress {
   // back relation to activeAddress (ONE, not array)
   activeFor User[] @relation("ActiveAddress")
 
-  @@map("userAddresses")
+  @@map("user_addresses")
 }
 
 model Session {
@@ -100,7 +100,7 @@ model TwoFactor {
   userId      String
   user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("twoFactors")
+  @@map("two_factors")
 }
 
 enum UserRole {
@@ -114,4 +114,16 @@ enum OnboardingProgress {
   SERVICES_SELECTED
   ADDRESS_ADDED
   COMPLETED
+}
+
+// better-auth verification model for OAuth state storage
+model Verification {
+  id         String   @id @map("_id")
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("verifications")
 }

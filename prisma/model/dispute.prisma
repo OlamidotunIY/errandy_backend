@@ -6,6 +6,8 @@ model Dispute {
   status    DisputeStatus
   reason    String
   createdAt DateTime @default(now())
+
+  @@map("disputes")
 }
 
 enum DisputeStatus {

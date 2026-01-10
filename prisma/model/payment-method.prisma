@@ -17,7 +17,7 @@ model PaymentMethod {
 
     createdAt DateTime @default(now())
 
-    @@map("paymentMethods")
+    @@map("payment_methods")
 }
 
 model PaystackCustomer {
@@ -28,6 +28,6 @@ model PaystackCustomer {
     userId String
     user   User   @relation(fields: [userId], references: [id])
 
-    @@map("paystackCustomers")
+    @@map("paystack_customers")
     @@unique([userId])
 }

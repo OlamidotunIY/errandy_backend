@@ -14,8 +14,13 @@ export class EmailService {
   private promotionalTransporter: Transporter;
   private transactionalTransporter: Transporter;
   private templateCache: Map<string, Handlebars.TemplateDelegate> = new Map();
+  private baseTemplate: Handlebars.TemplateDelegate | null = null;
   private readonly templatesDir: string;
   private logoBase64: string = '';
+
+  // Sender display names
+  private readonly PROMOTIONAL_SENDER_NAME = 'Dotun from Errandy';
+  private readonly TRANSACTIONAL_SENDER_NAME = 'Errandy';
 
   constructor() {
     // Try dist path first (production), fallback to src (development)
@@ -105,6 +110,7 @@ export class EmailService {
     if (fs.existsSync(basePath)) {
       const baseSource = fs.readFileSync(basePath, 'utf-8');
       Handlebars.registerPartial('base', baseSource);
+      this.baseTemplate = Handlebars.compile(baseSource);
       this.logger.log('Registered base template partial');
     }
   }
@@ -141,10 +147,16 @@ export class EmailService {
         ? this.transactionalTransporter
         : this.promotionalTransporter;
 
-    const defaultFrom =
+    const senderName =
+      type === 'transactional'
+        ? this.TRANSACTIONAL_SENDER_NAME
+        : this.PROMOTIONAL_SENDER_NAME;
+
+    const senderEmail =
       type === 'transactional' ? process.env.SMTP_USER2 : process.env.SMTP_USER;
 
-    const from = options.from || defaultFrom;
+    // Format: "Display Name <email@example.com>"
+    const from = options.from || `${senderName} <${senderEmail}>`;
 
     let html = options.html;
 
@@ -156,8 +168,18 @@ export class EmailService {
         year: options.context?.year || new Date().getFullYear(),
         unsubscribeUrl:
           options.context?.unsubscribeUrl || 'https://errandy.app/unsubscribe',
+        subject: options.subject,
       };
-      html = template(context);
+
+      // Render content template first
+      const bodyContent = template(context);
+
+      // Wrap in base template if available
+      if (this.baseTemplate) {
+        html = this.baseTemplate({ ...context, body: bodyContent });
+      } else {
+        html = bodyContent;
+      }
     }
 
     try {

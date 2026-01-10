@@ -7,12 +7,12 @@ model Provider {
     tierUpdatedAt DateTime?
 
     // Relations
-    user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+    user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
     searchHistory        Search[]
     services             ServicesOnProviders[]
     organizations        Organization[]
     trustedCircleMembers TrustedCircleMember[]
-    verifications        Verification[]
+    verifications        ProviderVerification[]
 
     @@map("providers")
 }

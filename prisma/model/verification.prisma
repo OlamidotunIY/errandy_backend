@@ -1,4 +1,4 @@
-model Verification {
+model ProviderVerification {
     id         String             @id @map("_id")
     identifier String
     value      String
@@ -13,7 +13,7 @@ model Verification {
     provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
     @@unique([providerId, type])
-    @@map("verifications")
+    @@map("provider_verifications")
 }
 
 enum VerificationType {

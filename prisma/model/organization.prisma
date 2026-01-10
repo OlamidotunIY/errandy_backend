@@ -9,4 +9,5 @@ model Organization {
     // Relations
 
 
+    @@map("organizations")
 }

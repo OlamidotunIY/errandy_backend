@@ -82,4 +82,21 @@ export const auth = betterAuth({
     'exp://172.19.130.114:8081',
   ],
   hooks: {},
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user) => {
+          // This fires ONLY when a new user is created (email, Google, Apple, etc.)
+          // NOT when an existing user signs in
+          globalEventEmitter.emit('user.created', {
+            userId: user.id,
+            email: user.email,
+            firstName: user.name?.split(' ')[0],
+            lastName: user.name?.split(' ').slice(1).join(' '),
+            phone: user.phoneNumber,
+          });
+        },
+      },
+    },
+  },
 });

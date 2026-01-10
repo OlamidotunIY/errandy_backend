@@ -39,13 +39,13 @@ export class UpdateErrandInput extends PartialType(CreateErrandInput) {
   @Field(() => Float, { nullable: true })
   @IsOptional()
   @IsNumber()
-  @Min(0)
+  @Min(5000)
   price?: number;
 
   @Field(() => Float, { nullable: true })
   @IsOptional()
   @IsNumber()
-  @Min(0)
+  @Min(1000)
   hourlyRate?: number;
 
   @Field(() => ErrandStatus, { nullable: true })

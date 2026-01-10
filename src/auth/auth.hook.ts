@@ -1,18 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { Hook, AuthHookContext, AfterHook } from '@thallesp/nestjs-better-auth';
-import { AuthService } from './auth.service';
+import { Hook } from '@thallesp/nestjs-better-auth';
 
 @Hook()
 @Injectable()
 export class AuthHook {
-  constructor(private readonly authService: AuthService) {}
-
-  @AfterHook('/sign-up/email')
-  async handleSignUpEmail(ctx: AuthHookContext) {
-    // After successful email sign-up, handle post-signup logic
-    // This includes emitting events for Paystack customer creation
-    if (ctx.body?.email) {
-      await this.authService.handleSignUpComplete(ctx.body.email);
-    }
-  }
+  // Post-signup logic (Paystack customer creation, etc.) is now handled
+  // by databaseHooks.user.create.after in auth.ts for all auth methods
+  // (email, Google, Apple). This hook class can be extended for other
+  // auth-specific hooks if needed.
 }

@@ -6,5 +6,5 @@ model WebhookEvent {
     data      Json
     createdAt DateTime @default(now())
 
-    @@map("webhookEvents")
+    @@map("webhook_events")
 }
