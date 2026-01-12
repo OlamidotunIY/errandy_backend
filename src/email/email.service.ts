@@ -159,12 +159,23 @@ export class EmailService {
     const from = options.from || `${senderName} <${senderEmail}>`;
 
     let html = options.html;
+    const attachments = options.attachments || [];
+
+    // Add logo attachment if available
+    const logoPath = path.join(this.templatesDir, 'logo.png');
+    if (fs.existsSync(logoPath)) {
+      attachments.push({
+        filename: 'logo.png',
+        path: logoPath,
+        cid: 'logo',
+      } as any);
+    }
 
     if (options.template) {
       const template = this.loadTemplate(options.template);
       const context = {
         ...options.context,
-        logoUrl: this.logoBase64,
+        logoUrl: 'cid:logo', // Use CID for logo
         year: options.context?.year || new Date().getFullYear(),
         unsubscribeUrl:
           options.context?.unsubscribeUrl || 'https://errandy.app/unsubscribe',
@@ -190,7 +201,7 @@ export class EmailService {
         text: options.text,
         html,
         replyTo: options.replyTo,
-        attachments: options.attachments,
+        attachments,
       });
 
       this.logger.log(

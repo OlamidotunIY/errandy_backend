@@ -1,0 +1,27 @@
+<div class='message-box'>
+  <h2>Verify your email</h2>
+  <p>Hello,</p>
+  <p>To complete your sign in, please use the verification code below:</p>
+
+  <div class='otp-code'>
+    {{otp}}
+  </div>
+
+  <p>This code will expire in 10 minutes.</p>
+  <p>If you didn't request this code, you can safely ignore this email.</p>
+</div>
+
+<style>
+  .otp-code {
+    font-size: 32px;
+    font-weight: bold;
+    letter-spacing: 5px;
+    color: #4caf50;
+    text-align: center;
+    margin: 30px 0;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px dashed #ced4da;
+  }
+</style>
