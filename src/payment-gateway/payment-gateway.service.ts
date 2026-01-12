@@ -416,4 +416,118 @@ export class PaymentGatewayService {
 
     return response.data;
   }
+
+  /**
+   * Initialize wallet funding via card, transfer, or QR
+   */
+  async initializeWalletFunding(
+    user: User,
+    amount: number, // in kobo
+    channel: 'card' | 'transfer' | 'qr',
+  ) {
+    // Get or create client profile
+    const client = await this.prisma.client.findUnique({
+      where: { userId: user.id },
+    });
+
+    if (!client) {
+      throw new BadRequestException('User does not have a client profile');
+    }
+
+    const metadata = {
+      type: 'WALLET_FUNDING',
+      userId: user.id,
+      clientId: client.id,
+      channel,
+    };
+
+    const gateway = this.paymentGatewayFactory.getGateway('paystack') as any;
+
+    this.logger.log(
+      `Initializing wallet funding for user ${user.id} via ${channel}`,
+    );
+
+    if (channel === 'card') {
+      // Use existing transaction initialization for card
+      const callbackUrl =
+        process.env.WALLET_CALLBACK_URL ||
+        'https://errandy.app/wallet/callback';
+
+      const result = await gateway.initializeTransaction(
+        user.email,
+        amount,
+        callbackUrl,
+        metadata,
+      );
+
+      return {
+        status: result.status,
+        message: result.message || 'Authorization URL generated',
+        reference: result.data?.reference,
+        channel: 'card',
+        amount,
+        authorizationUrl: result.data?.authorization_url,
+      };
+    }
+
+    if (channel === 'transfer') {
+      // Use bank transfer charge
+      const expiresAt = new Date();
+      expiresAt.setMinutes(expiresAt.getMinutes() + 30); // 30 min expiry
+
+      const result = await gateway.chargeWithTransfer(
+        user.email,
+        amount,
+        expiresAt,
+        metadata,
+      );
+
+      // Paystack returns pending status with bank details
+      if (
+        result.data?.status === 'pending' ||
+        result.data?.status === 'send_transfer'
+      ) {
+        return {
+          status: true,
+          message: result.message || 'Transfer pending',
+          reference: result.data?.reference,
+          channel: 'transfer',
+          amount,
+          bankDetails: {
+            accountNumber: result.data?.bank_transfer?.account_number,
+            accountName: result.data?.bank_transfer?.account_name,
+            bankName: result.data?.bank_transfer?.bank,
+            expiresAt: result.data?.bank_transfer?.account_expires_at,
+          },
+        };
+      }
+
+      return {
+        status: result.status,
+        message: result.message || 'Transfer charge created',
+        reference: result.data?.reference,
+        channel: 'transfer',
+        amount,
+      };
+    }
+
+    if (channel === 'qr') {
+      // Use QR charge
+      const result = await gateway.chargeWithQR(user.email, amount, metadata);
+
+      return {
+        status: result.status,
+        message: result.message || 'QR code generated',
+        reference: result.data?.reference,
+        channel: 'qr',
+        amount,
+        qrDetails: {
+          qrCode: result.data?.display_text || result.data?.qr_code,
+          displayText: result.data?.display_text,
+        },
+      };
+    }
+
+    throw new BadRequestException(`Invalid payment channel: ${channel}`);
+  }
 }

@@ -253,4 +253,84 @@ export class PaystackGateway implements PaymentGateway {
       throw error;
     }
   }
+
+  /**
+   * Create a charge via bank transfer
+   * Returns bank account details for user to transfer to
+   */
+  async chargeWithTransfer(
+    email: string,
+    amount: number, // in kobo
+    expiresAt?: Date,
+    metadata?: any,
+  ): Promise<any> {
+    try {
+      const payload: any = {
+        email,
+        amount,
+        metadata,
+        bank_transfer: {},
+      };
+
+      // Set expiry if provided (default is 30 mins from Paystack)
+      if (expiresAt) {
+        payload.bank_transfer.account_expires_at = expiresAt.toISOString();
+      }
+
+      const response = await axios.post(`${this.baseUrl}/charge`, payload, {
+        headers: {
+          Authorization: `Bearer ${this.secretKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      return response.data;
+    } catch (error) {
+      this.logger.error(
+        'Error creating bank transfer charge',
+        error?.response?.data || error.message,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Create a charge via QR code
+   * Returns QR code data for user to scan and pay
+   */
+  async chargeWithQR(
+    email: string,
+    amount: number, // in kobo
+    metadata?: any,
+    provider: string = 'scan-to-pay',
+  ): Promise<any> {
+    try {
+      const response = await axios.post(
+        `${this.baseUrl}/charge`,
+        {
+          email,
+          amount,
+          currency: 'NGN',
+          metadata,
+          qr: {
+            provider,
+          },
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${this.secretKey}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      return response.data;
+    } catch (error) {
+      this.logger.error(
+        'Error creating QR charge',
+        error?.response?.data || error.message,
+      );
+      throw error;
+    }
+  }
 }

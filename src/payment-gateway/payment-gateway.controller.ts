@@ -14,9 +14,7 @@ import * as crypto from 'crypto';
 export class PaymentGatewayController {
   private readonly logger = new Logger(PaymentGatewayController.name);
 
-  constructor(
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   @Post()
   @HttpCode(200)
@@ -68,7 +66,71 @@ export class PaymentGatewayController {
     this.logger.log(`Processing webhook event: ${event}`);
 
     try {
-      if (event === 'refund.processed') {
+      if (event === 'charge.success') {
+        // Handle successful charges (wallet funding via card, transfer, or QR)
+        const metadata = data.metadata;
+
+        if (metadata?.type === 'WALLET_FUNDING') {
+          const clientId = metadata.clientId;
+          const channel = data.channel;
+          const amountInNaira = (data.amount || 0) / 100;
+
+          this.logger.log(
+            `Wallet funding successful via ${channel} for client ${clientId}: ₦${amountInNaira}`,
+          );
+
+          // Find or create wallet
+          // Find or create wallet and credit it
+          await this.prisma.wallet.upsert({
+            where: {
+              ownerId_ownerType: {
+                ownerId: clientId,
+                ownerType: 'CLIENT',
+              },
+            },
+            create: {
+              ownerId: clientId,
+              ownerType: 'CLIENT',
+              available: amountInNaira,
+              held: 0,
+              currency: 'NGN',
+            },
+            update: {
+              available: { increment: amountInNaira },
+            },
+          });
+
+          // Create transaction record
+          await this.prisma.transaction.create({
+            data: {
+              userId: clientId,
+              amount: amountInNaira,
+              type: 'FUND',
+              status: 'SUCCESS',
+              reference: data.reference,
+              metadata: {
+                channel,
+                paystackTransactionId: data.id,
+                paidAt: data.paid_at,
+              },
+            },
+          });
+
+          this.logger.log(
+            `Credited ₦${amountInNaira} to wallet for client ${clientId}`,
+          );
+        }
+      } else if (event === 'bank.transfer.rejected') {
+        // Handle rejected bank transfers
+        const rejectedData = data.bank_transfer;
+        const customerId = data.customer?.id;
+
+        this.logger.warn(
+          `Bank transfer rejected for customer ${customerId}: ${rejectedData?.message}`,
+        );
+
+        // Could notify user here via push notification
+      } else if (event === 'refund.processed') {
         this.logger.log(
           `Refund successful for reference: ${data.refund_reference}`,
         );

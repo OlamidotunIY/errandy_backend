@@ -1,4 +1,4 @@
-import { Resolver, Mutation, Args, Query } from '@nestjs/graphql';
+import { Resolver, Mutation, Args, Query, Float } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { GqlAuthGuard } from '../auth/guard/graphql-auth.guard';
 import { CurrentUser } from '../auth/decorator/current-user.decorator';
@@ -7,6 +7,10 @@ import { PaymentGatewayService } from './payment-gateway.service';
 import { PaymentInitializationResponse } from './dto/payment-initialization.response';
 import { PaymentMethod } from './entities/payment-method.entity';
 import { PaystackCustomer } from './entities/paystack-customer.entity';
+import {
+  WalletFundingResponse,
+  WalletFundingChannel,
+} from './entities/wallet-funding-response.entity';
 
 @Resolver()
 export class PaymentGatewayResolver {
@@ -43,6 +47,27 @@ export class PaymentGatewayResolver {
       user,
       reference,
       provider,
+    );
+  }
+
+  // ==================== Wallet Funding ====================
+
+  @Mutation(() => WalletFundingResponse)
+  @UseGuards(GqlAuthGuard)
+  async initializeWalletFunding(
+    @CurrentUser() user: User,
+    @Args('amount', { type: () => Float, description: 'Amount in kobo' })
+    amount: number,
+    @Args('channel', {
+      type: () => WalletFundingChannel,
+      description: 'Payment channel: card, transfer, or qr',
+    })
+    channel: WalletFundingChannel,
+  ) {
+    return this.paymentGatewayService.initializeWalletFunding(
+      user,
+      amount,
+      channel,
     );
   }
 

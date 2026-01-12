@@ -1,13 +1,14 @@
 model Wallet {
-    id        String      @id @default(auto()) @map("_id") @db.ObjectId
-    ownerId   String      @db.ObjectId
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    ownerId   String   @db.ObjectId
     ownerType UserRole // CLIENT | WORKER
-    available Float       @default(0) // Can withdraw
-    held      Float       @default(0) // Pending release
+    available Float    @default(0) // Can withdraw
+    held      Float    @default(0) // Pending release
     currency  String?
-    createdAt DateTime    @default(now())
-    updatedAt DateTime    @updatedAt
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
 
+    @@unique([ownerId, ownerType])
     @@map("wallets")
 }
 

@@ -8,6 +8,7 @@ import {
   UserCreatedEvent,
   UserUpdatedEvent,
 } from '../utils/event-emitter.utils';
+import { GqlUserRole } from 'src/users/entities/user.entity';
 
 @Injectable()
 export class PaymentGatewayEventListener implements OnModuleInit {
@@ -76,13 +77,13 @@ export class PaymentGatewayEventListener implements OnModuleInit {
 
       // Create wallet for client profile
       if (user?.client) {
-        await this.createWallet(user.client.id, 'CLIENT');
+        await this.createWallet(user.client.id, GqlUserRole.CLIENT);
         this.logger.log(`Wallet created for client ${user.client.id}`);
       }
 
       // Create wallet for provider profile
       if (user?.provider) {
-        await this.createWallet(user.provider.id, 'WORKER');
+        await this.createWallet(user.provider.id, GqlUserRole.PROVIDER);
         this.logger.log(`Wallet created for provider ${user.provider.id}`);
       }
     } catch (error) {
@@ -146,7 +147,7 @@ export class PaymentGatewayEventListener implements OnModuleInit {
   /**
    * Create a wallet for a user profile
    */
-  private async createWallet(ownerId: string, ownerType: 'CLIENT' | 'WORKER') {
+  private async createWallet(ownerId: string, ownerType: GqlUserRole) {
     // Check if wallet already exists
     const existing = await this.prisma.wallet.findFirst({
       where: { ownerId, ownerType },
