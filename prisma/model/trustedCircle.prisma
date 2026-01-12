@@ -1,27 +1,34 @@
 model TrustedCircle {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   clientId  String   @db.ObjectId
-  name      String?  // e.g. "Family Helpers"
+  name      String? // e.g. "Family Helpers"
   createdAt DateTime @default(now())
 
-  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  members   TrustedCircleMember[]
+  client  Client                @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  members TrustedCircleMember[]
 
   @@map("trusted_circles")
 }
 
 model TrustedCircleMember {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
-  trustedCircleId String   @db.ObjectId
-  providerId      String   @db.ObjectId
-  addedAt         DateTime @default(now())
+  id              String       @id @default(auto()) @map("_id") @db.ObjectId
+  trustedCircleId String       @db.ObjectId
+  providerId      String       @db.ObjectId
+  addedAt         DateTime     @default(now())
   source          CircleSource @default(COMPLETED_TASK)
+
+  status TrustedCircleMemberStatus @default(ACTIVE)
 
   trustedCircle TrustedCircle @relation(fields: [trustedCircleId], references: [id], onDelete: Cascade)
   provider      Provider      @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@unique([trustedCircleId, providerId])
   @@map("trusted_circle_members")
+}
+
+enum TrustedCircleMemberStatus {
+  ACTIVE
+  PENDING
 }
 
 enum CircleSource {

@@ -1,16 +1,17 @@
 import { ObjectType, Field, ID } from '@nestjs/graphql';
 import { CircleSource } from './circle-source.enum';
-import { Provider } from 'src/worker/entities/provider.entity';
+import { Provider } from 'src/provider/entities/provider.entity';
+import { TrustedCircleMemberStatus } from './trusted-circle-member-status.enum';
 
 @ObjectType()
 export class TrustedCircleMember {
   @Field(() => ID)
   id: string;
 
-  @Field()
+  @Field(() => ID)
   trustedCircleId: string;
 
-  @Field()
+  @Field(() => ID)
   providerId: string;
 
   @Field()
@@ -19,6 +20,9 @@ export class TrustedCircleMember {
   @Field(() => CircleSource)
   source: CircleSource;
 
-  @Field(() => Provider, { nullable: true })
-  provider?: Provider;
+  @Field(() => TrustedCircleMemberStatus)
+  status: TrustedCircleMemberStatus;
+
+  @Field(() => Provider)
+  provider: Provider;
 }

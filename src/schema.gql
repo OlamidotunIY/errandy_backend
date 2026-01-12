@@ -2,6 +2,11 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+input AddToCircleInput {
+  circleName: String
+  providerId: ID!
+}
+
 input AddWorkerServicesInput {
   serviceIds: [ID!]!
 }
@@ -55,6 +60,12 @@ type ChatRoom {
   updatedAt: DateTime!
 }
 
+enum CircleSource {
+  COMPLETED_TASK
+  INVITED
+  MANUAL_ADD
+}
+
 type Client {
   errands: [Errand]
   id: ID!
@@ -95,6 +106,12 @@ input CreateChatInput {
 input CreateErrandInput {
   """Errand title"""
   title: String!
+}
+
+input CreateProviderInput {
+  providerType: ProviderType
+  tier: ProviderTier
+  userId: String!
 }
 
 input CreateReviewInput {
@@ -275,7 +292,9 @@ enum MessageType {
 }
 
 type Mutation {
+  acceptSharedProvider(providerId: ID!): TrustedCircle!
   addAddress(dto: CreateAddressInput!): User!
+  addToCircle(input: AddToCircleInput!): TrustedCircle!
   addWorkerServices(dto: AddWorkerServicesInput!): User!
   apply(createApplicationInput: CreateApplicationInput!): Application!
 
@@ -283,6 +302,7 @@ type Mutation {
   clearSearchHistory: Boolean!
   createChat(createChatInput: CreateChatInput!): ChatRoom!
   createErrand(createErrandInput: CreateErrandInput!): Errand!
+  createProvider(createProviderInput: CreateProviderInput!): Provider!
   createReview(createReviewInput: CreateReviewInput!): Review!
   createUserRole(role: UserRole!): User!
   createWallet(createWalletInput: CreateWalletInput!): Wallet!
@@ -294,12 +314,15 @@ type Mutation {
     """Payment channel: card, transfer, or qr"""
     channel: WalletFundingChannel!
   ): WalletFundingResponse!
+  rejectSharedProvider(providerId: ID!): TrustedCircle!
   removeChat(id: Int!): ChatRoom!
   removeErrand(id: ID!): Errand!
+  removeFromCircle(providerId: ID!): TrustedCircle!
   removeReview(id: Int!): Review!
   removeWallet(id: Int!): Wallet!
   saveErrand(errandId: ID!): SavedErrand!
   saveUserAddress(dto: SaveUserAddressInput!): User!
+  shareTrustedCircle(input: ShareCircleInput!): Boolean!
   updateChat(updateChatInput: UpdateChatInput!): ChatRoom!
   updateErrand(updateErrandInput: UpdateErrandInput!): Errand!
   updateReview(updateReviewInput: UpdateReviewInput!): Review!
@@ -380,6 +403,29 @@ enum PricingType {
   HOURLY
 }
 
+type Provider {
+  id: ID!
+  providerType: ProviderType
+  tier: ProviderTier!
+  tierUpdatedAt: DateTime
+  user: User!
+  userId: String!
+}
+
+type ProviderDiscoveryResponse {
+  new: [Provider!]!
+  popular: [Provider!]!
+  suggested: [Provider!]!
+  trusted: [Provider!]!
+}
+
+enum ProviderTier {
+  CERTIFIED
+  COMMUNITY
+  COMPANY_PARTNER
+  VERIFIED
+}
+
 enum ProviderType {
   ARTISAN
   GENERAL
@@ -404,10 +450,14 @@ type Query {
   Advanced errand query with personalized feeds and location-based filtering
   """
   getErrands(input: ErrandQueryInput!): PaginatedErrands!
+  getPendingTrustedCircleMembers: [TrustedCircleMember!]!
+  getProviders: ProviderDiscoveryResponse!
+  getTrustedCircle: TrustedCircle
   getUserAddresses: [UserAddress!]!
   myPaymentMethods: [PaymentMethod!]!
   myPaystackCustomer: PaystackCustomer
   placeDetails(input: PlaceDetailsInput!): AddressDetails!
+  provider(id: Int!): Provider!
   review(id: Int!): Review!
   service(id: ID!): Service!
   serviceCategories(input: GetServiceCategoriesInput): [ServiceCategory!]!
@@ -510,6 +560,11 @@ enum ServiceCategoryType {
   PROFESSIONAL
 }
 
+input ShareCircleInput {
+  recipientEmail: String
+  recipientUserId: String
+}
+
 type Subscription {
   """Subscribe to new errands created nearby"""
   errandCreated: ErrandSubscriptionPayload!
@@ -523,6 +578,30 @@ type Subscription {
 
 input SuggestAddressInput {
   input: String!
+}
+
+type TrustedCircle {
+  client: Client
+  clientId: String!
+  createdAt: DateTime!
+  id: ID!
+  members: [TrustedCircleMember]
+  name: String
+}
+
+type TrustedCircleMember {
+  addedAt: DateTime!
+  id: ID!
+  provider: Provider!
+  providerId: ID!
+  source: CircleSource!
+  status: TrustedCircleMemberStatus!
+  trustedCircleId: ID!
+}
+
+enum TrustedCircleMemberStatus {
+  ACTIVE
+  PENDING
 }
 
 input UpdateChatInput {
