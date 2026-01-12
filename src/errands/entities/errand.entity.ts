@@ -1,6 +1,6 @@
 import { ObjectType, Field, Float, Int, ID } from '@nestjs/graphql';
 import { ErrandStatus } from './errandStatus.enum';
-import { ProviderType } from './providerType.enum';
+import { ProviderType } from '../../provider/entities/provider-type.enum';
 import { PricingType } from './pricingType.enum';
 import Client from 'src/client/entities/client.entities';
 import { Service } from 'src/service/entities/service.entity';

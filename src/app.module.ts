@@ -17,7 +17,6 @@ import { GraphQLModule } from '@nestjs/graphql';
 import { join } from 'path';
 import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin/landingPage/default';
 import { ClientModule } from './client/client.module';
-import { WorkerModule } from './worker/worker.module';
 import { RatingResolver } from './rating/rating.resolver';
 import { RatingModule } from './rating/rating.module';
 import { PaymentGatewayModule } from './payment-gateway/payment-gateway.module';
@@ -28,6 +27,7 @@ import { TrustedCircleModule } from './trusted-circle/trusted-circle.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { EmailModule } from './email/email.module';
 import { PushModule } from './push/push.module';
+import { ProviderModule } from './provider/provider.module';
 
 @Module({
   imports: [
@@ -84,7 +84,6 @@ import { PushModule } from './push/push.module';
     ServiceModule,
     ReviewModule,
     ClientModule,
-    WorkerModule,
     RatingModule,
     PaymentGatewayModule,
     OrganizationModule,
@@ -93,6 +92,7 @@ import { PushModule } from './push/push.module';
     TrustedCircleModule,
     EmailModule,
     PushModule,
+    ProviderModule,
   ],
   controllers: [AppController],
   providers: [AppService, RatingResolver],

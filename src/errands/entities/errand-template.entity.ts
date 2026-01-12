@@ -1,6 +1,6 @@
 import { ObjectType, Field, ID, Float } from '@nestjs/graphql';
 import { PricingType } from './pricingType.enum';
-import { ProviderType } from './providerType.enum';
+import { ProviderType } from '../../provider/entities/provider-type.enum';
 import GraphQLJSON from 'graphql-type-json';
 
 @ObjectType()

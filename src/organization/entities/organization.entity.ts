@@ -1,5 +1,5 @@
 import { ObjectType, Field, ID } from '@nestjs/graphql';
-import { Provider } from 'src/worker/entities/provider.entity';
+import { Provider } from 'src/provider/entities/provider.entity';
 
 @ObjectType()
 export class Organization {

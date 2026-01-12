@@ -2,7 +2,7 @@ import { InputType, Field, Float, PartialType } from '@nestjs/graphql';
 import { CreateErrandInput } from './create-errand.input';
 import { ErrandStatus } from '../entities/errandStatus.enum';
 import { PricingType } from '../entities/pricingType.enum';
-import { ProviderType } from '../entities/providerType.enum';
+import { ProviderType } from '../../provider/entities/provider-type.enum';
 import {
   IsDate,
   IsEnum,

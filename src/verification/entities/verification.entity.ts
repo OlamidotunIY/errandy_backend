@@ -1,7 +1,7 @@
 import { ObjectType, Field, ID } from '@nestjs/graphql';
 import { VerificationType } from './verification-type.enum';
 import { VerificationStatus } from './verification-status.enum';
-import { Provider } from 'src/worker/entities/provider.entity';
+import { Provider } from 'src/provider/entities/provider.entity';
 import GraphQLJSON from 'graphql-type-json';
 
 @ObjectType()
