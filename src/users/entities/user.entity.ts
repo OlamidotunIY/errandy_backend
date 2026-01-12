@@ -2,7 +2,7 @@ import { ObjectType, Field, ID, registerEnumType } from '@nestjs/graphql';
 import { UserAddress } from 'src/address/entities/address.entity';
 
 export enum GqlUserRole {
-  WORKER = 'WORKER',
+  PROVIDER = 'PROVIDER',
   CLIENT = 'CLIENT',
 }
 

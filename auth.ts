@@ -13,6 +13,10 @@ import { globalEventEmitter } from './src/utils/event-emitter.utils';
 
 const client = new PrismaClient();
 
+import { EmailService } from './src/email/email.service';
+
+const emailService = new EmailService();
+
 export const auth = betterAuth({
   database: prismaAdapter(client, {
     provider: 'mongodb',
@@ -21,10 +25,32 @@ export const auth = betterAuth({
   plugins: [
     expo(),
     emailOTP({
-      async sendVerificationOTP({ email, otp, type }, request) {
-        console.log('email', email);
-        console.log('otp', otp);
-        console.log('type', type);
+      overrideDefaultEmailVerification: true,
+      sendVerificationOnSignUp: true,
+      async sendVerificationOTP({ email, otp, type }) {
+        if (type === 'email-verification') {
+          console.log(`Sending OTP to ${email}`);
+          await emailService.sendEmail(
+            {
+              to: email,
+              subject: 'Verify your email',
+              template: 'verification-otp',
+              context: { otp },
+            },
+            'transactional',
+          );
+        } else {
+          console.log(`Sending OTP to ${email}`);
+          await emailService.sendEmail(
+            {
+              to: email,
+              subject: 'Reset your password',
+              template: 'reset-password-otp',
+              context: { otp },
+            },
+            'transactional',
+          );
+        }
       },
     }),
     phoneNumber({
@@ -45,13 +71,6 @@ export const auth = betterAuth({
 
         // Twilio generates its own OTP code
         await sendOTP(formattedPhone, code);
-      },
-      callbackOnVerification({ phoneNumber, user }, ctx) {
-        // Emit user.updated event when phone is verified
-        globalEventEmitter.emit('user.updated', {
-          userId: user.id,
-          phone: phoneNumber,
-        });
       },
     }),
     username({
@@ -95,6 +114,25 @@ export const auth = betterAuth({
             lastName: user.name?.split(' ').slice(1).join(' '),
             phone: user.phoneNumber,
           });
+        },
+      },
+      update: {
+        after: async (user) => {
+          console.log('User update database hook triggered');
+          console.log('User ID:', user.id);
+          console.log('Phone:', user.phoneNumber);
+          console.log('Phone Verified:', user.phoneNumberVerified);
+
+          // Emit user.updated event when phone is set/verified
+          if (user.phoneNumber && user.phoneNumberVerified) {
+            console.log('Emitting user.updated from database hook');
+            globalEventEmitter.emit('user.updated', {
+              userId: user.id,
+              firstName: user.name?.split(' ')[0],
+              lastName: user.name?.split(' ').slice(1).join(' '),
+              phone: user.phoneNumber,
+            });
+          }
         },
       },
     },

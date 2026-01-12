@@ -4,6 +4,7 @@ import { UpdateUserInput } from './dto/update-user.input';
 import { PrismaService } from 'src/prisma.service';
 import { Prisma } from '@prisma/client';
 import { GqlUserRole, GqlOnboardingProgress } from './entities/user.entity';
+import { globalEventEmitter } from 'src/utils/event-emitter.utils';
 
 @Injectable()
 export class UsersService {
@@ -24,8 +25,8 @@ export class UsersService {
     });
   }
 
-  update(updateUserInput: UpdateUserInput) {
-    return this.prisma.user.update({
+  async update(updateUserInput: UpdateUserInput) {
+    const updatedUser = await this.prisma.user.update({
       where: { id: updateUserInput.id },
       data: {
         ...updateUserInput,
@@ -39,6 +40,19 @@ export class UsersService {
         }),
       },
     });
+
+    // Emit user.updated event when name or phone is updated
+    if (updateUserInput.name || updateUserInput.phoneNumber) {
+      const nameParts = updateUserInput.name?.split(' ') || [];
+      globalEventEmitter.emit('user.updated', {
+        userId: updateUserInput.id,
+        firstName: nameParts[0],
+        lastName: nameParts.slice(1).join(' '),
+        phone: updateUserInput.phoneNumber,
+      });
+    }
+
+    return updatedUser;
   }
 
   async addAddress(dto: CreateAddressInput, userId: string) {
@@ -73,7 +87,7 @@ export class UsersService {
     });
 
     // Update onboarding progress if user is a provider
-    if (user.activeRole === 'WORKER') {
+    if (user.activeRole === GqlUserRole.PROVIDER) {
       await this.updateOnboardingProgress(userId);
     }
 
@@ -123,7 +137,7 @@ export class UsersService {
 
   async updateOnboardingProgress(userId: string) {
     const user = await this.findOne(userId);
-    if (!user || user.activeRole !== 'WORKER') return;
+    if (!user || user.activeRole !== GqlUserRole.PROVIDER) return;
 
     const hasServices =
       user.provider?.services && user.provider.services.length > 0;
