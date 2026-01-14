@@ -64,28 +64,25 @@ spec:
 
           # Liveness probe - restart container if unhealthy
           livenessProbe:
-            httpGet:
-              path: /health
+            tcpSocket:
               port: http
-            initialDelaySeconds: 30
+            initialDelaySeconds: 60
             periodSeconds: 10
             timeoutSeconds: 5
-            failureThreshold: 3
+            failureThreshold: 5
 
           # Readiness probe - remove from service if not ready
           readinessProbe:
-            httpGet:
-              path: /health
+            tcpSocket:
               port: http
-            initialDelaySeconds: 10
+            initialDelaySeconds: 30
             periodSeconds: 5
-            timeoutSeconds: 3
-            failureThreshold: 3
+            timeoutSeconds: 5
+            failureThreshold: 6
 
           # Startup probe - allow slow starts
           startupProbe:
-            httpGet:
-              path: /health
+            tcpSocket:
               port: http
             initialDelaySeconds: 5
             periodSeconds: 5

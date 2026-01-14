@@ -16,7 +16,7 @@ variable "letsencrypt_email" {
 variable "api_domain" {
   description = "Domain for the API"
   type        = string
-  default     = "api.errandy.com"
+  default     = "api.errandy.com.ng"
 }
 
 variable "registry_name" {
