@@ -69,27 +69,38 @@ export class EmailService {
       connectionTimeout: 20_000,
     });
 
-    this.promotionalTransporter.verify((error) => {
-      if (error) {
-        this.logger.error(
-          'Promotional email transporter failed:',
-          error.message,
-        );
-      } else {
-        this.logger.log('Promotional email transporter ready');
-      }
-    });
+    // Only verify in development or if explicitly enabled
+    const shouldVerify =
+      process.env.NODE_ENV !== 'production' ||
+      process.env.SMTP_VERIFY === 'true';
 
-    this.transactionalTransporter.verify((error) => {
-      if (error) {
-        this.logger.error(
-          'Transactional email transporter failed:',
-          error.message,
-        );
-      } else {
-        this.logger.log('Transactional email transporter ready');
-      }
-    });
+    if (shouldVerify) {
+      this.promotionalTransporter.verify((error) => {
+        if (error) {
+          this.logger.warn(
+            'Promotional email transporter unavailable (SMTP may be blocked):',
+            error.message,
+          );
+        } else {
+          this.logger.log('Promotional email transporter ready');
+        }
+      });
+
+      this.transactionalTransporter.verify((error) => {
+        if (error) {
+          this.logger.warn(
+            'Transactional email transporter unavailable (SMTP may be blocked):',
+            error.message,
+          );
+        } else {
+          this.logger.log('Transactional email transporter ready');
+        }
+      });
+    } else {
+      this.logger.log(
+        'SMTP verification skipped in production (enable with SMTP_VERIFY=true)',
+      );
+    }
   }
 
   private loadLogo() {
