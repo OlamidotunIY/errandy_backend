@@ -24,7 +24,7 @@ RUN npx prisma generate --schema=prisma/model
 # Run build and verify output exists
 RUN npm run build && \
     ls -la dist/ && \
-    test -f dist/main.js || (echo "ERROR: dist/main.js not found!" && exit 1)
+    test -f dist/src/main.js || (echo "ERROR: dist/src/main.js not found!" && exit 1)
 
 RUN npm prune --production
 
@@ -50,4 +50,4 @@ EXPOSE 3500
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:3500/health || exit 1
 
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/src/main.js"]
