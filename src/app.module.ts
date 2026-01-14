@@ -62,7 +62,9 @@ import { ProviderModule } from './provider/provider.module';
               },
             },
           ],
-          autoSchemaFile: join(process.cwd(), 'src/schema.gql'),
+          autoSchemaFile: isProduction
+            ? true
+            : join(process.cwd(), 'src/schema.gql'),
           sortSchema: true,
           subscription: {
             'graphql-ws': true,
