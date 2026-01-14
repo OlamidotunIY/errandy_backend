@@ -1,0 +1,16 @@
+# ==============================================================================
+# ConfigMap - Non-sensitive configuration
+# ==============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: errandy-backend-config
+  namespace: errandy
+  labels:
+    app.kubernetes.io/name: errandy-backend
+    app.kubernetes.io/component: backend
+data:
+  PORT: '3500'
+  NODE_ENV: 'production'
+  BETTER_AUTH_URL: 'https://api.errandy.com'
+  GOOGLE_REDIRECT_URI: 'https://api.errandy.com'

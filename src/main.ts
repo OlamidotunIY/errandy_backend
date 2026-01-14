@@ -18,6 +18,9 @@ async function bootstrap() {
     'http://localhost:3000',
     'http://localhost:8081',
     'exp://localhost:8081',
+    'https://errandy.com.ng',
+    'https://www.errandy.com.ng',
+    'https://api.errandy.com',
   ];
 
   app.enableCors({

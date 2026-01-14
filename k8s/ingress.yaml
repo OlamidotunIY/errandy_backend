@@ -1,0 +1,44 @@
+# ==============================================================================
+# Ingress
+# ==============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: errandy-backend
+  namespace: errandy
+  labels:
+    app.kubernetes.io/name: errandy-backend
+    app.kubernetes.io/component: backend
+  annotations:
+    # Use NGINX ingress controller
+    kubernetes.io/ingress.class: nginx
+
+    # cert-manager annotations for Let's Encrypt
+    cert-manager.io/cluster-issuer: 'letsencrypt-prod'
+
+    # NGINX specific annotations
+    nginx.ingress.kubernetes.io/ssl-redirect: 'true'
+    nginx.ingress.kubernetes.io/proxy-body-size: '50m'
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: '60'
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '60'
+    nginx.ingress.kubernetes.io/proxy-send-timeout: '60'
+
+    # CORS headers (optional - app handles CORS)
+    # nginx.ingress.kubernetes.io/enable-cors: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - api.errandy.com
+      secretName: errandy-api-tls
+  rules:
+    - host: api.errandy.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: errandy-backend
+                port:
+                  number: 80

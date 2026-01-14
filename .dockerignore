@@ -1,0 +1,44 @@
+# Dependencies
+node_modules
+npm-debug.log
+
+# Build output
+dist
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Environment files (secrets should come from K8s secrets)
+.env
+.env.*
+!.env.example
+
+# Test files
+test
+*.spec.ts
+coverage
+
+# Documentation
+README.md
+docs
+
+# Terraform
+terraform
+.terraform
+
+# Kubernetes manifests (not needed in image)
+k8s
+
+# Postman
+postman
+
+# Misc
+.DS_Store
+*.log
