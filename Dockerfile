@@ -1,7 +1,5 @@
 # ==============================================================================
-# Optimized Dockerfile with BuildKit cache
-# ==============================================================================
-# Build with: DOCKER_BUILDKIT=1 docker build -t registry.digitalocean.com/errandy/errandy-backend:latest .
+# Dockerfile for NestJS Backend
 # ==============================================================================
 FROM node:22-alpine AS deps
 
@@ -11,9 +9,7 @@ RUN apk add --no-cache libc6-compat
 
 COPY package.json package-lock.json ./
 
-# Use BuildKit cache mount for npm cache
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci
+RUN npm ci
 
 # ==============================================================================
 FROM node:22-alpine AS builder
@@ -24,7 +20,12 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 RUN npx prisma generate --schema=prisma/model
-RUN npm run build
+
+# Run build and verify output exists
+RUN npm run build && \
+    ls -la dist/ && \
+    test -f dist/main.js || (echo "ERROR: dist/main.js not found!" && exit 1)
+
 RUN npm prune --production
 
 # ==============================================================================
