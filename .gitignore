@@ -56,12 +56,12 @@ pids
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # Terraform
-terraform/.terraform
-terraform/.terraform.lock.hcl
-terraform/*.tfstate
-terraform/*.tfstate.backup
-terraform/terraform.tfvars
-terraform/.terraform.tfstate.lock.info
+**/.terraform
+**/.terraform.lock.hcl
+**/*.tfstate
+**/*.tfstate.backup
+**/terraform.tfvars
+**/.terraform.tfstate.lock.info
 
 # Kubernetes secrets (generated from .env)
 k8s/secret.yaml
