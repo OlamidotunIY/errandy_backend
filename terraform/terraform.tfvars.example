@@ -1,0 +1,26 @@
+# ==============================================================================
+# Terraform Variables Example
+# ==============================================================================
+# Copy this file to terraform.tfvars and fill in your values
+# NEVER commit terraform.tfvars to version control!
+# ==============================================================================
+
+# REQUIRED: Your DigitalOcean API token
+# Generate at: https://cloud.digitalocean.com/account/api/tokens
+do_token = "dop_v1_your_token_here"
+
+# REQUIRED: Email for Let's Encrypt certificates
+letsencrypt_email = "your-email@example.com"
+
+# OPTIONAL: Override defaults
+# cluster_name       = "errandy-cluster"
+# region             = "lon1"
+# kubernetes_version = "1.29.1-do.0"
+# node_size          = "s-2vcpu-4gb"
+# node_count         = 1
+# auto_scale         = false
+# min_nodes          = 1
+# max_nodes          = 3
+# domain_name        = "errandy.com"
+# api_subdomain      = "api"
+# registry_name      = "errandy"
