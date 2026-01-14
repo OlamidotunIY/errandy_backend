@@ -1,0 +1,51 @@
+name: Build and Push to DOCR
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Image tag'
+        required: false
+        default: 'latest'
+
+env:
+  REGISTRY: registry.digitalocean.com/errandy
+  IMAGE_NAME: errandy-backend
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Log in to DOCR
+        run: doctl registry login --expiry-seconds 1200
+
+      - name: Build Docker image
+        run: |
+          TAG=${{ github.event.inputs.tag || 'latest' }}
+          docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$TAG .
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$TAG ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Push Docker image
+        run: |
+          TAG=${{ github.event.inputs.tag || 'latest' }}
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$TAG
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Output image info
+        run: |
+          TAG=${{ github.event.inputs.tag || 'latest' }}
+          echo "✅ Image pushed: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$TAG"
+          echo ""
+          echo "Deploy with:"
+          echo "  kubectl set image deployment/errandy-backend errandy-backend=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$TAG -n errandy"
