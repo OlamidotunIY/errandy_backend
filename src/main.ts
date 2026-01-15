@@ -27,10 +27,12 @@ async function bootstrap() {
     'https://errandy.com.ng',
     'https://www.errandy.com.ng',
     'https://api.errandy.com',
+    'exp://192.168.0.105:8081',
+    'exp://192.168.0.105:19000',
   ];
 
   app.enableCors({
-    origin: allowedOrigins,
+    origin: true,
     credentials: true,
     allowedHeaders: [
       'Accept',

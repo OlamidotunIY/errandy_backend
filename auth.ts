@@ -96,9 +96,10 @@ export const auth = betterAuth({
   },
   trustedOrigins: [
     'errandy://*',
+    'errandy:///',
     'http://localhost:3000',
     'exp://*',
-    'exp://172.19.130.114:8081',
+    'https://errandy-backend.onrender.com',
   ],
   hooks: {},
   databaseHooks: {
