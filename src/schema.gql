@@ -108,12 +108,6 @@ input CreateErrandInput {
   title: String!
 }
 
-input CreateProviderInput {
-  providerType: ProviderType
-  tier: ProviderTier
-  userId: String!
-}
-
 input CreateWalletInput {
   """Example field (placeholder)"""
   exampleField: Int!
@@ -305,7 +299,6 @@ type Mutation {
   clearSearchHistory: Boolean!
   createChat(createChatInput: CreateChatInput!): ChatRoom!
   createErrand(createErrandInput: CreateErrandInput!): Errand!
-  createProvider(createProviderInput: CreateProviderInput!): Provider!
   createUserRole(role: UserRole!): User!
   createWallet(createWalletInput: CreateWalletInput!): Wallet!
   initializePaymentMethod(provider: String = "paystack"): PaymentInitializationResponse!
@@ -415,8 +408,11 @@ enum PricingType {
 }
 
 type Provider {
+  activeAddress: UserAddress
   id: ID!
   providerType: ProviderType
+  rating: RatingStats
+  services: [Service]!
   tier: ProviderTier!
   tierUpdatedAt: DateTime
   user: User!
@@ -473,7 +469,7 @@ type Query {
   myPaymentMethods: [PaymentMethod!]!
   myPaystackCustomer: PaystackCustomer
   placeDetails(input: PlaceDetailsInput!): AddressDetails!
-  provider(id: Int!): Provider!
+  searchProviders(input: SearchProvidersInput!): [Provider!]!
   service(id: ID!): Service!
   serviceCategories(input: GetServiceCategoriesInput): [ServiceCategory!]!
   services(categoryType: ServiceCategoryType): [Service!]!
@@ -485,14 +481,25 @@ type Query {
   wallet(id: Int!): Wallet!
 }
 
+enum RateeType {
+  CLIENT
+  PROVIDER
+}
+
 type Rating {
   comment: String
   createdAt: DateTime!
   errandId: String
   id: String!
   rateeId: String!
+  rateeType: RateeType!
   raterId: String!
   rating: Int!
+}
+
+type RatingStats {
+  averageRating: Float!
+  totalReviews: Int!
 }
 
 type Reaction {
@@ -542,6 +549,15 @@ type Search {
   id: ID!
   keyword: String!
   providerId: ID
+}
+
+input SearchProvidersInput {
+  minRating: Float
+  pagination: PaginationInput
+  providerTypes: [ProviderType!]
+  query: String
+  serviceIds: [String!]
+  tiers: [ProviderTier!]
 }
 
 type Service {

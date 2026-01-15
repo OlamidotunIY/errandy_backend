@@ -1,15 +1,22 @@
+enum RateeType {
+    PROVIDER
+    CLIENT
+}
+
 model Rating {
-	id        String   @id @default(auto()) @map("_id") @db.ObjectId
-	raterId   String   @db.ObjectId
-	rateeId   String   @db.ObjectId
-	errandId  String?  @db.ObjectId
-	rating    Int
-	comment   String?
-	createdAt DateTime @default(now())
+    id        String    @id @default(auto()) @map("_id") @db.ObjectId
+    raterId   String    @db.ObjectId
+    rateeId   String    @db.ObjectId
+    rateeType RateeType
+    errandId  String?   @db.ObjectId
+    rating    Int
+    comment   String?
+    createdAt DateTime  @default(now())
 
-	// Relations
-	errand    Errand?  @relation(fields: [errandId], references: [id])
-	ratee     Client   @relation(fields: [rateeId], references: [id])
+    // Relations
+    errand   Errand?   @relation(fields: [errandId], references: [id])
+    client   Client?   @relation(fields: [rateeId], references: [id])
+    provider Provider? @relation(fields: [rateeId], references: [id])
 
-	@@map("ratings")
+    @@map("ratings")
 }

@@ -13,6 +13,7 @@ model Provider {
     organizations        Organization[]
     trustedCircleMembers TrustedCircleMember[]
     verifications        ProviderVerification[]
+    ratings              Rating[]
 
     @@map("providers")
 }

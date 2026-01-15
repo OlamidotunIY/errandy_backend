@@ -1,25 +1,74 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma.service';
-import { CreateProviderInput } from './dto/create-provider.input';
-import { UpdateProviderInput } from './dto/update-provider.input';
+import { RatingService } from '../rating/rating.service';
 import { ProviderDiscoveryResponse } from './dto/provider-discovery.response';
+import { SearchProvidersInput } from './dto/search-providers.input';
+import { PrismaService } from 'src/prisma.service';
 import { Provider } from './entities/provider.entity';
-import { ErrandStatus } from '@prisma/client';
+import { ErrandStatus } from 'src/errands/entities/errandStatus.enum';
+import { Prisma } from '@prisma/client';
+
+type ProviderWithInclude = Prisma.ProviderGetPayload<{
+  include: {
+    user: {
+      include: {
+        activeAddress: true;
+      };
+    };
+    services: {
+      include: {
+        service: true;
+      };
+    };
+  };
+}>;
 
 @Injectable()
 export class ProviderService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ratingService: RatingService,
+  ) {}
 
-  create(createProviderInput: CreateProviderInput) {
-    return 'This action adds a new provider';
+  /**
+   * Enrich provider objects with their services, active address, and ratings
+   */
+  private async enrichProviders(
+    providers: ProviderWithInclude[],
+  ): Promise<Provider[]> {
+    if (providers.length === 0) return [];
+
+    const providerIds = providers.map((p) => p.id);
+    const ratingsMap = await this.ratingService.getProviderRatings(providerIds);
+
+    return providers.map((p) => {
+      // Map services from join table
+      const services = p.services?.map((s) => s.service) || [];
+
+      // Extract active address from user
+      const activeAddress = p.user?.activeAddress;
+
+      return {
+        ...p,
+        services,
+        activeAddress,
+        rating: ratingsMap.get(p.id) || { averageRating: 0, totalReviews: 0 },
+      } as unknown as Provider;
+    });
   }
 
-  findAll() {
-    return `This action returns all provider`;
-  }
-
-  findOne(id: number) {
-    return `This action returns a #${id} provider`;
+  private get providerInclude() {
+    return {
+      user: {
+        include: {
+          activeAddress: true,
+        },
+      },
+      services: {
+        include: {
+          service: true,
+        },
+      },
+    };
   }
 
   async getProviders(userId: string): Promise<ProviderDiscoveryResponse> {
@@ -30,8 +79,8 @@ export class ProviderService {
       where: { userId },
     });
 
-    // 2. Trusted Providers (from Trusted Circles)
-    let trustedProviders: Provider[] = [];
+    // 2. Trusted Providers
+    let trustedProvidersRaw: ProviderWithInclude[] = [];
     if (client) {
       const trustedMembers = await this.prisma.trustedCircleMember.findMany({
         where: {
@@ -41,32 +90,26 @@ export class ProviderService {
         },
         include: {
           provider: {
-            include: { user: true },
+            include: this.providerInclude,
           },
         },
         take: limit,
       });
-      trustedProviders = trustedMembers.map(
-        (m) => m.provider as unknown as Provider,
-      );
+      trustedProvidersRaw = trustedMembers.map((m) => m.provider);
     }
 
-    // 3. New Providers (recently joined users who are providers)
+    // 3. New Providers
     const newProvidersRaw = await this.prisma.provider.findMany({
       orderBy: {
         user: {
           createdAt: 'desc',
         },
       },
-      include: {
-        user: true,
-      },
+      include: this.providerInclude,
       take: limit,
     });
-    const newProviders = newProvidersRaw as unknown as Provider[];
 
-    // 4. Popular Providers (most assigned errands)
-    // Group errands by assignedTo to find popular provider IDs
+    // 4. Popular Providers
     const popularGroups = await this.prisma.errand.groupBy({
       by: ['assignedTo'],
       _count: {
@@ -88,28 +131,23 @@ export class ProviderService {
       .map((g) => g.assignedTo)
       .filter((id): id is string => !!id);
 
-    let popularProviders: Provider[] = [];
+    let popularProvidersRaw: ProviderWithInclude[] = [];
     if (popularProviderIds.length > 0) {
       const popularRaw = await this.prisma.provider.findMany({
         where: {
           id: { in: popularProviderIds },
         },
-        include: {
-          user: true,
-        },
+        include: this.providerInclude,
       });
       // Sort back to match popularity order
-      popularProviders = popularProviderIds
+      popularProvidersRaw = popularProviderIds
         .map((id) => popularRaw.find((p) => p.id === id))
-        .filter(
-          (p): p is (typeof popularRaw)[0] => !!p,
-        ) as unknown as Provider[];
+        .filter((p) => !!p);
     }
 
-    // 5. Suggested Providers (based on recent services hired)
-    let suggestedProviders: Provider[] = [];
+    // 5. Suggested Providers
+    let suggestedProvidersRaw: ProviderWithInclude[] = [];
     if (client) {
-      // Get recent distinct services hired by this client
       const recentErrands = await this.prisma.errand.findMany({
         where: {
           clientId: client.id,
@@ -128,49 +166,91 @@ export class ProviderService {
         .filter((id): id is string => !!id);
 
       if (serviceIds.length > 0) {
-        // Find providers offering these services
-        // We use ServicesOnProviders to link Provider -> Service
-        const suggestedRaw = await this.prisma.provider.findMany({
+        suggestedProvidersRaw = await this.prisma.provider.findMany({
           where: {
             services: {
               some: {
                 serviceId: { in: serviceIds },
               },
             },
-            // Exclude already found in popular/trusted/new to allow diversity?
-            // Or keep as is. Let's keep distinct logic minimal for now.
             id: {
               notIn: [
                 ...popularProviderIds,
-                ...trustedProviders.map((p) => p.id),
+                ...trustedProvidersRaw.map((p) => p.id),
               ],
             },
           },
-          include: {
-            user: true,
-          },
+          include: this.providerInclude,
           take: limit,
         });
-        suggestedProviders = suggestedRaw as unknown as Provider[];
       }
     }
 
-    // Fallback for Suggested if empty: Top rated? Or just random?
-    // Stick to empty if no history.
+    // Enrich all groups
+    const [popular, itemsNew, trusted, suggested] = await Promise.all([
+      this.enrichProviders(popularProvidersRaw),
+      this.enrichProviders(newProvidersRaw),
+      this.enrichProviders(trustedProvidersRaw),
+      this.enrichProviders(suggestedProvidersRaw),
+    ]);
 
     return {
-      popular: popularProviders,
-      new: newProviders,
-      trusted: trustedProviders,
-      suggested: suggestedProviders,
+      popular,
+      new: itemsNew,
+      trusted,
+      suggested,
     };
   }
 
-  update(id: number, updateProviderInput: UpdateProviderInput) {
-    return `This action updates a #${id} provider`;
-  }
+  async searchProviders(input: SearchProvidersInput): Promise<Provider[]> {
+    const { query, serviceIds, providerTypes, tiers, pagination } = input;
+    const { page = 1, limit = 20 } = pagination || {};
+    const skip = (page - 1) * limit;
 
-  remove(id: number) {
-    return `This action removes a #${id} provider`;
+    const whereClause: Prisma.ProviderWhereInput = {};
+
+    // Text search on name
+    if (query) {
+      whereClause.user = {
+        name: { contains: query, mode: 'insensitive' },
+      };
+    }
+
+    // Service filter
+    if (serviceIds && serviceIds.length > 0) {
+      whereClause.services = {
+        some: {
+          serviceId: { in: serviceIds },
+        },
+      };
+    }
+
+    // Provider Type filter
+    if (providerTypes && providerTypes.length > 0) {
+      whereClause.providerType = { in: providerTypes };
+    }
+
+    // Tier filter
+    if (tiers && tiers.length > 0) {
+      whereClause.tier = { in: tiers };
+    }
+
+    const providersRaw = await this.prisma.provider.findMany({
+      where: whereClause,
+      include: this.providerInclude,
+      skip,
+      take: limit,
+    });
+
+    let providers = await this.enrichProviders(providersRaw);
+
+    // Rating filter
+    if (input.minRating && input.minRating > 0) {
+      providers = providers.filter(
+        (p) => (p.rating?.averageRating ?? 0) >= input.minRating!,
+      );
+    }
+
+    return providers;
   }
 }
