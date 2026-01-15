@@ -908,7 +908,7 @@ export class ErrandsService {
       case MyErrandsType.CLIENT_ACTIVE:
         return this.getClientErrands(
           userId,
-          [ErrandStatus.OPEN, ErrandStatus.IN_PROGRESS],
+          [ErrandStatus.IN_PROGRESS],
           skip,
           limit,
         );

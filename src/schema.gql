@@ -260,6 +260,14 @@ input GetErrandInput {
   id: ID!
 }
 
+input GetMyErrandsInput {
+  """Pagination parameters"""
+  pagination: PaginationInput
+
+  """Type of my errands to retrieve"""
+  type: MyErrandsType!
+}
+
 input GetServiceCategoriesInput {
   type: ServiceCategoryType
 }
@@ -330,6 +338,17 @@ type Mutation {
   updateWallet(updateWalletInput: UpdateWalletInput!): Wallet!
   useCurrentAddress(input: ReverseGeocodeInput!): User!
   verifyAndSavePaymentMethod(provider: String = "paystack", reference: String!): PaymentMethod!
+}
+
+"""Type of errands to retrieve for My Errands view"""
+enum MyErrandsType {
+  CLIENT_ACTIVE
+  CLIENT_DRAFT
+  CLIENT_PUBLISHED
+  PROVIDER_ACTIVE
+  PROVIDER_COMPLETED
+  PROVIDER_PENDING
+  PROVIDER_REJECTED
 }
 
 enum OnboardingProgress {
@@ -450,6 +469,11 @@ type Query {
   Advanced errand query with personalized feeds and location-based filtering
   """
   getErrands(input: ErrandQueryInput!): PaginatedErrands!
+
+  """
+  Get user errands - Clients see their created errands, Providers see errands they applied for
+  """
+  getMyErrands(input: GetMyErrandsInput!): PaginatedErrands!
   getPendingTrustedCircleMembers: [TrustedCircleMember!]!
   getProviders: ProviderDiscoveryResponse!
   getTrustedCircle: TrustedCircle
