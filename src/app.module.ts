@@ -4,7 +4,6 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { AddressModule } from './address/address.module';
-import { ReviewModule } from './review/review.module';
 import { ServiceModule } from './service/service.module';
 import { ApplicationModule } from './application/application.module';
 import { ChatModule } from './chat/chat.module';
@@ -84,7 +83,6 @@ import { ProviderModule } from './provider/provider.module';
     ChatModule,
     ApplicationModule,
     ServiceModule,
-    ReviewModule,
     ClientModule,
     RatingModule,
     PaymentGatewayModule,

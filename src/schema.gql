@@ -114,11 +114,6 @@ input CreateProviderInput {
   userId: String!
 }
 
-input CreateReviewInput {
-  """Example field (placeholder)"""
-  exampleField: Int!
-}
-
 input CreateWalletInput {
   """Example field (placeholder)"""
   exampleField: Int!
@@ -311,7 +306,6 @@ type Mutation {
   createChat(createChatInput: CreateChatInput!): ChatRoom!
   createErrand(createErrandInput: CreateErrandInput!): Errand!
   createProvider(createProviderInput: CreateProviderInput!): Provider!
-  createReview(createReviewInput: CreateReviewInput!): Review!
   createUserRole(role: UserRole!): User!
   createWallet(createWalletInput: CreateWalletInput!): Wallet!
   initializePaymentMethod(provider: String = "paystack"): PaymentInitializationResponse!
@@ -326,14 +320,12 @@ type Mutation {
   removeChat(id: Int!): ChatRoom!
   removeErrand(id: ID!): Errand!
   removeFromCircle(providerId: ID!): TrustedCircle!
-  removeReview(id: Int!): Review!
   removeWallet(id: Int!): Wallet!
   saveErrand(errandId: ID!): SavedErrand!
   saveUserAddress(dto: SaveUserAddressInput!): User!
   shareTrustedCircle(input: ShareCircleInput!): Boolean!
   updateChat(updateChatInput: UpdateChatInput!): ChatRoom!
   updateErrand(updateErrandInput: UpdateErrandInput!): Errand!
-  updateReview(updateReviewInput: UpdateReviewInput!): Review!
   updateUser(updateUserInput: UpdateUserInput!): User!
   updateWallet(updateWalletInput: UpdateWalletInput!): Wallet!
   useCurrentAddress(input: ReverseGeocodeInput!): User!
@@ -482,7 +474,6 @@ type Query {
   myPaystackCustomer: PaystackCustomer
   placeDetails(input: PlaceDetailsInput!): AddressDetails!
   provider(id: Int!): Provider!
-  review(id: Int!): Review!
   service(id: ID!): Service!
   serviceCategories(input: GetServiceCategoriesInput): [ServiceCategory!]!
   services(categoryType: ServiceCategoryType): [Service!]!
@@ -530,16 +521,6 @@ type RecurringErrand {
 input ReverseGeocodeInput {
   latitude: Float!
   longitude: Float!
-}
-
-type Review {
-  comment: String
-  createdAt: DateTime!
-  errandId: String!
-  id: String!
-  rating: Int!
-  reviewerId: String!
-  workerId: String!
 }
 
 input SaveUserAddressInput {
@@ -653,12 +634,6 @@ input UpdateErrandInput {
 
   """Errand title"""
   title: String
-}
-
-input UpdateReviewInput {
-  """Example field (placeholder)"""
-  exampleField: Int
-  id: Int!
 }
 
 input UpdateUserInput {
