@@ -12,6 +12,10 @@ import { ErrandType } from './dto/errand-type.enum';
 import { PaginatedErrands } from './entities/paginated-errands.entity';
 import { UsersService } from 'src/users/users.service';
 import { PubSubInterface } from 'src/pubsub';
+import { GetMyErrandsInput } from './dto/get-my-errands.input';
+import { MyErrandsType } from './dto/my-errands-type.enum';
+import { ErrandStatus } from './entities/errandStatus.enum';
+import { ApplicationStatus } from 'src/application/entities/applicationStatus.enum';
 
 export interface GeoPoint {
   type: 'Point';
@@ -876,6 +880,333 @@ export class ErrandsService {
     const totalPages = Math.ceil(total / limit);
     return {
       data: enriched,
+      total,
+      page,
+      limit,
+      totalPages,
+      hasNextPage: page < totalPages,
+      hasPreviousPage: page > 1,
+    };
+  }
+
+  /**
+   * Get My Errands - Returns errands based on user role
+   * Clients: Get errands they created (Active, Published, Draft)
+   * Providers: Get errands they applied for (Active, Pending, Rejected, Completed)
+   */
+  async getMyErrands(
+    input: GetMyErrandsInput,
+    userId: string,
+  ): Promise<PaginatedErrands> {
+    const { type, pagination } = input;
+    const { page = 1, limit = 10 } = pagination || {};
+    const skip = (page - 1) * limit;
+
+
+    switch (type) {
+      // Client tabs - errands they created
+      case MyErrandsType.CLIENT_ACTIVE:
+        return this.getClientErrands(
+          userId,
+          [ErrandStatus.OPEN, ErrandStatus.IN_PROGRESS],
+          skip,
+          limit,
+        );
+      case MyErrandsType.CLIENT_PUBLISHED:
+        return this.getClientErrands(userId, [ErrandStatus.OPEN], skip, limit);
+      case MyErrandsType.CLIENT_DRAFT:
+        return this.getClientErrands(userId, [ErrandStatus.DRAFT], skip, limit);
+
+      // Provider tabs - errands they applied for
+      case MyErrandsType.PROVIDER_ACTIVE:
+        return this.getProviderAppliedErrands(
+          userId,
+          ApplicationStatus.ACCEPTED,
+          [ErrandStatus.IN_PROGRESS],
+          skip,
+          limit,
+        );
+      case MyErrandsType.PROVIDER_PENDING:
+        return this.getProviderAppliedErrands(
+          userId,
+          ApplicationStatus.PENDING,
+          null,
+          skip,
+          limit,
+        );
+      case MyErrandsType.PROVIDER_REJECTED:
+        return this.getProviderRejectedErrands(userId, skip, limit);
+      case MyErrandsType.PROVIDER_COMPLETED:
+        return this.getProviderAppliedErrands(
+          userId,
+          ApplicationStatus.ACCEPTED,
+          [ErrandStatus.COMPLETED],
+          skip,
+          limit,
+        );
+
+      default:
+        throw new Error(`Invalid MyErrandsType: ${type}`);
+    }
+  }
+
+  /**
+   * Get errands created by a client
+   */
+  private async getClientErrands(
+    userId: string,
+    statuses: ErrandStatus[],
+    skip: number,
+    limit: number,
+  ): Promise<PaginatedErrands> {
+    // Get the client ID for this user
+    const client = await this.prisma.client.findUnique({
+      where: { userId },
+    });
+
+    if (!client) {
+      return {
+        data: [],
+        total: 0,
+        page: Math.floor(skip / limit) + 1,
+        limit,
+        totalPages: 0,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      };
+    }
+
+    const whereClause = {
+      clientId: client.id,
+      status: { in: statuses },
+    };
+
+    const [errands, total] = await Promise.all([
+      this.prisma.errand.findMany({
+        where: whereClause,
+        include: {
+          service: true,
+          client: {
+            include: {
+              user: true,
+            },
+          },
+          ratings: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        skip,
+        take: limit,
+      }),
+      this.prisma.errand.count({ where: whereClause }),
+    ]);
+
+    const page = Math.floor(skip / limit) + 1;
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data: errands.map((e) => ({
+        ...e,
+        distance: 0,
+        clientName: e.client?.user?.name ?? null,
+        clientRating: null,
+        isSaved: false,
+      })) as any,
+      total,
+      page,
+      limit,
+      totalPages,
+      hasNextPage: page < totalPages,
+      hasPreviousPage: page > 1,
+    };
+  }
+
+  /**
+   * Get errands that a provider has applied for with specific application status
+   */
+  private async getProviderAppliedErrands(
+    userId: string,
+    applicationStatus: ApplicationStatus,
+    errandStatuses: ErrandStatus[] | null,
+    skip: number,
+    limit: number,
+  ): Promise<PaginatedErrands> {
+    // Get the provider/worker ID for this user
+    const provider = await this.prisma.provider.findUnique({
+      where: { userId },
+    });
+
+    if (!provider) {
+      return {
+        data: [],
+        total: 0,
+        page: Math.floor(skip / limit) + 1,
+        limit,
+        totalPages: 0,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      };
+    }
+
+    // Find applications for this provider
+    const applicationWhereClause: any = {
+      workerId: provider.id,
+      status: applicationStatus,
+    };
+
+    const applications = await this.prisma.application.findMany({
+      where: applicationWhereClause,
+      select: { errandId: true },
+    });
+
+    const errandIds = applications.map((a) => a.errandId);
+
+    if (errandIds.length === 0) {
+      return {
+        data: [],
+        total: 0,
+        page: Math.floor(skip / limit) + 1,
+        limit,
+        totalPages: 0,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      };
+    }
+
+    const errandWhereClause: any = {
+      id: { in: errandIds },
+    };
+
+    // If errand statuses are specified, filter by them
+    if (errandStatuses && errandStatuses.length > 0) {
+      errandWhereClause.status = { in: errandStatuses };
+    }
+
+    const [errands, total] = await Promise.all([
+      this.prisma.errand.findMany({
+        where: errandWhereClause,
+        include: {
+          service: true,
+          client: {
+            include: {
+              user: true,
+            },
+          },
+          ratings: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        skip,
+        take: limit,
+      }),
+      this.prisma.errand.count({ where: errandWhereClause }),
+    ]);
+
+    const page = Math.floor(skip / limit) + 1;
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data: errands.map((e) => ({
+        ...e,
+        distance: 0,
+        clientName: e.client?.user?.name ?? null,
+        clientRating: null,
+        isSaved: false,
+      })) as any,
+      total,
+      page,
+      limit,
+      totalPages,
+      hasNextPage: page < totalPages,
+      hasPreviousPage: page > 1,
+    };
+  }
+
+  /**
+   * Get errands where provider's application was rejected or cancelled
+   */
+  private async getProviderRejectedErrands(
+    userId: string,
+    skip: number,
+    limit: number,
+  ): Promise<PaginatedErrands> {
+    const provider = await this.prisma.provider.findUnique({
+      where: { userId },
+    });
+
+    if (!provider) {
+      return {
+        data: [],
+        total: 0,
+        page: Math.floor(skip / limit) + 1,
+        limit,
+        totalPages: 0,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      };
+    }
+
+    // Find rejected or cancelled applications
+    const applications = await this.prisma.application.findMany({
+      where: {
+        workerId: provider.id,
+        status: { in: ['REJECTED', 'CANCELLED'] },
+      },
+      select: { errandId: true },
+    });
+
+    const errandIds = applications.map((a) => a.errandId);
+
+    if (errandIds.length === 0) {
+      return {
+        data: [],
+        total: 0,
+        page: Math.floor(skip / limit) + 1,
+        limit,
+        totalPages: 0,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      };
+    }
+
+    const whereClause = {
+      id: { in: errandIds },
+    };
+
+    const [errands, total] = await Promise.all([
+      this.prisma.errand.findMany({
+        where: whereClause,
+        include: {
+          service: true,
+          client: {
+            include: {
+              user: true,
+            },
+          },
+          ratings: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        skip,
+        take: limit,
+      }),
+      this.prisma.errand.count({ where: whereClause }),
+    ]);
+
+    const page = Math.floor(skip / limit) + 1;
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data: errands.map((e) => ({
+        ...e,
+        distance: 0,
+        clientName: e.client?.user?.name ?? null,
+        clientRating: null,
+        isSaved: false,
+      })) as any,
       total,
       page,
       limit,

@@ -17,6 +17,7 @@ import { UseGuards, Inject } from '@nestjs/common';
 import { GetAllErrandInput } from './dto/get-all-errand.input';
 import { GetErrandInput } from './dto/get-errand.input';
 import { SavedErrand } from './entities/saveErrand.entity';
+import { GetMyErrandsInput } from './dto/get-my-errands.input';
 import { GqlAuthGuard } from 'src/auth/guard/graphql-auth.guard';
 import { CurrentUser } from 'src/auth/decorator/current-user.decorator';
 import { User } from 'src/users/entities/user.entity';
@@ -88,6 +89,19 @@ export class ErrandsResolver {
     @CurrentUser() user: User,
   ) {
     return this.errandsService.saveErrand(errandId, user.id);
+  }
+
+  @UseGuards(GqlAuthGuard)
+  @Query(() => PaginatedErrands, {
+    name: 'getMyErrands',
+    description:
+      'Get user errands - Clients see their created errands, Providers see errands they applied for',
+  })
+  getMyErrands(
+    @Args('input') input: GetMyErrandsInput,
+    @CurrentUser() user: User,
+  ) {
+    return this.errandsService.getMyErrands(input, user.id);
   }
 
   // Real-time Subscriptions
