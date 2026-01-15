@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 async function main() {
   // Create 2dsphere index for Errand collection
   await prisma.$runCommandRaw({
-    createIndexes: 'errand', // collection name in MongoDB
+    createIndexes: 'errands', // collection name in MongoDB
     indexes: [
       {
         key: { location: '2dsphere' },
@@ -17,7 +17,7 @@ async function main() {
 
   // Create 2dsphere index for UserAddress collection
   await prisma.$runCommandRaw({
-    createIndexes: 'userAddress', // collection name in MongoDB
+    createIndexes: 'user_addresses', // collection name in MongoDB
     indexes: [
       {
         key: { location: '2dsphere' },

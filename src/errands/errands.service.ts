@@ -16,6 +16,13 @@ import { GetMyErrandsInput } from './dto/get-my-errands.input';
 import { MyErrandsType } from './dto/my-errands-type.enum';
 import { ErrandStatus } from './entities/errandStatus.enum';
 import { ApplicationStatus } from 'src/application/entities/applicationStatus.enum';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
+
+export interface ErrandUpdatedEvent {
+  errandId: string;
+  clientId: string;
+  serviceAddress?: string;
+}
 
 export interface GeoPoint {
   type: 'Point';
@@ -28,6 +35,7 @@ export class ErrandsService {
     private readonly prisma: PrismaService,
     @Inject('PUB_SUB') private readonly pubSub: PubSubInterface,
     private readonly usersService: UsersService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async create(createErrandInput: CreateErrandInput, userId: string) {
@@ -211,6 +219,13 @@ export class ErrandsService {
       },
     });
 
+    // Emit NestJS event for internal processing
+    this.eventEmitter.emit('errand.updated', {
+      errandId: errand.id,
+      clientId: errand.clientId,
+      serviceAddress: updateErrandInput.serviceAddress,
+    });
+
     return errand;
   }
 
@@ -249,6 +264,43 @@ export class ErrandsService {
         location: geoLocation,
       },
     });
+  }
+
+  @OnEvent('errand.updated')
+  async handleErrandUpdated(payload: ErrandUpdatedEvent) {
+    if (!payload.serviceAddress) return;
+
+    // Get the client's user record to find their registered addresses
+    const client = await this.prisma.client.findUnique({
+      where: { id: payload.clientId },
+      include: {
+        user: {
+          include: {
+            userAddress: true,
+          },
+        },
+      },
+    });
+
+    if (!client?.user?.userAddress) return;
+
+    // Find the address that matches the errand's serviceAddress
+    const matchedAddress = client.user.userAddress.find(
+      (addr) => addr.address === payload.serviceAddress,
+    );
+
+    if (matchedAddress && matchedAddress.location) {
+      const location = matchedAddress.location as any;
+      await this.updateLocation({
+        id: payload.errandId,
+        serviceAddress: payload.serviceAddress,
+        latitude: location.coordinates[1].toString(),
+        longitude: location.coordinates[0].toString(),
+      });
+      console.log(
+        `✅ Updated location for errand ${payload.errandId} using address from ${payload.serviceAddress}`,
+      );
+    }
   }
 
   async remove(id: string) {
@@ -901,7 +953,6 @@ export class ErrandsService {
     const { type, pagination } = input;
     const { page = 1, limit = 10 } = pagination || {};
     const skip = (page - 1) * limit;
-
 
     switch (type) {
       // Client tabs - errands they created
