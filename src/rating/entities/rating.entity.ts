@@ -1,4 +1,6 @@
 import { ObjectType, Field, Int, registerEnumType } from '@nestjs/graphql';
+import { RatingReaction } from './rating-reaction.entity';
+import { RatingReply } from './rating-reply.entity';
 
 export enum RateeType {
   PROVIDER = 'PROVIDER',
@@ -34,6 +36,12 @@ export class Rating {
 
   @Field()
   createdAt: Date;
+
+  @Field(() => [RatingReaction], { nullable: 'itemsAndList' })
+  reactions?: RatingReaction[];
+
+  @Field(() => [RatingReply], { nullable: 'itemsAndList' })
+  replies?: RatingReply[];
 }
 
 @ObjectType()

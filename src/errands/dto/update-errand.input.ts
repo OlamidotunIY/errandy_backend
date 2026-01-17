@@ -48,6 +48,18 @@ export class UpdateErrandInput extends PartialType(CreateErrandInput) {
   @Min(1000)
   hourlyRate?: number;
 
+  @Field(() => Float, { nullable: true })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  transportAllowance?: number;
+
+  @Field(() => Float, { nullable: true })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  materialsBudget?: number;
+
   @Field(() => ErrandStatus, { nullable: true })
   @IsOptional()
   @IsEnum(ErrandStatus)

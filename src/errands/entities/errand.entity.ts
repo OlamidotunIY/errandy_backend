@@ -30,6 +30,12 @@ export class Errand {
   @Field(() => Float, { nullable: true })
   hourlyRate?: number;
 
+  @Field(() => Float, { nullable: true })
+  transportAllowance?: number;
+
+  @Field(() => Float, { nullable: true })
+  materialsBudget?: number;
+
   @Field(() => ErrandStatus, { nullable: true })
   status?: ErrandStatus;
 

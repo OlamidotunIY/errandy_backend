@@ -6,6 +6,8 @@ model Errand {
     pricingType            PricingType   @default(FIXED)
     price                  Float?
     hourlyRate             Float?
+    transportAllowance     Float?
+    materialsBudget        Float?
     status                 ErrandStatus? @default(DRAFT)
     providerType           ProviderType?
     serviceId              String?       @db.ObjectId
@@ -16,10 +18,10 @@ model Errand {
 
     serviceAddress String?
     location       Json?
-    templateId     String?            @db.ObjectId
-    isRecurring    Boolean            @default(false)
-    createdAt      DateTime           @default(now())
-    updatedAt      DateTime           @updatedAt
+    templateId     String?  @db.ObjectId
+    isRecurring    Boolean  @default(false)
+    createdAt      DateTime @default(now())
+    updatedAt      DateTime @updatedAt
     ratings        Rating[]
 
     client       Client          @relation(fields: [clientId], references: [id])
