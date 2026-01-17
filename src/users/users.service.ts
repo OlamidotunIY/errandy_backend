@@ -94,6 +94,54 @@ export class UsersService {
     return updatedUser;
   }
 
+  async deleteAddress(addressId: string, userId: string) {
+    const user = await this.findOne(userId);
+    if (!user) throw new BadRequestException('User not found');
+
+    // Check if address belongs to user
+    const address = await this.prisma.userAddress.findFirst({
+      where: { id: addressId, userId },
+    });
+
+    if (!address) {
+      throw new BadRequestException(
+        'Address not found or does not belong to user',
+      );
+    }
+
+    // Check if this is the active address
+    const isActiveAddress = user.activeAddressId === addressId;
+
+    // Delete the address
+    await this.prisma.userAddress.delete({
+      where: { id: addressId },
+    });
+
+    // If deleted address was active, set another address as active (or null if none left)
+    if (isActiveAddress) {
+      const remainingAddresses = await this.prisma.userAddress.findMany({
+        where: { userId },
+        take: 1,
+      });
+
+      if (remainingAddresses.length > 0) {
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: {
+            activeAddress: { connect: { id: remainingAddresses[0].id } },
+          },
+        });
+      } else {
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: { activeAddressId: null },
+        });
+      }
+    }
+
+    return { success: true, message: 'Address deleted successfully' };
+  }
+
   async switchRole(role: GqlUserRole, id: string) {
     return this.prisma.user.update({
       where: { id },

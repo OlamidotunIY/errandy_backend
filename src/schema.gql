@@ -385,6 +385,9 @@ type Mutation {
   createRecurringErrand(input: CreateRecurringErrandInput!): RecurringErrand!
   createUserRole(role: UserRole!): User!
   createWallet(createWalletInput: CreateWalletInput!): Wallet!
+
+  """Delete a user address"""
+  deleteAddress(addressId: String!): Boolean!
   deleteErrandBundle(id: ID!): ErrandBundle!
   deleteErrandTemplate(id: ID!): ErrandTemplate!
   deleteRatingReply(input: DeleteRatingReplyInput!): RatingReply!

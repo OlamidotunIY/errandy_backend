@@ -29,6 +29,15 @@ export class UsersResolver {
     return this.usersService.addAddress(dto, user.id);
   }
 
+  @Mutation(() => Boolean, { description: 'Delete a user address' })
+  async deleteAddress(
+    @Args('addressId') addressId: string,
+    @CurrentUser() user: User,
+  ) {
+    const result = await this.usersService.deleteAddress(addressId, user.id);
+    return result.success;
+  }
+
   @Mutation(() => User)
   createUserRole(@Args('role', { type: () => GqlUserRole }) role: GqlUserRole, @CurrentUser() user: User) {
     return this.usersService.createUserRole(user.id, role);
