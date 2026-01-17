@@ -2,6 +2,21 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+input AddBundleItemInput {
+  bundleId: ID!
+  templateId: ID!
+}
+
+input AddRatingReactionInput {
+  emoji: String!
+  ratingId: ID!
+}
+
+input AddRatingReplyInput {
+  content: String!
+  ratingId: ID!
+}
+
 input AddToCircleInput {
   circleName: String
   providerId: ID!
@@ -49,6 +64,13 @@ type BankTransferDetails {
   accountNumber: String!
   bankName: String!
   expiresAt: String
+}
+
+type BundleItem {
+  bundleId: String!
+  id: ID!
+  template: ErrandTemplate
+  templateId: String!
 }
 
 type ChatRoom {
@@ -103,9 +125,46 @@ input CreateChatInput {
   exampleField: Int!
 }
 
+input CreateErrandBundleInput {
+  basePrice: Float!
+  description: String!
+  name: String!
+  templateIds: [ID!]
+}
+
+input CreateErrandFromTemplateInput {
+  description: String
+  serviceAddress: String
+  templateId: ID!
+  title: String
+}
+
 input CreateErrandInput {
   """Errand title"""
   title: String!
+}
+
+input CreateErrandTemplateInput {
+  description: String
+  hourlyRate: Float
+  location: JSON
+  price: Float
+  pricingType: PricingType!
+  providerType: ProviderType
+  serviceAddress: String
+  serviceId: ID
+  title: String!
+}
+
+input CreateErrandsFromBundleInput {
+  bundleId: ID!
+  serviceAddress: String
+}
+
+input CreateRecurringErrandInput {
+  frequency: RecurrenceFrequency!
+  startDate: DateTime
+  templateId: ID!
 }
 
 input CreateWalletInput {
@@ -126,6 +185,10 @@ A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date
 """
 scalar DateTime
 
+input DeleteRatingReplyInput {
+  replyId: ID!
+}
+
 type Errand {
   assignedAt: DateTime
   assignedTo: String
@@ -139,6 +202,7 @@ type Errand {
   id: ID!
   isRecurring: Boolean!
   location: JSON
+  materialsBudget: Float
   price: Float
   pricingType: PricingType!
   providerType: ProviderType
@@ -149,7 +213,17 @@ type Errand {
   status: ErrandStatus
   templateId: String
   title: String!
+  transportAllowance: Float
   updatedAt: DateTime!
+}
+
+type ErrandBundle {
+  active: Boolean!
+  basePrice: Float!
+  description: String!
+  id: ID!
+  items: [BundleItem]
+  name: String!
 }
 
 input ErrandQueryInput {
@@ -222,6 +296,7 @@ type ErrandWithClient {
   isRecurring: Boolean!
   isSaved: Boolean
   location: JSON
+  materialsBudget: Float
   price: Float
   pricingType: PricingType!
   providerType: ProviderType
@@ -232,6 +307,7 @@ type ErrandWithClient {
   status: ErrandStatus
   templateId: String
   title: String!
+  transportAllowance: Float
   updatedAt: DateTime!
 }
 
@@ -291,16 +367,28 @@ enum MessageType {
 type Mutation {
   acceptSharedProvider(providerId: ID!): TrustedCircle!
   addAddress(dto: CreateAddressInput!): User!
+  addBundleItem(input: AddBundleItemInput!): BundleItem!
+  addRatingReply(input: AddRatingReplyInput!): RatingReply!
   addToCircle(input: AddToCircleInput!): TrustedCircle!
   addWorkerServices(dto: AddWorkerServicesInput!): User!
   apply(createApplicationInput: CreateApplicationInput!): Application!
+  cancelRecurringErrand(id: ID!): RecurringErrand!
 
   """Clear user search history"""
   clearSearchHistory: Boolean!
   createChat(createChatInput: CreateChatInput!): ChatRoom!
   createErrand(createErrandInput: CreateErrandInput!): Errand!
+  createErrandBundle(input: CreateErrandBundleInput!): ErrandBundle!
+  createErrandFromTemplate(input: CreateErrandFromTemplateInput!): Errand!
+  createErrandTemplate(input: CreateErrandTemplateInput!): ErrandTemplate!
+  createErrandsFromBundle(input: CreateErrandsFromBundleInput!): [Errand!]!
+  createRecurringErrand(input: CreateRecurringErrandInput!): RecurringErrand!
   createUserRole(role: UserRole!): User!
   createWallet(createWalletInput: CreateWalletInput!): Wallet!
+  deleteErrandBundle(id: ID!): ErrandBundle!
+  deleteErrandTemplate(id: ID!): ErrandTemplate!
+  deleteRatingReply(input: DeleteRatingReplyInput!): RatingReply!
+  deleteRecurringErrand(id: ID!): RecurringErrand!
   initializePaymentMethod(provider: String = "paystack"): PaymentInitializationResponse!
   initializeWalletFunding(
     """Amount in kobo"""
@@ -310,6 +398,7 @@ type Mutation {
     channel: WalletFundingChannel!
   ): WalletFundingResponse!
   rejectSharedProvider(providerId: ID!): TrustedCircle!
+  removeBundleItem(input: RemoveBundleItemInput!): BundleItem!
   removeChat(id: Int!): ChatRoom!
   removeErrand(id: ID!): Errand!
   removeFromCircle(providerId: ID!): TrustedCircle!
@@ -317,8 +406,12 @@ type Mutation {
   saveErrand(errandId: ID!): SavedErrand!
   saveUserAddress(dto: SaveUserAddressInput!): User!
   shareTrustedCircle(input: ShareCircleInput!): Boolean!
+  toggleRatingReaction(input: AddRatingReactionInput!): RatingReaction
   updateChat(updateChatInput: UpdateChatInput!): ChatRoom!
   updateErrand(updateErrandInput: UpdateErrandInput!): Errand!
+  updateErrandBundle(input: UpdateErrandBundleInput!): ErrandBundle!
+  updateErrandTemplate(input: UpdateErrandTemplateInput!): ErrandTemplate!
+  updateRecurringErrand(input: UpdateRecurringErrandInput!): RecurringErrand!
   updateUser(updateUserInput: UpdateUserInput!): User!
   updateWallet(updateWalletInput: UpdateWalletInput!): Wallet!
   useCurrentAddress(input: ReverseGeocodeInput!): User!
@@ -450,7 +543,12 @@ type Query {
 
   """Get client dashboard data including requirements and errands"""
   clientDashboard: ClientDashboard!
+  clientRatings(clientId: ID!): [Rating!]!
   errand(input: GetErrandInput!): Errand!
+  errandBundle(id: ID!): ErrandBundle
+  errandBundles: [ErrandBundle!]!
+  errandRatings(errandId: ID!): [Rating!]!
+  errandTemplate(id: ID!): ErrandTemplate
   errands(dto: GetAllErrandInput!): [Errand!]!
 
   """
@@ -466,8 +564,10 @@ type Query {
   getProviders: ProviderDiscoveryResponse!
   getTrustedCircle: TrustedCircle
   getUserAddresses: [UserAddress!]!
+  myErrandTemplates: [ErrandTemplate!]!
   myPaymentMethods: [PaymentMethod!]!
   myPaystackCustomer: PaystackCustomer
+  myRecurringErrands: [RecurringErrand!]!
   placeDetails(input: PlaceDetailsInput!): AddressDetails!
   searchProviders(input: SearchProvidersInput!): [Provider!]!
   service(id: ID!): Service!
@@ -495,6 +595,24 @@ type Rating {
   rateeType: RateeType!
   raterId: String!
   rating: Int!
+  reactions: [RatingReaction]
+  replies: [RatingReply]
+}
+
+type RatingReaction {
+  createdAt: DateTime!
+  emoji: String!
+  id: ID!
+  ratingId: String!
+  userId: String!
+}
+
+type RatingReply {
+  content: String!
+  createdAt: DateTime!
+  id: ID!
+  ratingId: String!
+  userId: String!
 }
 
 type RatingStats {
@@ -523,6 +641,11 @@ type RecurringErrand {
   nextRunAt: DateTime!
   template: ErrandTemplate
   templateId: String!
+}
+
+input RemoveBundleItemInput {
+  bundleId: ID!
+  templateId: ID!
 }
 
 input ReverseGeocodeInput {
@@ -631,6 +754,15 @@ input UpdateChatInput {
   id: Int!
 }
 
+input UpdateErrandBundleInput {
+  active: Boolean
+  basePrice: Float
+  description: String
+  id: ID!
+  name: String
+  templateIds: [ID!]
+}
+
 input UpdateErrandInput {
   applicationDeadline: DateTime
   assignedTo: String
@@ -641,6 +773,7 @@ input UpdateErrandInput {
   hourlyRate: Float
   id: String!
   location: String
+  materialsBudget: Float
   price: Float
   pricingType: PricingType
   providerType: ProviderType
@@ -650,6 +783,28 @@ input UpdateErrandInput {
 
   """Errand title"""
   title: String
+  transportAllowance: Float
+}
+
+input UpdateErrandTemplateInput {
+  description: String
+  hourlyRate: Float
+  id: ID!
+  location: JSON
+  price: Float
+  pricingType: PricingType
+  providerType: ProviderType
+  serviceAddress: String
+  serviceId: ID
+  title: String
+}
+
+input UpdateRecurringErrandInput {
+  active: Boolean
+  frequency: RecurrenceFrequency
+  id: ID!
+  startDate: DateTime
+  templateId: ID
 }
 
 input UpdateUserInput {

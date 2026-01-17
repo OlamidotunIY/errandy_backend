@@ -1266,4 +1266,366 @@ export class ErrandsService {
       hasPreviousPage: page > 1,
     };
   }
+
+  // ==========================================
+  // ERRAND TEMPLATE METHODS
+  // ==========================================
+
+  async createTemplate(
+    input: {
+      title: string;
+      description?: string;
+      pricingType: any;
+      price?: number;
+      hourlyRate?: number;
+      serviceId?: string;
+      providerType?: any;
+      serviceAddress?: string;
+      location?: any;
+    },
+    userId: string,
+  ) {
+    const client = await this.prisma.client.findUnique({ where: { userId } });
+    if (!client) {
+      throw new Error('Client not found');
+    }
+
+    return this.prisma.errandTemplate.create({
+      data: {
+        ...input,
+      },
+    });
+  }
+
+  async updateTemplate(input: {
+    id: string;
+    title?: string;
+    description?: string;
+    pricingType?: any;
+    price?: number;
+    hourlyRate?: number;
+    serviceId?: string;
+    providerType?: any;
+    serviceAddress?: string;
+    location?: any;
+  }) {
+    const { id, ...updateData } = input;
+    return this.prisma.errandTemplate.update({
+      where: { id },
+      data: updateData,
+    });
+  }
+
+  async deleteTemplate(id: string) {
+    // Check if template is in use by recurring errands
+    const recurringCount = await this.prisma.recurringErrand.count({
+      where: { templateId: id },
+    });
+    if (recurringCount > 0) {
+      throw new Error(
+        'Cannot delete template that is in use by recurring errands',
+      );
+    }
+
+    return this.prisma.errandTemplate.delete({ where: { id } });
+  }
+
+  async getMyTemplates(userId: string) {
+    const client = await this.prisma.client.findUnique({ where: { userId } });
+    if (!client) {
+      throw new Error('Client not found');
+    }
+
+    // Templates don't have a clientId field in the schema,
+    // so we return all templates for now (could add clientId to schema)
+    return this.prisma.errandTemplate.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async getTemplateById(id: string) {
+    return this.prisma.errandTemplate.findUnique({ where: { id } });
+  }
+
+  async createErrandFromTemplate(
+    templateId: string,
+    userId: string,
+    overrides?: {
+      title?: string;
+      description?: string;
+      serviceAddress?: string;
+    },
+  ) {
+    const client = await this.prisma.client.findUnique({ where: { userId } });
+    if (!client) {
+      throw new Error('Client not found');
+    }
+
+    const template = await this.prisma.errandTemplate.findUnique({
+      where: { id: templateId },
+    });
+    if (!template) {
+      throw new Error('Template not found');
+    }
+
+    return this.prisma.errand.create({
+      data: {
+        title: overrides?.title || template.title,
+        description: overrides?.description || template.description,
+        pricingType: template.pricingType,
+        price: template.price,
+        hourlyRate: template.hourlyRate,
+        serviceId: template.serviceId,
+        providerType: template.providerType,
+        serviceAddress: overrides?.serviceAddress || template.serviceAddress,
+        location: template.location,
+        templateId: template.id,
+        clientId: client.id,
+      },
+      include: { client: true },
+    });
+  }
+
+  // ==========================================
+  // RECURRING ERRAND METHODS
+  // ==========================================
+
+  async createRecurringErrand(
+    input: {
+      templateId: string;
+      frequency: any;
+      startDate?: Date;
+    },
+    userId: string,
+  ) {
+    const client = await this.prisma.client.findUnique({ where: { userId } });
+    if (!client) {
+      throw new Error('Client not found');
+    }
+
+    const template = await this.prisma.errandTemplate.findUnique({
+      where: { id: input.templateId },
+    });
+    if (!template) {
+      throw new Error('Template not found');
+    }
+
+    const nextRunAt = this.calculateNextRunDate(
+      input.frequency,
+      input.startDate || new Date(),
+    );
+
+    return this.prisma.recurringErrand.create({
+      data: {
+        clientId: client.id,
+        templateId: input.templateId,
+        frequency: input.frequency,
+        nextRunAt,
+        active: true,
+      },
+      include: { template: true },
+    });
+  }
+
+  async updateRecurringErrand(input: {
+    id: string;
+    frequency?: any;
+    active?: boolean;
+  }) {
+    const { id, ...updateData } = input;
+
+    // Recalculate nextRunAt if frequency changed
+    if (updateData.frequency) {
+      const current = await this.prisma.recurringErrand.findUnique({
+        where: { id },
+      });
+      if (current) {
+        (updateData as any).nextRunAt = this.calculateNextRunDate(
+          updateData.frequency,
+          new Date(),
+        );
+      }
+    }
+
+    return this.prisma.recurringErrand.update({
+      where: { id },
+      data: updateData,
+      include: { template: true },
+    });
+  }
+
+  async cancelRecurringErrand(id: string) {
+    return this.prisma.recurringErrand.update({
+      where: { id },
+      data: { active: false },
+    });
+  }
+
+  async deleteRecurringErrand(id: string) {
+    return this.prisma.recurringErrand.delete({ where: { id } });
+  }
+
+  async getMyRecurringErrands(userId: string) {
+    const client = await this.prisma.client.findUnique({ where: { userId } });
+    if (!client) {
+      throw new Error('Client not found');
+    }
+
+    return this.prisma.recurringErrand.findMany({
+      where: { clientId: client.id },
+      include: { template: true },
+      orderBy: { nextRunAt: 'asc' },
+    });
+  }
+
+  private calculateNextRunDate(
+    frequency: 'WEEKLY' | 'MONTHLY',
+    fromDate: Date,
+  ): Date {
+    const date = new Date(fromDate);
+    if (frequency === 'WEEKLY') {
+      date.setDate(date.getDate() + 7);
+    } else if (frequency === 'MONTHLY') {
+      date.setMonth(date.getMonth() + 1);
+    }
+    return date;
+  }
+
+  // ==========================================
+  // ERRAND BUNDLE METHODS
+  // ==========================================
+
+  async createBundle(
+    input: {
+      name: string;
+      description: string;
+      basePrice: number;
+      templateIds?: string[];
+    },
+    userId: string,
+  ) {
+    const client = await this.prisma.client.findUnique({ where: { userId } });
+    if (!client) {
+      throw new Error('Client not found');
+    }
+
+    const bundle = await this.prisma.errandBundle.create({
+      data: {
+        name: input.name,
+        description: input.description,
+        basePrice: input.basePrice,
+        active: true,
+      },
+    });
+
+    // Add templates as bundle items if provided
+    if (input.templateIds?.length) {
+      await Promise.all(
+        input.templateIds.map((templateId) =>
+          this.prisma.bundleItem.create({
+            data: {
+              bundleId: bundle.id,
+              templateId,
+            },
+          }),
+        ),
+      );
+    }
+
+    return this.prisma.errandBundle.findUnique({
+      where: { id: bundle.id },
+      include: { items: { include: { template: true } } },
+    });
+  }
+
+  async updateBundle(input: {
+    id: string;
+    name?: string;
+    description?: string;
+    basePrice?: number;
+    active?: boolean;
+  }) {
+    const { id, ...updateData } = input;
+    return this.prisma.errandBundle.update({
+      where: { id },
+      data: updateData,
+      include: { items: { include: { template: true } } },
+    });
+  }
+
+  async deleteBundle(id: string) {
+    // Delete bundle items first
+    await this.prisma.bundleItem.deleteMany({ where: { bundleId: id } });
+    return this.prisma.errandBundle.delete({ where: { id } });
+  }
+
+  async addBundleItem(bundleId: string, templateId: string) {
+    // Check if already exists
+    const existing = await this.prisma.bundleItem.findFirst({
+      where: { bundleId, templateId },
+    });
+    if (existing) {
+      throw new Error('Template already in bundle');
+    }
+
+    return this.prisma.bundleItem.create({
+      data: { bundleId, templateId },
+      include: { template: true },
+    });
+  }
+
+  async removeBundleItem(bundleId: string, templateId: string) {
+    const item = await this.prisma.bundleItem.findFirst({
+      where: { bundleId, templateId },
+    });
+    if (!item) {
+      throw new Error('Item not found in bundle');
+    }
+
+    return this.prisma.bundleItem.delete({ where: { id: item.id } });
+  }
+
+  async getBundles() {
+    return this.prisma.errandBundle.findMany({
+      where: { active: true },
+      include: { items: { include: { template: true } } },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async getBundleById(id: string) {
+    return this.prisma.errandBundle.findUnique({
+      where: { id },
+      include: { items: { include: { template: true } } },
+    });
+  }
+
+  async createErrandsFromBundle(
+    bundleId: string,
+    userId: string,
+    serviceAddress?: string,
+  ) {
+    const client = await this.prisma.client.findUnique({ where: { userId } });
+    if (!client) {
+      throw new Error('Client not found');
+    }
+
+    const bundle = await this.prisma.errandBundle.findUnique({
+      where: { id: bundleId },
+      include: { items: { include: { template: true } } },
+    });
+    if (!bundle) {
+      throw new Error('Bundle not found');
+    }
+
+    const errands = await Promise.all(
+      bundle.items.map((item) =>
+        this.createErrandFromTemplate(item.templateId, userId, {
+          serviceAddress,
+        }),
+      ),
+    );
+
+    return errands;
+  }
 }
