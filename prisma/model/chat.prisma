@@ -1,7 +1,7 @@
 model ChatRoom {
     id           String    @id @default(auto()) @map("_id") @db.ObjectId
-    name         String?
     participants String[] // array of user IDs
+    roomKey      String?   @unique
     createdAt    DateTime  @default(now())
     updatedAt    DateTime  @updatedAt
     messages     Message[]
@@ -13,7 +13,6 @@ model Message {
     id         String      @id @default(auto()) @map("_id") @db.ObjectId
     roomId     String      @db.ObjectId
     senderId   String
-    receiverId String
     content    String?
     contentUrl String? // used for voice, images, files
     type       MessageType @default(TEXT)

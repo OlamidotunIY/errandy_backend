@@ -33,7 +33,6 @@ export interface GeoPoint {
 export class ErrandsService {
   constructor(
     private readonly prisma: PrismaService,
-    @Inject('PUB_SUB') private readonly pubSub: PubSubInterface,
     private readonly usersService: UsersService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
@@ -53,15 +52,6 @@ export class ErrandsService {
       },
       include: {
         client: true,
-      },
-    });
-
-    // Publish errand created event for real-time updates
-    await this.pubSub.publish('errandCreated', {
-      errandCreated: {
-        errand,
-        type: 'CREATED',
-        userId,
       },
     });
 
@@ -210,15 +200,6 @@ export class ErrandsService {
       },
     });
 
-    // Publish errand updated event for real-time updates
-    await this.pubSub.publish('errandUpdated', {
-      errandUpdated: {
-        errand,
-        type: 'UPDATED',
-        userId: errand.clientId,
-      },
-    });
-
     // Emit NestJS event for internal processing
     this.eventEmitter.emit('errand.updated', {
       errandId: errand.id,
@@ -315,15 +296,6 @@ export class ErrandsService {
 
     await this.prisma.errand.delete({
       where: { id },
-    });
-
-    // Publish errand deleted event for real-time updates
-    await this.pubSub.publish('errandDeleted', {
-      errandDeleted: {
-        errand,
-        type: 'DELETED',
-        userId: errand.clientId,
-      },
     });
 
     return errand;

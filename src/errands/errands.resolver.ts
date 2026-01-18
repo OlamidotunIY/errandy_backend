@@ -42,17 +42,10 @@ import {
   CreateErrandsFromBundleInput,
 } from './dto/errand-bundle.dto';
 
-// PubSub interface
-interface PubSub {
-  publish(event: string, data: any): Promise<void>;
-  asyncIterator(events: string | string[]): any;
-}
-
 @Resolver(() => Errand)
 export class ErrandsResolver {
   constructor(
     private readonly errandsService: ErrandsService,
-    @Inject('PUB_SUB') private readonly pubSub: PubSub,
   ) {}
 
   @UseGuards(GqlAuthGuard)
@@ -123,31 +116,6 @@ export class ErrandsResolver {
     @CurrentUser() user: User,
   ) {
     return this.errandsService.getMyErrands(input, user.id);
-  }
-
-  // Real-time Subscriptions
-  @Subscription(() => ErrandSubscriptionPayload, {
-    name: 'errandCreated',
-    description: 'Subscribe to new errands created nearby',
-  })
-  errandCreated() {
-    return this.pubSub.asyncIterator('errandCreated');
-  }
-
-  @Subscription(() => ErrandSubscriptionPayload, {
-    name: 'errandUpdated',
-    description: 'Subscribe to errand updates',
-  })
-  errandUpdated() {
-    return this.pubSub.asyncIterator('errandUpdated');
-  }
-
-  @Subscription(() => ErrandSubscriptionPayload, {
-    name: 'errandDeleted',
-    description: 'Subscribe to errand deletions',
-  })
-  errandDeleted() {
-    return this.pubSub.asyncIterator('errandDeleted');
   }
 
   // ==========================================
