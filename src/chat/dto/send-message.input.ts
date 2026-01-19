@@ -1,7 +1,7 @@
 import { InputType, Field } from '@nestjs/graphql';
+import { GraphQLUpload, FileUpload } from 'graphql-upload-ts';
 import { MessageType } from '../entities/message-type.enum';
-import { IsEnum, IsMongoId, IsString } from 'class-validator';
-
+import { IsEnum, IsMongoId, IsOptional, IsString } from 'class-validator';
 
 @InputType()
 export class SendMessageInput {
@@ -9,19 +9,25 @@ export class SendMessageInput {
   @IsMongoId()
   roomId: string;
 
-  @Field()
+  @Field({ nullable: true })
   @IsString()
-  content: string;
+  @IsOptional()
+  content?: string;
 
   @Field()
   @IsEnum(MessageType)
   type: MessageType;
 
-  @Field()
+  @Field({ nullable: true })
   @IsString()
-  contentUrl: string;
+  @IsOptional()
+  contentUrl?: string;
+
+  @Field(() => GraphQLUpload, { nullable: true })
+  file?: Promise<FileUpload>;
 
   @Field()
   @IsMongoId()
+  @IsOptional()
   senderId: string;
 }

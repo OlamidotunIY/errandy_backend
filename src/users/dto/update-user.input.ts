@@ -1,4 +1,5 @@
 import { InputType, Field, PartialType } from '@nestjs/graphql';
+import { GraphQLUpload, FileUpload } from 'graphql-upload-ts';
 import { CreateUserInput } from './create-user.input';
 import { GqlUserRole } from '../entities/user.entity';
 
@@ -15,6 +16,9 @@ export class UpdateUserInput extends PartialType(CreateUserInput) {
 
   @Field({ nullable: true })
   image?: string;
+
+  @Field(() => GraphQLUpload, { nullable: true })
+  imageFile?: Promise<FileUpload>;
 
   @Field({ nullable: true })
   phoneNumber?: string;

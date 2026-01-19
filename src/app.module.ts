@@ -27,6 +27,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { EmailModule } from './email/email.module';
 import { PushModule } from './push/push.module';
 import { ProviderModule } from './provider/provider.module';
+import { FirebaseModule } from './firebase/firebase.module';
 
 @Module({
   imports: [
@@ -91,6 +92,7 @@ import { ProviderModule } from './provider/provider.module';
     VerificationModule,
     TrustedCircleModule,
     EmailModule,
+    FirebaseModule,
     PushModule,
     ProviderModule,
   ],

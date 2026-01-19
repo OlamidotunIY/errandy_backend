@@ -1,14 +1,20 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { CreateAddressInput, CreateUserInput } from './dto/create-user.input';
 import { UpdateUserInput } from './dto/update-user.input';
 import { PrismaService } from 'src/prisma.service';
 import { Prisma } from '@prisma/client';
 import { GqlUserRole, GqlOnboardingProgress } from './entities/user.entity';
 import { globalEventEmitter } from 'src/utils/event-emitter.utils';
+import { FirebaseStorageService } from 'src/firebase/firebase-storage.service';
+import { FileUpload } from 'graphql-upload-ts';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly firebaseStorageService: FirebaseStorageService,
+  ) {}
 
   findOne(id: string) {
     return this.prisma.user.findFirst({
@@ -26,29 +32,43 @@ export class UsersService {
   }
 
   async update(updateUserInput: UpdateUserInput) {
+    const { id, role, imageFile, image, ...rest } = updateUserInput;
+    let imageUrl = image;
+
+    if (imageFile) {
+      const upload = await imageFile;
+      if (!upload.mimetype.startsWith('image/')) {
+        throw new BadRequestException('Profile image must be an image file');
+      }
+
+      imageUrl = await this.uploadUserImage(id, upload);
+    }
+
     const updatedUser = await this.prisma.user.update({
-      where: { id: updateUserInput.id },
+      where: { id },
       data: {
-        ...updateUserInput,
-        ...(updateUserInput.role && {
+        ...rest,
+        ...(imageUrl !== undefined ? { image: imageUrl } : {}),
+        ...(role && {
           roles: {
-            push: updateUserInput.role, // add role to array
+            push: role, // add role to array
           },
           activeRole: {
-            set: updateUserInput.role,
+            set: role,
           },
         }),
       },
     });
 
-    // Emit user.updated event when name or phone is updated
-    if (updateUserInput.name || updateUserInput.phoneNumber) {
+    // Emit user.updated event when name, phone, or image is updated
+    if (updateUserInput.name || updateUserInput.phoneNumber || imageUrl) {
       const nameParts = updateUserInput.name?.split(' ') || [];
       globalEventEmitter.emit('user.updated', {
-        userId: updateUserInput.id,
+        userId: id,
         firstName: nameParts[0],
         lastName: nameParts.slice(1).join(' '),
         phone: updateUserInput.phoneNumber,
+        imageUrl,
       });
     }
 
@@ -140,6 +160,28 @@ export class UsersService {
     }
 
     return { success: true, message: 'Address deleted successfully' };
+  }
+
+  private async uploadUserImage(userId: string, upload: FileUpload) {
+    const safeName = this.sanitizeFilename(upload.filename);
+    const destination = `users/${userId}/profile/${Date.now()}_${randomUUID()}_${safeName}`;
+
+    const result = await this.firebaseStorageService.uploadStream({
+      stream: upload.createReadStream(),
+      destination,
+      contentType: upload.mimetype,
+      makePublic: true,
+      cacheControl: 'public, max-age=31536000, immutable',
+      metadata: {
+        originalName: upload.filename,
+      },
+    });
+
+    return result.url;
+  }
+
+  private sanitizeFilename(filename: string) {
+    return filename.replace(/[^a-zA-Z0-9._-]/g, '_');
   }
 
   async switchRole(role: GqlUserRole, id: string) {

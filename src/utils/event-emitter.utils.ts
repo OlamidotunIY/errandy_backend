@@ -33,4 +33,5 @@ export interface UserUpdatedEvent {
   firstName?: string;
   lastName?: string;
   phone?: string;
+  imageUrl?: string;
 }

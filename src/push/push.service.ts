@@ -1,60 +1,23 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import * as admin from 'firebase-admin';
-import * as fs from 'fs';
-import * as path from 'path';
 import { PushNotificationPayload } from './push.interface';
+import { FirebaseAdminService } from 'src/firebase/firebase-admin.service';
 
 @Injectable()
 export class PushService implements OnModuleInit {
   private readonly logger = new Logger(PushService.name);
 
+  constructor(private readonly firebaseAdminService: FirebaseAdminService) {}
+
   onModuleInit() {
-    this.initializeFirebase();
-  }
-
-  private initializeFirebase() {
-    if (admin.apps.length === 0) {
-      try {
-        const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-
-        if (serviceAccountPath) {
-          // Resolve path relative to project root
-          const fullPath = path.isAbsolute(serviceAccountPath)
-            ? serviceAccountPath
-            : path.join(process.cwd(), serviceAccountPath);
-
-          if (!fs.existsSync(fullPath)) {
-            this.logger.error(
-              `Firebase service account file not found: ${fullPath}`,
-            );
-            return;
-          }
-
-          const serviceAccount = JSON.parse(fs.readFileSync(fullPath, 'utf-8'));
-
-          admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount),
-          });
-          this.logger.log('Firebase Admin initialized successfully');
-        } else {
-          this.logger.warn(
-            'FIREBASE_SERVICE_ACCOUNT_KEY not configured - push notifications disabled',
-          );
-        }
-      } catch (error) {
-        this.logger.error(
-          'Failed to initialize Firebase Admin:',
-          error.message,
-        );
-      }
-    }
+    this.firebaseAdminService.ensureInitialized();
   }
 
   async sendPush(
     fcmToken: string,
     payload: PushNotificationPayload,
   ): Promise<boolean> {
-    if (admin.apps.length === 0) {
+    if (!this.firebaseAdminService.isInitialized()) {
       this.logger.warn('Firebase not initialized - skipping push notification');
       return false;
     }
@@ -107,7 +70,7 @@ export class PushService implements OnModuleInit {
     fcmTokens: string[],
     payload: PushNotificationPayload,
   ): Promise<{ successCount: number; failureCount: number }> {
-    if (admin.apps.length === 0 || fcmTokens.length === 0) {
+    if (!this.firebaseAdminService.isInitialized() || fcmTokens.length === 0) {
       return { successCount: 0, failureCount: fcmTokens.length };
     }
 

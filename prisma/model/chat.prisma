@@ -1,28 +1,40 @@
 model ChatRoom {
-    id           String    @id @default(auto()) @map("_id") @db.ObjectId
+    id           String   @id @default(auto()) @map("_id") @db.ObjectId
     participants String[] // array of user IDs
-    roomKey      String?   @unique
-    createdAt    DateTime  @default(now())
-    updatedAt    DateTime  @updatedAt
-    messages     Message[]
+    roomKey      String?  @unique
+
+    unreadCount Int @default(0)
+
+    lastMessageId String?  @unique @db.ObjectId
+    lastMessage   Message? @relation("LastMessage", fields: [lastMessageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+    messages Message[] @relation("RoomMessages")
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
 
     @@map("rooms")
 }
 
 model Message {
-    id         String      @id @default(auto()) @map("_id") @db.ObjectId
-    roomId     String      @db.ObjectId
-    senderId   String
+    id       String @id @default(auto()) @map("_id") @db.ObjectId
+    roomId   String @db.ObjectId
+    senderId String
+
     content    String?
     contentUrl String? // used for voice, images, files
     type       MessageType @default(TEXT)
-    seen       Boolean     @default(false)
-    delivered  Boolean     @default(false)
-    reactions  Reaction[]
-    createdAt  DateTime    @default(now())
 
-    // Relation
-    room ChatRoom @relation(fields: [roomId], references: [id])
+    seen      Boolean @default(false)
+    delivered Boolean @default(false)
+    sent      Boolean @default(false)
+
+    reactions Reaction[]
+
+    createdAt DateTime @default(now())
+
+    room           ChatRoom  @relation("RoomMessages", fields: [roomId], references: [id], onDelete: Cascade)
+    lastMessageFor ChatRoom? @relation("LastMessage")
 
     @@map("messages")
 }
