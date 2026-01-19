@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import { CreateAddressInput, CreateUserInput } from './dto/create-user.input';
 import { UpdateUserInput } from './dto/update-user.input';
@@ -14,6 +15,7 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly firebaseStorageService: FirebaseStorageService,
+    private readonly configService: ConfigService,
   ) {}
 
   findOne(id: string) {
@@ -34,6 +36,15 @@ export class UsersService {
   async update(updateUserInput: UpdateUserInput) {
     const { id, role, imageFile, image, ...rest } = updateUserInput;
     let imageUrl = image;
+    let previousImage: string | null | undefined;
+
+    if (imageFile) {
+      const existingUser = await this.prisma.user.findUnique({
+        where: { id },
+        select: { image: true },
+      });
+      previousImage = existingUser?.image;
+    }
 
     if (imageFile) {
       const upload = await imageFile;
@@ -59,6 +70,10 @@ export class UsersService {
         }),
       },
     });
+
+    if (imageFile) {
+      await this.deletePreviousImage(previousImage, imageUrl);
+    }
 
     // Emit user.updated event when name, phone, or image is updated
     if (updateUserInput.name || updateUserInput.phoneNumber || imageUrl) {
@@ -182,6 +197,88 @@ export class UsersService {
 
   private sanitizeFilename(filename: string) {
     return filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+  }
+
+  private async deletePreviousImage(
+    previousImage: string | null | undefined,
+    newImageUrl: string | undefined,
+  ) {
+    if (!previousImage || !newImageUrl || previousImage === newImageUrl) {
+      return;
+    }
+
+    const bucketName =
+      this.configService.get<string>('FIREBASE_STORAGE_BUCKET');
+    if (!bucketName) {
+      return;
+    }
+
+    const path = this.extractFirebaseStoragePath(previousImage, bucketName);
+    if (!path) {
+      return;
+    }
+
+    try {
+      await this.firebaseStorageService.deleteFile(path);
+    } catch {
+    }
+  }
+
+  private extractFirebaseStoragePath(url: string, bucketName: string) {
+    if (url.startsWith('gs://')) {
+      const withoutScheme = url.slice('gs://'.length);
+      const [bucket, ...pathParts] = withoutScheme.split('/');
+      if (bucket !== bucketName || pathParts.length === 0) {
+        return null;
+      }
+      return pathParts.join('/');
+    }
+
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(url);
+    } catch {
+      return null;
+    }
+
+    if (parsedUrl.hostname === 'storage.googleapis.com') {
+      const [bucket, ...pathParts] = parsedUrl.pathname
+        .replace(/^\/+/, '')
+        .split('/');
+      if (bucket !== bucketName || pathParts.length === 0) {
+        return null;
+      }
+      return pathParts.join('/');
+    }
+
+    if (parsedUrl.hostname.endsWith('.storage.googleapis.com')) {
+      const bucket = parsedUrl.hostname.replace('.storage.googleapis.com', '');
+      if (bucket !== bucketName) {
+        return null;
+      }
+      const path = parsedUrl.pathname.replace(/^\/+/, '');
+      return path || null;
+    }
+
+    if (parsedUrl.hostname === 'firebasestorage.googleapis.com') {
+      const parts = parsedUrl.pathname.split('/');
+      const bucketIndex = parts.indexOf('b');
+      const objectIndex = parts.indexOf('o');
+      if (bucketIndex === -1 || objectIndex === -1) {
+        return null;
+      }
+      const bucket = parts[bucketIndex + 1];
+      if (bucket !== bucketName) {
+        return null;
+      }
+      const encodedPath = parts[objectIndex + 1];
+      if (!encodedPath) {
+        return null;
+      }
+      return decodeURIComponent(encodedPath);
+    }
+
+    return null;
   }
 
   async switchRole(role: GqlUserRole, id: string) {
