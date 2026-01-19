@@ -23,7 +23,7 @@ export class ChatResolver {
     @Args('createChatInput') createChatInput: CreateChatInput,
     @CurrentUser() user: User,
   ) {
-    const participantIds = [user.id, ...createChatInput.participantIds];
+    const participantIds = [user.id, createChatInput.receiverId];
     return this.chatService.getOrCreateChat(participantIds);
   }
 

@@ -38,57 +38,130 @@ export class ClientService {
     let activeErrands: any[] = [];
     let draftErrands: any[] = [];
     let totalErrandsCount = 0;
+    let activeErrandsCount = 0;
+    let draftErrandsCount = 0;
+    let completedErrandsCount = 0;
+    let totalSpent = 0;
+    let walletBalance = 0;
 
     if (user.client) {
       const clientId = user.client.id;
 
-      // Fetch active errands (OPEN or IN_PROGRESS)
-      activeErrands = await this.prisma.errand.findMany({
-        where: {
-          clientId,
-          status: {
-            in: ['OPEN', 'IN_PROGRESS'],
-          },
-        },
-        include: {
-          ratings: true,
-          client: {
-            include: {
-              user: true,
+      const [
+        activeErrandsResult,
+        draftErrandsResult,
+        activeCount,
+        draftCount,
+        totalCount,
+        completedErrands,
+        wallet,
+      ] = await Promise.all([
+        // Fetch active errands (OPEN or IN_PROGRESS)
+        this.prisma.errand.findMany({
+          where: {
+            clientId,
+            status: {
+              in: ['OPEN', 'IN_PROGRESS'],
             },
           },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-        take: 10, // Limit to recent 10
-      });
-
-      // Fetch draft errands
-      draftErrands = await this.prisma.errand.findMany({
-        where: {
-          clientId,
-          status: 'DRAFT',
-        },
-        include: {
-          ratings: true,
-          client: {
-            include: {
-              user: true,
+          include: {
+            ratings: true,
+            service: true,
+            client: {
+              include: {
+                user: true,
+              },
             },
           },
-        },
-        orderBy: {
-          updatedAt: 'desc',
-        },
-        take: 10, // Limit to recent 10
-      });
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 10, // Limit to recent 10
+        }),
+        // Fetch draft errands
+        this.prisma.errand.findMany({
+          where: {
+            clientId,
+            status: 'DRAFT',
+          },
+          include: {
+            ratings: true,
+            service: true,
+            client: {
+              include: {
+                user: true,
+              },
+            },
+          },
+          orderBy: {
+            updatedAt: 'desc',
+          },
+          take: 10, // Limit to recent 10
+        }),
+        // Counts
+        this.prisma.errand.count({
+          where: {
+            clientId,
+            status: {
+              in: ['OPEN', 'IN_PROGRESS'],
+            },
+          },
+        }),
+        this.prisma.errand.count({
+          where: {
+            clientId,
+            status: 'DRAFT',
+          },
+        }),
+        this.prisma.errand.count({
+          where: { clientId },
+        }),
+        // Completed errands for totals
+        this.prisma.errand.findMany({
+          where: {
+            clientId,
+            status: 'COMPLETED',
+          },
+          select: {
+            price: true,
+            hourlyRate: true,
+            transportAllowance: true,
+            materialsBudget: true,
+          },
+        }),
+        // Wallet balance
+        this.prisma.wallet.findUnique({
+          where: {
+            ownerId_ownerType: {
+              ownerId: clientId,
+              ownerType: 'CLIENT',
+            },
+          },
+          select: {
+            available: true,
+          },
+        }),
+      ]);
 
-      // Get total errands count
-      totalErrandsCount = await this.prisma.errand.count({
-        where: { clientId },
-      });
+      activeErrands = activeErrandsResult;
+      draftErrands = draftErrandsResult;
+      activeErrandsCount = activeCount;
+      draftErrandsCount = draftCount;
+      totalErrandsCount = totalCount;
+      completedErrandsCount = completedErrands.length;
+      totalSpent = completedErrands.reduce((sum, errand) => {
+        return (
+          sum +
+          (errand.price ?? 0) +
+          (errand.hourlyRate ?? 0) +
+          (errand.transportAllowance ?? 0) +
+          (errand.materialsBudget ?? 0)
+        );
+      }, 0);
+      walletBalance = wallet?.available ?? 0;
     }
+
+    const marketTrends = await this.getMarketTrends();
 
     const completedRequirementsCount = requirements.filter(
       (r) => r.isCompleted,
@@ -99,10 +172,14 @@ export class ClientService {
       completedRequirementsCount,
       totalRequirementsCount: requirements.length,
       activeErrands,
-      activeErrandsCount: activeErrands.length,
+      activeErrandsCount,
       draftErrands,
-      draftErrandsCount: draftErrands.length,
+      draftErrandsCount,
       totalErrandsCount,
+      completedErrandsCount,
+      totalSpent,
+      walletBalance,
+      marketTrends,
     };
   }
 
@@ -144,5 +221,49 @@ export class ClientService {
     ];
 
     return requirements;
+  }
+
+  private async getMarketTrends(): Promise<string[]> {
+    const since = new Date();
+    since.setDate(since.getDate() - 30);
+
+    const trendErrands = await this.prisma.errand.findMany({
+      where: {
+        status: {
+          not: 'DRAFT',
+        },
+        serviceId: {
+          not: null,
+        },
+        createdAt: {
+          gte: since,
+        },
+      },
+      select: {
+        service: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 250,
+    });
+
+    const counts = new Map<string, number>();
+    for (const errand of trendErrands) {
+      const name = errand.service?.name;
+      if (!name) {
+        continue;
+      }
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([name]) => name);
   }
 }

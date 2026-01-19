@@ -1,4 +1,4 @@
-import { ObjectType, Field, Int } from '@nestjs/graphql';
+import { ObjectType, Field, Int, Float } from '@nestjs/graphql';
 import { Errand } from 'src/errands/entities/errand.entity';
 
 @ObjectType()
@@ -44,4 +44,16 @@ export class ClientDashboard {
 
   @Field(() => Int)
   totalErrandsCount: number;
+
+  @Field(() => Int)
+  completedErrandsCount: number;
+
+  @Field(() => Float)
+  totalSpent: number;
+
+  @Field(() => Float)
+  walletBalance: number;
+
+  @Field(() => [String])
+  marketTrends: string[];
 }

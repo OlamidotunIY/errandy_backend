@@ -101,12 +101,16 @@ type Client {
 type ClientDashboard {
   activeErrands: [Errand!]!
   activeErrandsCount: Int!
+  completedErrandsCount: Int!
   completedRequirementsCount: Int!
   draftErrands: [Errand!]!
   draftErrandsCount: Int!
+  marketTrends: [String!]!
   requirements: [DashboardRequirement!]!
   totalErrandsCount: Int!
   totalRequirementsCount: Int!
+  totalSpent: Float!
+  walletBalance: Float!
 }
 
 input CreateAddressInput {
@@ -121,8 +125,7 @@ input CreateApplicationInput {
 }
 
 input CreateChatInput {
-  """Example field (placeholder)"""
-  exampleField: Int!
+  receiverId: String!
 }
 
 input CreateErrandBundleInput {
@@ -249,13 +252,6 @@ enum ErrandStatus {
   OVERDUE
 }
 
-type ErrandSubscriptionPayload {
-  distance: Float
-  errand: Errand!
-  type: String!
-  userId: String
-}
-
 type ErrandTemplate {
   createdAt: DateTime!
   description: String
@@ -376,7 +372,6 @@ type Mutation {
 
   """Clear user search history"""
   clearSearchHistory: Boolean!
-  createChat(createChatInput: CreateChatInput!): ChatRoom!
   createErrand(createErrandInput: CreateErrandInput!): Errand!
   createErrandBundle(input: CreateErrandBundleInput!): ErrandBundle!
   createErrandFromTemplate(input: CreateErrandFromTemplateInput!): Errand!
@@ -392,6 +387,7 @@ type Mutation {
   deleteErrandTemplate(id: ID!): ErrandTemplate!
   deleteRatingReply(input: DeleteRatingReplyInput!): RatingReply!
   deleteRecurringErrand(id: ID!): RecurringErrand!
+  getOrCreateChat(createChatInput: CreateChatInput!): ChatRoom!
   initializePaymentMethod(provider: String = "paystack"): PaymentInitializationResponse!
   initializeWalletFunding(
     """Amount in kobo"""
@@ -400,17 +396,18 @@ type Mutation {
     """Payment channel: card, transfer, or qr"""
     channel: WalletFundingChannel!
   ): WalletFundingResponse!
+  markMessageAsDelivered(messageId: String!): Message!
+  markMessageAsSeen(messageId: String!): Message!
   rejectSharedProvider(providerId: ID!): TrustedCircle!
   removeBundleItem(input: RemoveBundleItemInput!): BundleItem!
-  removeChat(id: Int!): ChatRoom!
   removeErrand(id: ID!): Errand!
   removeFromCircle(providerId: ID!): TrustedCircle!
   removeWallet(id: Int!): Wallet!
   saveErrand(errandId: ID!): SavedErrand!
   saveUserAddress(dto: SaveUserAddressInput!): User!
+  sendMessage(sendMessageInput: SendMessageInput!): Message!
   shareTrustedCircle(input: ShareCircleInput!): Boolean!
   toggleRatingReaction(input: AddRatingReactionInput!): RatingReaction
-  updateChat(updateChatInput: UpdateChatInput!): ChatRoom!
   updateErrand(updateErrandInput: UpdateErrandInput!): Errand!
   updateErrandBundle(input: UpdateErrandBundleInput!): ErrandBundle!
   updateErrandTemplate(input: UpdateErrandTemplateInput!): ErrandTemplate!
@@ -541,9 +538,6 @@ type QRCodeDetails {
 }
 
 type Query {
-  chatRoom(id: Int!): ChatRoom!
-  chatRooms: [ChatRoom!]!
-
   """Get client dashboard data including requirements and errands"""
   clientDashboard: ClientDashboard!
   clientRatings(clientId: ID!): [Rating!]!
@@ -567,6 +561,7 @@ type Query {
   getProviders: ProviderDiscoveryResponse!
   getTrustedCircle: TrustedCircle
   getUserAddresses: [UserAddress!]!
+  getUserChats: [ChatRoom!]!
   myErrandTemplates: [ErrandTemplate!]!
   myPaymentMethods: [PaymentMethod!]!
   myPaystackCustomer: PaystackCustomer
@@ -686,6 +681,15 @@ input SearchProvidersInput {
   tiers: [ProviderTier!]
 }
 
+input SendMessageInput {
+  content: String
+  contentUrl: String
+  file: Upload
+  roomId: String!
+  senderId: String!
+  type: String!
+}
+
 type Service {
   category: ServiceCategory
   categoryId: String!
@@ -713,14 +717,9 @@ input ShareCircleInput {
 }
 
 type Subscription {
-  """Subscribe to new errands created nearby"""
-  errandCreated: ErrandSubscriptionPayload!
-
-  """Subscribe to errand deletions"""
-  errandDeleted: ErrandSubscriptionPayload!
-
-  """Subscribe to errand updates"""
-  errandUpdated: ErrandSubscriptionPayload!
+  messageDeliveredForUser: Message!
+  messageSeenForUser: Message!
+  messageSentForUser: Message!
 }
 
 input SuggestAddressInput {
@@ -749,12 +748,6 @@ type TrustedCircleMember {
 enum TrustedCircleMemberStatus {
   ACTIVE
   PENDING
-}
-
-input UpdateChatInput {
-  """Example field (placeholder)"""
-  exampleField: Int
-  id: Int!
 }
 
 input UpdateErrandBundleInput {
@@ -817,6 +810,7 @@ input UpdateUserInput {
   exampleField: Int
   id: String!
   image: String
+  imageFile: Upload
   name: String
   phoneNumber: String
   role: UserRole
@@ -828,6 +822,9 @@ input UpdateWalletInput {
   exampleField: Int
   id: Int!
 }
+
+"""The `Upload` scalar type represents a file upload."""
+scalar Upload
 
 type User {
   activeAddressId: ID
