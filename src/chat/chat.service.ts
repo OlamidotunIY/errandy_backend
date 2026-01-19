@@ -22,6 +22,9 @@ export class ChatService {
           has: userId,
         },
       },
+      orderBy: {
+        updatedAt: 'desc',
+      },
       include: {
         messages: {
           take: 1,
@@ -31,6 +34,35 @@ export class ChatService {
         },
       },
     });
+  }
+
+  async getUserChatList(userId: string) {
+    return this.getUserChats(userId);
+  }
+
+  async getChatRoom(roomId: string, userId: string) {
+    const room = await this.prisma.chatRoom.findUnique({
+      where: {
+        id: roomId,
+      },
+      include: {
+        messages: {
+          orderBy: {
+            createdAt: 'asc',
+          },
+        },
+      },
+    });
+
+    if (!room) {
+      throw new BadRequestException('Room not found');
+    }
+
+    if (!room.participants.includes(userId)) {
+      throw new BadRequestException('User is not a participant in this room');
+    }
+
+    return room;
   }
 
   async getOrCreateChat(participantIds: string[]) {
@@ -76,9 +108,10 @@ export class ChatService {
     }
 
     let contentUrl = dto.contentUrl;
+    let upload: FileUpload | undefined;
 
     if (dto.file) {
-      const upload = await dto.file;
+      upload = await dto.file;
       this.validateMimeTypeForMessageType(dto.type, upload.mimetype);
       contentUrl = await this.uploadChatAttachment(dto.roomId, upload);
     }
@@ -100,6 +133,13 @@ export class ChatService {
         senderId: dto.senderId,
         type: dto.type,
         contentUrl,
+        fileName: dto.fileName ?? upload?.filename,
+        fileSize: dto.fileSize,
+        mimeType: dto.mimeType ?? upload?.mimetype,
+        width: dto.width,
+        height: dto.height,
+        durationMs: dto.durationMs,
+        waveform: dto.waveform,
         sent: true,
       },
     });

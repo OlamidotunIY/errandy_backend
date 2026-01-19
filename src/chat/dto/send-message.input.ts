@@ -1,7 +1,14 @@
-import { InputType, Field } from '@nestjs/graphql';
+import { InputType, Field, Int } from '@nestjs/graphql';
 import { GraphQLUpload, FileUpload } from 'graphql-upload-ts';
 import { MessageType } from '../entities/message-type.enum';
-import { IsEnum, IsMongoId, IsOptional, IsString } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsMongoId,
+  IsOptional,
+  IsString,
+} from 'class-validator';
+import GraphQLJSON from 'graphql-type-json';
 
 @InputType()
 export class SendMessageInput {
@@ -22,6 +29,40 @@ export class SendMessageInput {
   @IsString()
   @IsOptional()
   contentUrl?: string;
+
+  @Field({ nullable: true })
+  @IsString()
+  @IsOptional()
+  fileName?: string;
+
+  @Field(() => Int, { nullable: true })
+  @IsInt()
+  @IsOptional()
+  fileSize?: number;
+
+  @Field({ nullable: true })
+  @IsString()
+  @IsOptional()
+  mimeType?: string;
+
+  @Field(() => Int, { nullable: true })
+  @IsInt()
+  @IsOptional()
+  width?: number;
+
+  @Field(() => Int, { nullable: true })
+  @IsInt()
+  @IsOptional()
+  height?: number;
+
+  @Field(() => Int, { nullable: true })
+  @IsInt()
+  @IsOptional()
+  durationMs?: number;
+
+  @Field(() => GraphQLJSON, { nullable: true })
+  @IsOptional()
+  waveform?: number[];
 
   @Field(() => GraphQLUpload, { nullable: true })
   file?: Promise<FileUpload>;

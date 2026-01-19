@@ -25,6 +25,14 @@ model Message {
     contentUrl String? // used for voice, images, files
     type       MessageType @default(TEXT)
 
+    fileName   String?
+    fileSize   Int?
+    mimeType   String?
+    width      Int?
+    height     Int?
+    durationMs Int?
+    waveform   Json?
+
     seen      Boolean @default(false)
     delivered Boolean @default(false)
     sent      Boolean @default(false)
