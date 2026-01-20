@@ -32,6 +32,13 @@ export class ChatService {
             createdAt: 'desc',
           },
         },
+        participants: {
+          select: {
+            id: true,
+            name: true,
+            image: true,
+          },
+        },
       },
     });
   }
