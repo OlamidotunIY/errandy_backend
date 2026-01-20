@@ -63,21 +63,6 @@ export class ChatResolver {
     return this.chatService.getUserChats(user.id);
   }
 
-  @UseGuards(GqlAuthGuard)
-  @Query(() => [ChatRoom])
-  getUserChatList(@CurrentUser() user: User) {
-    return this.chatService.getUserChatList(user.id);
-  }
-
-  @UseGuards(GqlAuthGuard)
-  @Query(() => ChatRoom)
-  getChatRoom(
-    @Args('roomId') roomId: string,
-    @CurrentUser() user: User,
-  ) {
-    return this.chatService.getChatRoom(roomId, user.id);
-  }
-
   @Subscription(() => Message, {
     resolve: (payload) => payload.messageSent,
   })

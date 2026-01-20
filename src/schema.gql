@@ -554,7 +554,6 @@ type Query {
   errandRatings(errandId: ID!): [Rating!]!
   errandTemplate(id: ID!): ErrandTemplate
   errands(dto: GetAllErrandInput!): [Errand!]!
-  getChatRoom(roomId: String!): ChatRoom!
 
   """
   Advanced errand query with personalized feeds and location-based filtering
@@ -569,7 +568,6 @@ type Query {
   getProviders: ProviderDiscoveryResponse!
   getTrustedCircle: TrustedCircle
   getUserAddresses: [UserAddress!]!
-  getUserChatList: [ChatRoom!]!
   getUserChats: [ChatRoom!]!
   myErrandTemplates: [ErrandTemplate!]!
   myPaymentMethods: [PaymentMethod!]!
