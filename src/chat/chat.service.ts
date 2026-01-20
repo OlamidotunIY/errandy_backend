@@ -19,7 +19,9 @@ export class ChatService {
     return this.prisma.chatRoom.findMany({
       where: {
         participants: {
-          has: userId,
+          some: {
+            id: userId,
+          },
         },
       },
       orderBy: {
@@ -36,34 +38,34 @@ export class ChatService {
     });
   }
 
-  async getUserChatList(userId: string) {
-    return this.getUserChats(userId);
-  }
+  // async getUserChatList(userId: string) {
+  //   return this.getUserChats(userId);
+  // }
 
-  async getChatRoom(roomId: string, userId: string) {
-    const room = await this.prisma.chatRoom.findUnique({
-      where: {
-        id: roomId,
-      },
-      include: {
-        messages: {
-          orderBy: {
-            createdAt: 'asc',
-          },
-        },
-      },
-    });
+  // async getChatRoom(roomId: string, userId: string) {
+  //   const room = await this.prisma.chatRoom.findUnique({
+  //     where: {
+  //       id: roomId,
+  //     },
+  //     include: {
+  //       messages: {
+  //         orderBy: {
+  //           createdAt: 'asc',
+  //         },
+  //       },
+  //     },
+  //   });
 
-    if (!room) {
-      throw new BadRequestException('Room not found');
-    }
+  //   if (!room) {
+  //     throw new BadRequestException('Room not found');
+  //   }
 
-    if (!room.participants.includes(userId)) {
-      throw new BadRequestException('User is not a participant in this room');
-    }
+  //   if (!room.participants.includes(userId)) {
+  //     throw new BadRequestException('User is not a participant in this room');
+  //   }
 
-    return room;
-  }
+  //   return room;
+  // }
 
   async getOrCreateChat(participantIds: string[]) {
     const participants = this.normalizeParticipants(participantIds);
@@ -78,7 +80,7 @@ export class ChatService {
         roomKey,
       },
       create: {
-        participants,
+        participantIds: participants,
         roomKey,
       },
       update: {},
@@ -87,6 +89,13 @@ export class ChatService {
           orderBy: {
             createdAt: 'asc',
           },
+        },
+        participants: {
+          select: {
+            id: true,
+            name: true,
+            image: true,
+          }
         },
       },
     });
@@ -103,7 +112,7 @@ export class ChatService {
       throw new BadRequestException('Room not found');
     }
 
-    if (!room.participants.includes(dto.senderId)) {
+    if (!room.participantIds.includes(dto.senderId)) {
       throw new BadRequestException('User is not a participant in this room');
     }
 
@@ -144,7 +153,7 @@ export class ChatService {
       },
     });
 
-    for (const participantId of room.participants) {
+    for (const participantId of room.participantIds) {
       this.pubSub.publish(`messageSent:${participantId}`, {
         messageSent: {
           message,
@@ -170,7 +179,7 @@ export class ChatService {
       },
     });
 
-    for (const participantId of message.room.participants) {
+    for (const participantId of message.room.participantIds) {
       this.pubSub.publish(`messageDelivered:${participantId}`, {
         messageDelivered: {
           message,
@@ -196,7 +205,7 @@ export class ChatService {
       },
     });
 
-    for (const participantId of message.room.participants) {
+    for (const participantId of message.room.participantIds) {
       this.pubSub.publish(`messageSeen:${participantId}`, {
         messageSeen: {
           message,

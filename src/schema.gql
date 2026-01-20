@@ -78,7 +78,8 @@ type ChatRoom {
   id: ID!
   messages: [Message]
   name: String
-  participants: [String!]!
+  participantIds: [String!]!
+  participants: [User!]!
   updatedAt: DateTime!
 }
 

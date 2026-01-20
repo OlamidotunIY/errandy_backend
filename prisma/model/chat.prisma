@@ -1,7 +1,8 @@
 model ChatRoom {
-    id           String   @id @default(auto()) @map("_id") @db.ObjectId
-    participants String[] // array of user IDs
-    roomKey      String?  @unique
+    id             String   @id @default(auto()) @map("_id") @db.ObjectId
+    participantIds String[] // array of user IDs
+    participants   User[]   @relation(fields: [participantIds], references: [id])
+    roomKey        String?  @unique
 
     unreadCount Int @default(0)
 

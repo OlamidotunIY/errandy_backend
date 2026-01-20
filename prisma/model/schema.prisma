@@ -36,6 +36,9 @@ model User {
   client            Client?
   paystackCustomers PaystackCustomer?
 
+  chatRoomIds String[]   @db.ObjectId
+  chatRooms   ChatRoom[] @relation(fields: [chatRoomIds], references: [id])
+
   @@unique([email])
   @@unique([username])
   @@map("users")
