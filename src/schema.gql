@@ -343,13 +343,20 @@ type Message {
   contentUrl: String
   createdAt: DateTime!
   delivered: Boolean!
+  durationMs: Int
+  fileName: String
+  fileSize: Int
+  height: Int
   id: ID!
+  mimeType: String
   reactions: [Reaction]
   receiverId: String!
   roomId: String!
   seen: Boolean!
   senderId: String!
   type: MessageType!
+  waveform: JSON
+  width: Int
 }
 
 enum MessageType {
@@ -547,6 +554,7 @@ type Query {
   errandRatings(errandId: ID!): [Rating!]!
   errandTemplate(id: ID!): ErrandTemplate
   errands(dto: GetAllErrandInput!): [Errand!]!
+  getChatRoom(roomId: String!): ChatRoom!
 
   """
   Advanced errand query with personalized feeds and location-based filtering
@@ -561,6 +569,7 @@ type Query {
   getProviders: ProviderDiscoveryResponse!
   getTrustedCircle: TrustedCircle
   getUserAddresses: [UserAddress!]!
+  getUserChatList: [ChatRoom!]!
   getUserChats: [ChatRoom!]!
   myErrandTemplates: [ErrandTemplate!]!
   myPaymentMethods: [PaymentMethod!]!
@@ -684,10 +693,17 @@ input SearchProvidersInput {
 input SendMessageInput {
   content: String
   contentUrl: String
+  durationMs: Int
   file: Upload
+  fileName: String
+  fileSize: Int
+  height: Int
+  mimeType: String
   roomId: String!
   senderId: String!
   type: String!
+  waveform: JSON
+  width: Int
 }
 
 type Service {
