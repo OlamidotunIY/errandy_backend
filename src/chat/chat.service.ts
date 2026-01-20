@@ -18,10 +18,8 @@ export class ChatService {
   async getUserChats(userId: string) {
     return this.prisma.chatRoom.findMany({
       where: {
-        participants: {
-          some: {
-            id: userId,
-          },
+        participantIds: {
+          has: userId,
         },
       },
       orderBy: {
