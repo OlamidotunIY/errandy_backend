@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -27,6 +28,7 @@ import { FirebaseModule } from './firebase/firebase.module';
 import { PresenceModule } from './presence/presence.module';
 import { GqlConfig } from './config/graphql-ws';
 import { RedisModule } from './redis/redis.module';
+import { GraphqlExceptionFilter } from './common/filters/graphql-exception.filter';
 
 @Module({
   imports: [
@@ -59,6 +61,13 @@ import { RedisModule } from './redis/redis.module';
     PresenceModule,
   ],
   controllers: [AppController],
-  providers: [AppService, RatingResolver],
+  providers: [
+    AppService,
+    RatingResolver,
+    {
+      provide: APP_FILTER,
+      useClass: GraphqlExceptionFilter,
+    },
+  ],
 })
 export class AppModule {}
