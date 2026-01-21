@@ -29,16 +29,21 @@ export const GqlConfig = GraphQLModule.forRootAsync<ApolloDriverConfig>({
   ) => {
     const isProduction = configService.get('NODE_ENV') === 'production';
     return {
-      installSubscriptionHandlers: true,
       playground: false,
       plugins: [ApolloServerPluginLandingPageLocalDefault()],
       autoSchemaFile: isProduction
         ? true
         : join(process.cwd(), 'src/schema.gql'),
       sortSchema: true,
-      subscription: {
+      subscriptions: {
         'graphql-ws': {
-          onConnect: async (ctx : WsContext) => {
+          onConnect: async (ctx: WsContext) => {
+            console.log('WS onConnect called', {
+              hasConnectionParams: !!ctx.connectionParams,
+              keys: ctx.connectionParams
+                ? Object.keys(ctx.connectionParams)
+                : [],
+            });
             // graphql-ws provides connectionParams
             const headers = new Headers();
 
@@ -69,7 +74,7 @@ export const GqlConfig = GraphQLModule.forRootAsync<ApolloDriverConfig>({
             }
 
             const userId = session.user.id;
-            const connectionId = uuid()
+            const connectionId = uuid();
 
             // Persist into ctx.extra for disconnect handler
             ctx.extra.userId = userId;
