@@ -1,5 +1,6 @@
 import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin/landingPage/default';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
+import { UnauthorizedException } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { GraphQLModule } from '@nestjs/graphql';
 import { auth } from 'auth';
@@ -14,11 +15,12 @@ import { v4 as uuid } from 'uuid';
 type WsExtra = {
   userId?: string;
   connectionId?: string;
+  user?: unknown;
+  session?: unknown;
+  headers?: Record<string, string>;
 };
 
-type WsContext = Context<Record<string, unknown> | undefined> & {
-  extra: WsExtra;
-};
+type WsContext = Context<Record<string, unknown> | undefined, WsExtra>;
 
 export const GqlConfig = GraphQLModule.forRootAsync<ApolloDriverConfig>({
   imports: [ConfigModule, PresenceModule],
@@ -37,7 +39,26 @@ export const GqlConfig = GraphQLModule.forRootAsync<ApolloDriverConfig>({
         ? true
         : join(process.cwd(), 'src/schema.gql'),
       sortSchema: true,
-      context: (ctx) => ctx,
+      context: (ctx) => {
+        if ('req' in ctx && ctx.req) {
+          return ctx;
+        }
+
+        const wsContext = ctx as WsContext;
+        const req = {
+          headers: wsContext.extra?.headers ?? {},
+          user: wsContext.extra?.user,
+          session: wsContext.extra?.session,
+        };
+
+        return {
+          req,
+          user: wsContext.extra?.user,
+          session: wsContext.extra?.session,
+          connectionParams: wsContext.connectionParams,
+          extra: wsContext.extra,
+        };
+      },
       subscriptions: {
         'graphql-ws': {
           onConnect: async (ctx: WsContext) => {
@@ -67,13 +88,18 @@ export const GqlConfig = GraphQLModule.forRootAsync<ApolloDriverConfig>({
               headers.set('cookie', cookie);
             }
 
+            ctx.extra.headers = {
+              ...(authorization ? { authorization } : {}),
+              ...(cookie ? { cookie } : {}),
+            };
+
             const session = await auth.api.getSession({
               headers,
               query: { disableCookieCache: true },
             });
 
             if (!session?.user?.id) {
-              throw new Error('Unauthorized');
+              throw new UnauthorizedException('Unauthorized');
             }
 
             const userId = session.user.id;
@@ -82,6 +108,8 @@ export const GqlConfig = GraphQLModule.forRootAsync<ApolloDriverConfig>({
             // Persist into ctx.extra for disconnect handler
             ctx.extra.userId = userId;
             ctx.extra.connectionId = connectionId;
+            ctx.extra.user = session.user;
+            ctx.extra.session = session;
 
             const wasOnline = await presenceService.isOnline(userId);
             await presenceService.addConnection(userId, connectionId);
