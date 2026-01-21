@@ -196,11 +196,7 @@ export class ChatService {
 
     for (const participantId of room.participantIds) {
       this.pubSub.publish(`messageSent:${participantId}`, {
-        messageSent: {
-          message,
-          type: 'MESSAGE_SENT',
-          userId: participantId,
-        },
+        messageSent: message,
       });
     }
 
@@ -236,11 +232,7 @@ export class ChatService {
 
     for (const participantId of message.room.participantIds) {
       this.pubSub.publish(`messageDelivered:${participantId}`, {
-        messageDelivered: {
-          message,
-          type: 'MESSAGE_DELIVERED',
-          userId: participantId,
-        },
+        messageDelivered: message,
       });
     }
 
@@ -262,11 +254,7 @@ export class ChatService {
 
     for (const participantId of message.room.participantIds) {
       this.pubSub.publish(`messageSeen:${participantId}`, {
-        messageSeen: {
-          message,
-          type: 'MESSAGE_SEEN',
-          userId: participantId,
-        },
+        messageSeen: message,
       });
     }
 
