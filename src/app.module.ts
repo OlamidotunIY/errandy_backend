@@ -10,11 +10,7 @@ import { ChatModule } from './chat/chat.module';
 import { WalletModule } from './wallet/wallet.module';
 import { ErrandsModule } from './errands/errands.module';
 import { PubSubModule } from './pubsub/pubsub.module';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
-import { GraphQLModule } from '@nestjs/graphql';
-import { join } from 'path';
-import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin/landingPage/default';
+import { ConfigModule } from '@nestjs/config';
 import { ClientModule } from './client/client.module';
 import { RatingResolver } from './rating/rating.resolver';
 import { RatingModule } from './rating/rating.module';
@@ -30,6 +26,7 @@ import { ProviderModule } from './provider/provider.module';
 import { FirebaseModule } from './firebase/firebase.module';
 import { PresenceModule } from './presence/presence.module';
 import { GqlConfig } from './config/graphql-ws';
+import { RedisModule } from './redis/redis.module';
 
 @Module({
   imports: [
@@ -38,6 +35,7 @@ import { GqlConfig } from './config/graphql-ws';
     }),
     GqlConfig,
     EventEmitterModule.forRoot(),
+    RedisModule,
     PubSubModule,
     AuthModule,
     UsersModule,

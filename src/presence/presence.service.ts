@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import Redis from 'ioredis';
+import { REDIS } from 'src/redis/redis.module';
 
 @Injectable()
 export class PresenceService {
-  constructor(private readonly redis: Redis) {}
+  constructor(@Inject(REDIS) private readonly redis: Redis) {}
 
   private connectionsKey(userId: string) {
     return `presence:user:${userId}:connections`;

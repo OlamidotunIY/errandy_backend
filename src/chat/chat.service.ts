@@ -16,7 +16,7 @@ export class ChatService {
   ) {}
 
   async getUserChats(userId: string) {
-    return this.prisma.chatRoom.findMany({
+    const chats = await this.prisma.chatRoom.findMany({
       where: {
         participantIds: {
           has: userId,
@@ -41,6 +41,16 @@ export class ChatService {
         },
       },
     });
+
+    const chatWithUnreadCount = chats.map((chat) => {
+      return {
+        ...chat,
+        unreadCount: chat.messages?.filter((message) => message.seen === false)
+          .length,
+      };
+    });
+
+    return chatWithUnreadCount;
   }
 
   async getOrCreateChat(participantIds: string[], roomId?: string) {

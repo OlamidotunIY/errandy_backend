@@ -80,6 +80,7 @@ type ChatRoom {
   name: String
   participantIds: [String!]!
   participants: [User!]!
+  unreadCount: Int!
   updatedAt: DateTime!
 }
 
@@ -127,6 +128,7 @@ input CreateApplicationInput {
 
 input CreateChatInput {
   receiverId: String!
+  roomId: String
 }
 
 input CreateErrandBundleInput {
@@ -503,6 +505,11 @@ input PlaceDetailsInput {
   placeId: String!
 }
 
+enum PresenceStatus {
+  OFFLINE
+  ONLINE
+}
+
 enum PricingType {
   FIXED
   HOURLY
@@ -575,6 +582,7 @@ type Query {
   myPaystackCustomer: PaystackCustomer
   myRecurringErrands: [RecurringErrand!]!
   placeDetails(input: PlaceDetailsInput!): AddressDetails!
+  presence(userId: ID!): UserPresence!
   searchProviders(input: SearchProvidersInput!): [Provider!]!
   service(id: ID!): Service!
   serviceCategories(input: GetServiceCategoriesInput): [ServiceCategory!]!
@@ -735,6 +743,7 @@ type Subscription {
   messageDeliveredForUser: Message!
   messageSeenForUser: Message!
   messageSentForUser: Message!
+  presenceChanged(userIds: [ID!]): UserPresence!
 }
 
 input SuggestAddressInput {
@@ -871,6 +880,12 @@ type UserAddress {
   updatedAt: DateTime!
   user: User
   userId: String!
+}
+
+type UserPresence {
+  lastSeenAt: DateTime
+  status: PresenceStatus!
+  userId: ID!
 }
 
 enum UserRole {

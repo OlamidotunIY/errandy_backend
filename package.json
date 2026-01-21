@@ -45,6 +45,7 @@
     "cookie-parser": "^1.4.7",
     "firebase-admin": "^13.6.0",
     "graphql": "^16.11.0",
+    "graphql-redis-subscriptions": "^2.7.0",
     "graphql-type-json": "^0.3.2",
     "graphql-upload-ts": "^2.1.2",
     "graphql-ws": "^6.0.6",
@@ -55,7 +56,8 @@
     "reflect-metadata": "^0.2.2",
     "resend": "^6.7.0",
     "rxjs": "^7.8.1",
-    "twilio": "^5.11.1"
+    "twilio": "^5.11.1",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

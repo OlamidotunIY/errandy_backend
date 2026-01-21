@@ -1,15 +1,15 @@
-import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/dist/esm/plugin/landingPage/default';
+import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin/landingPage/default';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { GraphQLModule } from '@nestjs/graphql';
 import { auth } from 'auth';
-import { uuid } from 'better-auth/*';
 import { join } from 'path';
-import { AppModule } from 'src/app.module';
+import { PresenceModule } from 'src/presence/presence.module';
 import { PresenceStatus } from 'src/presence/entities/presence.entity';
 import { PresencePublisher } from 'src/presence/presence.publicher';
 import { PresenceService } from 'src/presence/presence.service';
 import type { Context } from 'graphql-ws';
+import { v4 as uuid } from 'uuid';
 
 type WsExtra = {
   userId?: string;
@@ -19,7 +19,7 @@ type WsExtra = {
 type WsContext = Context<Record<string, unknown> | undefined, WsExtra>;
 
 export const GqlConfig = GraphQLModule.forRootAsync<ApolloDriverConfig>({
-  imports: [ConfigModule, AppModule],
+  imports: [ConfigModule, PresenceModule],
   inject: [ConfigService, PresenceService, PresencePublisher],
   driver: ApolloDriver,
   useFactory: async (
@@ -69,7 +69,7 @@ export const GqlConfig = GraphQLModule.forRootAsync<ApolloDriverConfig>({
             }
 
             const userId = session.user.id;
-            const connectionId = uuid().toString();
+            const connectionId = uuid()
 
             // Persist into ctx.extra for disconnect handler
             ctx.extra.userId = userId;

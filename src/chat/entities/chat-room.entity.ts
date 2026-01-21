@@ -1,4 +1,4 @@
-import { ObjectType, Field, ID } from '@nestjs/graphql';
+import { ObjectType, Field, ID, Int } from '@nestjs/graphql';
 import { Message } from './message.entity';
 import { User } from 'src/users/entities/user.entity';
 
@@ -24,4 +24,7 @@ export class ChatRoom {
 
   @Field(() => [Message], { nullable: 'itemsAndList' })
   messages?: Message[];
+
+  @Field(() => Int)
+  unreadCount: number;
 }
