@@ -50,14 +50,25 @@ export class ChatService {
             senderId: true,
           },
         },
+        _count: {
+          select: {
+            messages: {
+              where: {
+                seen: false,
+                senderId: {
+                  not: userId,
+                },
+              },
+            },
+          },
+        },
       },
     });
 
     const chatWithUnreadCount = chats.map((chat) => {
       return {
         ...chat,
-        unreadCount: chat.messages?.filter((message) => message.seen === false)
-          .length,
+        unreadCount: chat._count.messages,
       };
     });
 
