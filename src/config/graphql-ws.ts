@@ -61,6 +61,7 @@ export const GqlConfig = GraphQLModule.forRootAsync<ApolloDriverConfig>({
       },
       subscriptions: {
         'graphql-ws': {
+          connectionInitWaitTimeout: 15000,
           onConnect: async (ctx: WsContext) => {
             console.log('WS onConnect called', {
               hasConnectionParams: !!ctx.connectionParams,
@@ -150,6 +151,13 @@ export const GqlConfig = GraphQLModule.forRootAsync<ApolloDriverConfig>({
                 lastSeenStr ? new Date(lastSeenStr) : undefined,
               );
             }
+          },
+          onClose: (ctx: WsContext, code?: number, reason?: string) => {
+            console.log('WS onClose', {
+              code,
+              reason,
+              userId: ctx.extra?.userId,
+            });
           },
         },
       },
