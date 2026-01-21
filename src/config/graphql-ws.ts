@@ -1,0 +1,119 @@
+import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/dist/esm/plugin/landingPage/default';
+import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { GraphQLModule } from '@nestjs/graphql';
+import { auth } from 'auth';
+import { uuid } from 'better-auth/*';
+import { join } from 'path';
+import { AppModule } from 'src/app.module';
+import { PresenceStatus } from 'src/presence/entities/presence.entity';
+import { PresencePublisher } from 'src/presence/presence.publicher';
+import { PresenceService } from 'src/presence/presence.service';
+import type { Context } from 'graphql-ws';
+
+type WsExtra = {
+  userId?: string;
+  connectionId?: string;
+};
+
+type WsContext = Context<Record<string, unknown> | undefined, WsExtra>;
+
+export const GqlConfig = GraphQLModule.forRootAsync<ApolloDriverConfig>({
+  imports: [ConfigModule, AppModule],
+  inject: [ConfigService, PresenceService, PresencePublisher],
+  driver: ApolloDriver,
+  useFactory: async (
+    configService: ConfigService,
+    presenceService: PresenceService,
+    presencePublisher: PresencePublisher,
+  ) => {
+    const isProduction = configService.get('NODE_ENV') === 'production';
+    return {
+      installSubscriptionHandlers: true,
+      playground: false,
+      plugins: [ApolloServerPluginLandingPageLocalDefault()],
+      autoSchemaFile: isProduction
+        ? true
+        : join(process.cwd(), 'src/schema.gql'),
+      sortSchema: true,
+      subscription: {
+        'graphql-ws': {
+          onConnect: async (ctx : WsContext) => {
+            // graphql-ws provides connectionParams
+            const headers = new Headers();
+
+            const authorization =
+              (ctx.connectionParams?.Authorization as string | undefined) ??
+              (ctx.connectionParams?.authorization as string | undefined);
+
+            if (authorization) {
+              headers.set('authorization', authorization);
+            }
+
+            // If you also want cookie support:
+            const cookie =
+              (ctx.connectionParams?.Cookie as string | undefined) ??
+              (ctx.connectionParams?.cookie as string | undefined);
+
+            if (cookie) {
+              headers.set('cookie', cookie);
+            }
+
+            const session = await auth.api.getSession({
+              headers,
+              query: { disableCookieCache: true },
+            });
+
+            if (!session?.user?.id) {
+              throw new Error('Unauthorized');
+            }
+
+            const userId = session.user.id;
+            const connectionId = uuid().toString();
+
+            // Persist into ctx.extra for disconnect handler
+            ctx.extra.userId = userId;
+            ctx.extra.connectionId = connectionId;
+
+            const wasOnline = await presenceService.isOnline(userId);
+            await presenceService.addConnection(userId, connectionId);
+
+            if (!wasOnline) {
+              await presencePublisher.publish(userId, PresenceStatus.ONLINE);
+            }
+
+            // This becomes available in subscription resolvers context if needed
+            return {
+              user: session.user,
+              session,
+            };
+          },
+          onDisconnect: async (ctx: WsContext) => {
+            const userId = ctx.extra?.userId as string | undefined;
+            const connectionId = ctx.extra?.connectionId as string | undefined;
+
+            if (!userId || !connectionId) return;
+
+            const stillOnline = await presenceService.removeConnection(
+              userId,
+              connectionId,
+            );
+
+            if (!stillOnline) {
+              await presenceService.setLastSeen(userId);
+
+              const lastSeenStr = await presenceService.getLastSeen(userId);
+
+              await presencePublisher.publish(
+                userId,
+                PresenceStatus.OFFLINE,
+                lastSeenStr ? new Date(lastSeenStr) : undefined,
+              );
+            }
+          },
+        },
+      },
+      introspection: !isProduction,
+    };
+  },
+});

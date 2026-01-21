@@ -28,52 +28,15 @@ import { EmailModule } from './email/email.module';
 import { PushModule } from './push/push.module';
 import { ProviderModule } from './provider/provider.module';
 import { FirebaseModule } from './firebase/firebase.module';
+import { PresenceModule } from './presence/presence.module';
+import { GqlConfig } from './config/graphql-ws';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    GraphQLModule.forRootAsync<ApolloDriverConfig>({
-      imports: [ConfigModule, AppModule],
-      inject: [ConfigService],
-      driver: ApolloDriver,
-      useFactory: async (configService: ConfigService) => {
-        const isProduction = configService.get('NODE_ENV') === 'production';
-        return {
-          installSubscriptionHandlers: true,
-          playground: false,
-          plugins: [
-            ApolloServerPluginLandingPageLocalDefault(),
-            {
-              async requestDidStart() {
-                return {
-                  async didResolveOperation(requestContext) {
-                    // console.log(
-                    //   'GraphQL Operation:',
-                    //   requestContext.operationName,
-                    // );
-                    // console.log(
-                    //   'GraphQL Variables:',
-                    //   JSON.stringify(requestContext.request.variables, null, 2),
-                    // );
-                  },
-                };
-              },
-            },
-          ],
-          autoSchemaFile: isProduction
-            ? true
-            : join(process.cwd(), 'src/schema.gql'),
-          sortSchema: true,
-          subscription: {
-            'graphql-ws': true,
-            'subscriptions-transport-ws': true,
-          },
-          introspection: !isProduction,
-        };
-      },
-    }),
+    GqlConfig,
     EventEmitterModule.forRoot(),
     PubSubModule,
     AuthModule,
@@ -95,6 +58,7 @@ import { FirebaseModule } from './firebase/firebase.module';
     FirebaseModule,
     PushModule,
     ProviderModule,
+    PresenceModule,
   ],
   controllers: [AppController],
   providers: [AppService, RatingResolver],

@@ -172,6 +172,20 @@ export class ChatService {
       });
     }
 
+    await this.prisma.chatRoom.update({
+      where: {
+        id: dto.roomId,
+      },
+      data: {
+        updatedAt: new Date(),
+        lastMessage: {
+          connect: {
+            id: message.id,
+          },
+        },
+      },
+    });
+
     return message;
   }
 
