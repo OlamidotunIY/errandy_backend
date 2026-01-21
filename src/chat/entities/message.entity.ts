@@ -14,9 +14,6 @@ export class Message {
   @Field()
   senderId: string;
 
-  @Field()
-  receiverId: string;
-
   @Field({ nullable: true })
   content?: string;
 

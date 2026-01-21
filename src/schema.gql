@@ -353,7 +353,6 @@ type Message {
   id: ID!
   mimeType: String
   reactions: [Reaction]
-  receiverId: String!
   roomId: String!
   seen: Boolean!
   senderId: String!
