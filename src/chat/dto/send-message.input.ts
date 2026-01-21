@@ -67,8 +67,7 @@ export class SendMessageInput {
   @Field(() => GraphQLUpload, { nullable: true })
   file?: Promise<FileUpload>;
 
-  @Field()
-  @IsMongoId()
+  @Field({ nullable: true })
   @IsOptional()
-  senderId: string;
+  senderId?: string;
 }

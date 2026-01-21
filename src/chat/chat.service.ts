@@ -131,7 +131,7 @@ export class ChatService {
       throw new BadRequestException('Room not found');
     }
 
-    if (!room.participantIds.includes(dto.senderId)) {
+    if (!room.participantIds.includes(dto.senderId!)) {
       throw new BadRequestException('User is not a participant in this room');
     }
 
@@ -158,7 +158,7 @@ export class ChatService {
       data: {
         roomId: dto.roomId,
         content: dto.content,
-        senderId: dto.senderId,
+        senderId: dto.senderId!,
         type: dto.type,
         contentUrl,
         fileName: dto.fileName ?? upload?.filename,

@@ -707,7 +707,7 @@ input SendMessageInput {
   height: Int
   mimeType: String
   roomId: String!
-  senderId: String!
+  senderId: String
   type: String!
   waveform: JSON
   width: Int
