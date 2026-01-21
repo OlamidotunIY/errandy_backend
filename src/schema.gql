@@ -76,6 +76,8 @@ type BundleItem {
 type ChatRoom {
   createdAt: DateTime!
   id: ID!
+  lastMessage: Message
+  lastMessageId: String
   messages: [Message]
   name: String
   participantIds: [String!]!
@@ -356,6 +358,7 @@ type Message {
   roomId: String!
   seen: Boolean!
   senderId: String!
+  sent: Boolean!
   type: MessageType!
   waveform: JSON
   width: Int

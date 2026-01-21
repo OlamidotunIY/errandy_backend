@@ -48,6 +48,9 @@ export class Message {
   seen: boolean;
 
   @Field()
+  sent: boolean;
+
+  @Field()
   delivered: boolean;
 
   @Field(() => [Reaction], { nullable: 'itemsAndList' })

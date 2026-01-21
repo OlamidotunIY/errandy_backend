@@ -39,6 +39,17 @@ export class ChatService {
             image: true,
           },
         },
+        lastMessage: {
+          select: {
+            content: true,
+            type: true,
+            seen: true,
+            delivered: true,
+            sent: true,
+            createdAt: true,
+            senderId: true,
+          },
+        },
       },
     });
 
