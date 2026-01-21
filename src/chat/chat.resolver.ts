@@ -24,7 +24,7 @@ export class ChatResolver {
     @CurrentUser() user: User,
   ) {
     const participantIds = [user.id, createChatInput.receiverId];
-    return this.chatService.getOrCreateChat(participantIds);
+    return this.chatService.getOrCreateChat(participantIds, createChatInput.roomId);
   }
 
   @UseGuards(GqlAuthGuard)

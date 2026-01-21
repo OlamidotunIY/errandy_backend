@@ -43,36 +43,38 @@ export class ChatService {
     });
   }
 
-  // async getUserChatList(userId: string) {
-  //   return this.getUserChats(userId);
-  // }
+  async getOrCreateChat(participantIds: string[], roomId?: string) {
+    if (roomId) {
+      const room = await this.prisma.chatRoom.findUnique({
+        where: {
+          id: roomId,
+        },
+        include: {
+          messages: {
+            orderBy: {
+              createdAt: 'asc',
+            },
+          },
+          participants: {
+            select: {
+              id: true,
+              name: true,
+              image: true,
+            },
+          },
+        },
+      });
 
-  // async getChatRoom(roomId: string, userId: string) {
-  //   const room = await this.prisma.chatRoom.findUnique({
-  //     where: {
-  //       id: roomId,
-  //     },
-  //     include: {
-  //       messages: {
-  //         orderBy: {
-  //           createdAt: 'asc',
-  //         },
-  //       },
-  //     },
-  //   });
+      if (!room) {
+        throw new BadRequestException('Room not found');
+      }
 
-  //   if (!room) {
-  //     throw new BadRequestException('Room not found');
-  //   }
+      if (!room.participantIds.includes(participantIds[0])) {
+        throw new BadRequestException('User is not a participant in this room');
+      }
 
-  //   if (!room.participants.includes(userId)) {
-  //     throw new BadRequestException('User is not a participant in this room');
-  //   }
-
-  //   return room;
-  // }
-
-  async getOrCreateChat(participantIds: string[]) {
+      return room;
+    }
     const participants = this.normalizeParticipants(participantIds);
     if (participants.length === 0) {
       throw new BadRequestException('At least one participant is required');
@@ -80,7 +82,7 @@ export class ChatService {
 
     const roomKey = participants.join(':');
 
-    return this.prisma.chatRoom.upsert({
+    const room = await this.prisma.chatRoom.upsert({
       where: {
         roomKey,
       },
@@ -100,10 +102,12 @@ export class ChatService {
             id: true,
             name: true,
             image: true,
-          }
+          },
         },
       },
     });
+
+    return room;
   }
 
   async sendMessage(dto: SendMessageInput) {
