@@ -16,7 +16,9 @@ type WsExtra = {
   connectionId?: string;
 };
 
-type WsContext = Context<Record<string, unknown> | undefined, WsExtra>;
+type WsContext = Context<Record<string, unknown> | undefined> & {
+  extra: WsExtra;
+};
 
 export const GqlConfig = GraphQLModule.forRootAsync<ApolloDriverConfig>({
   imports: [ConfigModule, PresenceModule],
@@ -35,6 +37,7 @@ export const GqlConfig = GraphQLModule.forRootAsync<ApolloDriverConfig>({
         ? true
         : join(process.cwd(), 'src/schema.gql'),
       sortSchema: true,
+      context: (ctx) => ctx,
       subscriptions: {
         'graphql-ws': {
           onConnect: async (ctx: WsContext) => {
@@ -89,6 +92,10 @@ export const GqlConfig = GraphQLModule.forRootAsync<ApolloDriverConfig>({
 
             // This becomes available in subscription resolvers context if needed
             return {
+              req: {
+                user: session.user,
+                session,
+              },
               user: session.user,
               session,
             };
