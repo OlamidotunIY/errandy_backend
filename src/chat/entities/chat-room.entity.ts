@@ -27,4 +27,10 @@ export class ChatRoom {
 
   @Field(() => Int)
   unreadCount: number;
+
+  @Field(() => Message, { nullable: true })
+  lastMessage?: Message;
+
+  @Field(() => String, { nullable: true })
+  lastMessageId?: string;
 }
