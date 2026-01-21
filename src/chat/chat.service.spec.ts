@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ChatService } from './chat.service';
 import { PrismaService } from 'src/prisma.service';
 import { FirebaseStorageService } from 'src/firebase/firebase-storage.service';
+import { PubSubService } from 'src/pubsub';
 
 describe('ChatService', () => {
   let service: ChatService;
@@ -12,7 +13,7 @@ describe('ChatService', () => {
         ChatService,
         { provide: PrismaService, useValue: {} },
         { provide: FirebaseStorageService, useValue: {} },
-        { provide: 'PUB_SUB', useValue: {} },
+        { provide: PubSubService, useValue: {} },
       ],
     }).compile();
 

@@ -2,7 +2,7 @@ import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from 'src/prisma.service';
 import { SendMessageInput } from './dto/send-message.input';
-import { PubSubInterface } from 'src/pubsub';
+import { PubSubInterface, PubSubService } from 'src/pubsub';
 import { FirebaseStorageService } from 'src/firebase/firebase-storage.service';
 import { FileUpload } from 'graphql-upload-ts';
 import { MessageType } from './entities/message-type.enum';
@@ -11,7 +11,7 @@ import { MessageType } from './entities/message-type.enum';
 export class ChatService {
   constructor(
     private readonly prisma: PrismaService,
-    @Inject('PUB_SUB') private readonly pubSub: PubSubInterface,
+    private readonly pubSub: PubSubService,
     private readonly firebaseStorageService: FirebaseStorageService,
   ) {}
 

@@ -11,7 +11,6 @@ import { ErrandQueryInput } from './dto/errand-query.input';
 import { ErrandType } from './dto/errand-type.enum';
 import { PaginatedErrands } from './entities/paginated-errands.entity';
 import { UsersService } from 'src/users/users.service';
-import { PubSubInterface } from 'src/pubsub';
 import { GetMyErrandsInput } from './dto/get-my-errands.input';
 import { MyErrandsType } from './dto/my-errands-type.enum';
 import { ErrandStatus } from './entities/errandStatus.enum';

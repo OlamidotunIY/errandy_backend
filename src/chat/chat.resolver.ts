@@ -1,4 +1,4 @@
-import { Inject, UseGuards } from '@nestjs/common';
+import { UseGuards } from '@nestjs/common';
 import { Resolver, Mutation, Args, Subscription, Query } from '@nestjs/graphql';
 import { CurrentUser } from 'src/auth/decorator/current-user.decorator';
 import { GqlAuthGuard } from 'src/auth/guard/graphql-auth.guard';
@@ -7,14 +7,14 @@ import { ChatService } from './chat.service';
 import { ChatRoom } from './entities/chat-room.entity';
 import { CreateChatInput } from './dto/create-chat.input';
 import { Message } from './entities/message.entity';
-import { PubSubInterface } from 'src/pubsub';
+import { PubSubInterface, PubSubService } from 'src/pubsub';
 import { SendMessageInput } from './dto/send-message.input';
 
 @Resolver(() => ChatRoom)
 export class ChatResolver {
   constructor(
     private readonly chatService: ChatService,
-    @Inject('PUB_SUB') private readonly pubSub: PubSubInterface,
+    private readonly pubSub: PubSubService,
   ) {}
 
   @UseGuards(GqlAuthGuard)
@@ -24,7 +24,10 @@ export class ChatResolver {
     @CurrentUser() user: User,
   ) {
     const participantIds = [user.id, createChatInput.receiverId];
-    return this.chatService.getOrCreateChat(participantIds, createChatInput.roomId);
+    return this.chatService.getOrCreateChat(
+      participantIds,
+      createChatInput.roomId,
+    );
   }
 
   @UseGuards(GqlAuthGuard)
