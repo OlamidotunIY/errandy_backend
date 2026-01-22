@@ -29,6 +29,7 @@ import { PresenceModule } from './presence/presence.module';
 import { GqlConfig } from './config/graphql-ws';
 import { RedisModule } from './redis/redis.module';
 import { GraphqlExceptionFilter } from './common/filters/graphql-exception.filter';
+import { DateTimeScalar } from './common/scalars/date-time.scalar';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { GraphqlExceptionFilter } from './common/filters/graphql-exception.filte
   providers: [
     AppService,
     RatingResolver,
+    DateTimeScalar,
     {
       provide: APP_FILTER,
       useClass: GraphqlExceptionFilter,
