@@ -67,9 +67,9 @@ async function bootstrap() {
   app.use(json({ limit: '50mb' }));
   app.use(urlencoded({ extended: true, limit: '50mb' }));
 
-  const port = configService.get<number>('PORT', 3001);
+  const port = Number(process.env.PORT) || 8080;
   await app.listen(port, '0.0.0.0');
-  console.log(`🚀 Application is running on: http://localhost:${port}`);
+  console.log(`Listening on 0.0.0.0:${port}`);
 }
 bootstrap().catch((error) => {
   console.error('Failed to start microservice:', error);
