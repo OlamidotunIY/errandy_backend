@@ -10,6 +10,26 @@ import { Message } from './entities/message.entity';
 import { PubSubInterface, PubSubService } from 'src/pubsub';
 import { SendMessageInput } from './dto/send-message.input';
 
+const normalizeMessageDate = (message: Message | null | undefined) => {
+  if (!message) {
+    return message;
+  }
+
+  const createdAt = message.createdAt;
+  if (createdAt instanceof Date) {
+    return message;
+  }
+
+  if (typeof createdAt === 'string' || typeof createdAt === 'number') {
+    const parsed = new Date(createdAt);
+    if (!isNaN(parsed.getTime())) {
+      return { ...message, createdAt: parsed };
+    }
+  }
+
+  return message;
+};
+
 @Resolver(() => ChatRoom)
 export class ChatResolver {
   constructor(
@@ -67,21 +87,21 @@ export class ChatResolver {
   }
 
   @Subscription(() => Message, {
-    resolve: (payload) => payload.messageSent,
+    resolve: (payload) => normalizeMessageDate(payload.messageSent),
   })
   messageSentForUser(@CurrentUser() user: User) {
     return this.pubSub.asyncIterator(`messageSent:${user.id}`);
   }
 
   @Subscription(() => Message, {
-    resolve: (payload) => payload.messageDelivered,
+    resolve: (payload) => normalizeMessageDate(payload.messageDelivered),
   })
   messageDeliveredForUser(@CurrentUser() user: User) {
     return this.pubSub.asyncIterator(`messageDelivered:${user.id}`);
   }
 
   @Subscription(() => Message, {
-    resolve: (payload) => payload.messageSeen,
+    resolve: (payload) => normalizeMessageDate(payload.messageSeen),
   })
   messageSeenForUser(@CurrentUser() user: User) {
     return this.pubSub.asyncIterator(`messageSeen:${user.id}`);
