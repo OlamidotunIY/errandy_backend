@@ -1,0 +1,40 @@
+name: Build & Push Image to DOCR
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      IMAGE: registry.digitalocean.com/${{ secrets.DO_REGISTRY_NAME }}/errandy-backend:do-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DO_ACCESS_TOKEN }}
+
+      - name: Login Docker to DO Container Registry (CI)
+        run: doctl registry login --expiry-seconds 1200
+
+      - name: Build and push image (single stable tag)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Optional: keep storage under control on DOCR free tier
+      - name: Registry garbage collection (optional)
+        run: doctl registry garbage-collection start --include-untagged-manifests --force

@@ -1,0 +1,87 @@
+name: Deploy to DigitalOcean Droplet
+
+on:
+  workflow_run:
+    workflows: ["Build & Push Image to DOCR"]
+    types:
+      - completed
+
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    env:
+      APP_DIR: /opt/errandy_backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Prepare SSH key (runner)
+        run: |
+          mkdir -p ~/.ssh
+          cat > ~/.ssh/do_droplet_key <<'KEY'
+          ${{ secrets.DROPLET_SSH_KEY }}
+          KEY
+          chmod 600 ~/.ssh/do_droplet_key
+          sed -i 's/\r$//' ~/.ssh/do_droplet_key
+          ssh-keyscan -H "${{ secrets.DROPLET_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Validate SSH key parses (runner)
+        run: |
+          ssh-keygen -yf ~/.ssh/do_droplet_key >/dev/null
+          echo "SSH key parsed OK"
+
+      - name: Ensure app directory exists (droplet)
+        run: |
+          ssh -i ~/.ssh/do_droplet_key "${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}" \
+            "mkdir -p '${{ env.APP_DIR }}'"
+
+      - name: Upload docker-compose.prod.yml (droplet)
+        run: |
+          scp -i ~/.ssh/do_droplet_key docker-compose.prod.yml \
+            "${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}:${{ env.APP_DIR }}/docker-compose.prod.yml"
+
+      - name: Deploy on droplet
+        env:
+          DO_ACCESS_TOKEN: ${{ secrets.DO_ACCESS_TOKEN }}
+          HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
+        run: |
+          ssh -i ~/.ssh/do_droplet_key "${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}" \
+            "DO_ACCESS_TOKEN='${DO_ACCESS_TOKEN}' HEALTHCHECK_URL='${HEALTHCHECK_URL}' APP_DIR='${{ env.APP_DIR }}' bash -s" <<'EOF'
+          set -euo pipefail
+
+          cd "$APP_DIR"
+
+          # Login to DOCR from droplet using Docker only (no doctl required on droplet)
+          export DOCKER_CONFIG=/tmp/docker-config
+          mkdir -p "$DOCKER_CONFIG"
+          echo "$DO_ACCESS_TOKEN" | docker login registry.digitalocean.com -u token --password-stdin
+
+          docker compose -f docker-compose.prod.yml pull
+          docker compose -f docker-compose.prod.yml up -d --remove-orphans
+
+          docker image prune -af || true
+
+          HEALTH_URL="${HEALTHCHECK_URL:-http://localhost/health}"
+          echo "Checking health: $HEALTH_URL"
+
+          ok=0
+          for i in $(seq 1 45); do
+            if curl -fsS "$HEALTH_URL" > /dev/null; then
+              ok=1
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$ok" -ne 1 ]; then
+            echo "Health check failed: $HEALTH_URL"
+            docker compose -f docker-compose.prod.yml ps || true
+            docker compose -f docker-compose.prod.yml logs --tail 300 api worker redis || true
+            exit 1
+          fi
+
+          echo "Deploy successful. Health check OK: $HEALTH_URL"
+          EOF
