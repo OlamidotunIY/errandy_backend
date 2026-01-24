@@ -1,4 +1,4 @@
-name: Deploy NestJS to DigitalOcean Droplet (DOCR + Docker Compose)
+name: Deploy Errandy
 
 on:
   push:
@@ -36,7 +36,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Optional: you can keep this; consider moving to a scheduled workflow later
+      # Optional; keep if you need it for free-tier storage control
       - name: Registry garbage collection (optional)
         run: doctl registry garbage-collection start --include-untagged-manifests --force
 
@@ -45,7 +45,6 @@ jobs:
     needs: build
 
     env:
-      REGISTRY_IMAGE: registry.digitalocean.com/${{ secrets.DO_REGISTRY_NAME }}/errandy-backend
       APP_DIR: /opt/errandy_backend
 
     steps:
@@ -80,66 +79,42 @@ jobs:
       - name: Deploy on droplet
         env:
           DO_ACCESS_TOKEN: ${{ secrets.DO_ACCESS_TOKEN }}
+          DO_REGISTRY_NAME: ${{ secrets.DO_REGISTRY_NAME }}
         run: |
-          ssh -i ~/.ssh/do_droplet_key "${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}" \
-            "DO_ACCESS_TOKEN='${DO_ACCESS_TOKEN}' APP_DIR='${{ env.APP_DIR }}' REGISTRY_IMAGE='${{ env.REGISTRY_IMAGE }}' bash -s" <<'EOF'
+          ssh -i ~/.ssh/do_droplet_key "${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}" bash -s <<EOF
           set -euo pipefail
 
-          cd "$APP_DIR"
+          APP_DIR='${{ env.APP_DIR }}'
+          REGISTRY_IMAGE="registry.digitalocean.com/${DO_REGISTRY_NAME}/errandy-backend:do-latest"
 
-          # DOCR login WITHOUT doctl; use a writable config dir to avoid HOME permission issues
+          cd "\$APP_DIR"
+
           export DOCKER_CONFIG=/tmp/docker-config
-          mkdir -p "$DOCKER_CONFIG"
-          echo "$DO_ACCESS_TOKEN" | docker login registry.digitalocean.com -u token --password-stdin
-
-          export REGISTRY_IMAGE="$REGISTRY_IMAGE"
-          export IMAGE_TAG="do-latest"
-
-          # Best-effort: tag the currently running image as a local rollback target
-          api_container_id="$(docker compose -f docker-compose.prod.yml ps -q api || true)"
-          if [ -n "${api_container_id:-}" ]; then
-            current_image_id="$(docker inspect -f '{{.Image}}' "$api_container_id" || true)"
-            if [ -n "${current_image_id:-}" ]; then
-              echo "Saving rollback image from current api container..."
-              docker tag "$current_image_id" "$REGISTRY_IMAGE:rollback" || true
-              docker rm -f errandy_backend_rollback_holder >/dev/null 2>&1 || true
-              docker create --name errandy_backend_rollback_holder "$REGISTRY_IMAGE:rollback" sh -c "sleep infinity" >/dev/null 2>&1 || true
-            fi
-          fi
+          mkdir -p "\$DOCKER_CONFIG"
+          echo '${DO_ACCESS_TOKEN}' | docker login registry.digitalocean.com -u token --password-stdin
 
           docker compose -f docker-compose.prod.yml pull
           docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
-          # Safe only if droplet is dedicated to this app
           docker image prune -af || true
 
           echo "Checking API health inside container..."
-
           ok=0
-          for i in $(seq 1 45); do
-            # Do not depend on curl inside container; use Node (already present)
-            if docker compose -f docker-compose.prod.yml exec -T api node -e "
-              const http=require('http');
-              const port=process.env.PORT||8080;
-              const req=http.get('http://127.0.0.1:'+port+'/health', res => process.exit(res.statusCode===200?0:1));
-              req.on('error', () => process.exit(1));
-            "; then
+
+          for i in \$(seq 1 60); do
+            if docker compose -f docker-compose.prod.yml exec -T api node -e 'const http=require("http");const req=http.get("http://127.0.0.1:8080/health",(res)=>process.exit(res.statusCode===200?0:1));req.on("error",()=>process.exit(1));'; then
               ok=1
               break
             fi
-            echo \"Health not ready yet ($i/45). Waiting 2s...\"
+            echo "Health not ready yet. Waiting 2s..."
             sleep 2
           done
 
-          if [ \"$ok\" -ne 1 ]; then
-            echo \"Health check FAILED inside container\"
-            echo \"=== docker compose ps ===\"
+          if [ "\$ok" -ne 1 ]; then
+            echo "Health check FAILED inside container"
             docker compose -f docker-compose.prod.yml ps || true
-            echo \"=== api logs ===\"
             docker compose -f docker-compose.prod.yml logs --tail 300 api || true
-            echo \"=== worker logs ===\"
             docker compose -f docker-compose.prod.yml logs --tail 300 worker || true
-            echo \"=== redis logs ===\"
             docker compose -f docker-compose.prod.yml logs --tail 200 redis || true
             exit 1
           fi
