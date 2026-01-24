@@ -3,6 +3,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EscrowProcessor } from './processors/escrow.processor';
 import { EscrowScheduler } from './scheduler/escrow.scheduler';
+import { EscrowModule } from 'src/escrow/escrow.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { EscrowScheduler } from './scheduler/escrow.scheduler';
         removeOnFail: 1000,
       },
     }),
+    EscrowModule
   ],
   providers: [EscrowProcessor, EscrowScheduler],
 })

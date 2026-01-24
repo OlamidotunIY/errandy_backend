@@ -31,7 +31,7 @@ services:
         condition: service_healthy
     # Host 80 -> container port (set API_CONTAINER_PORT in .env, default 3000)
     ports:
-      - "80:${API_CONTAINER_PORT:-3000}"
+      - "80:8080"
     environment:
       NODE_ENV: production
       REDIS_HOST: redis

@@ -2,7 +2,7 @@ name: Deploy NestJS to DigitalOcean Droplet (DOCR + Docker Compose)
 
 on:
   push:
-    branches: ["main"]
+    branches: ['main']
 
 jobs:
   deploy:
@@ -92,14 +92,25 @@ jobs:
           # Safe if droplet is dedicated to this app
           docker image prune -af || true
 
-          HEALTH_URL="${HEALTHCHECK_URL:-http://localhost:3000/health}"
+          HEALTH_URL="${HEALTHCHECK_URL:-http://localhost/health}"
           echo "Checking health: $HEALTH_URL"
-          if ! curl -fsS "$HEALTH_URL" > /dev/null; then
+
+          ok=0
+          for i in $(seq 1 45); do
+            if curl -fsS "$HEALTH_URL" > /dev/null; then
+              ok=1
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$ok" -ne 1 ]; then
             echo "Health check failed: $HEALTH_URL"
             docker compose -f docker-compose.prod.yml ps || true
-            docker compose -f docker-compose.prod.yml logs --tail 200 api worker redis || true
+            docker compose -f docker-compose.prod.yml logs --tail 300 api worker redis || true
             exit 1
           fi
+
 
           echo "Deploy successful. Health check OK: $HEALTH_URL"
           EOF
