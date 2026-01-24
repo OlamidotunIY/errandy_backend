@@ -42,7 +42,7 @@ jobs:
       - name: Prepare SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.DROPLET_SSH_KEY }}" > ~/.ssh/do_droplet_key
+          printf "%s" "${{ secrets.DROPLET_SSH_KEY }}" > ~/.ssh/do_droplet_key
           chmod 600 ~/.ssh/do_droplet_key
           ssh-keyscan -H "${{ secrets.DROPLET_HOST }}" >> ~/.ssh/known_hosts
 
