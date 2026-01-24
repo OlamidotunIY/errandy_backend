@@ -85,27 +85,29 @@ This repo deploys the NestJS API and a dedicated BullMQ worker as separate conta
 - Create an A record: `api.errandy.com.ng` -> `<droplet_public_ip>` (no automation required).
 
 **How GitHub Actions deploy works**
-- On every push to `main`, CI builds one image and pushes **only** the stable tag `:do-latest`.
-- CI triggers DigitalOcean registry garbage collection to delete untagged/old manifests (prevents storage growth).
-- CI SSHes into the droplet and runs:
-  - `docker compose -f docker-compose.prod.yml pull`
-  - `docker compose -f docker-compose.prod.yml up -d --remove-orphans`
-  - `docker image prune -af` (safe only if the droplet is dedicated)
-  - `curl http://localhost/health` (fails the workflow if unhealthy and prints logs)
+- On every push to `main`, CI runs two jobs: **build** -> **deploy**.
+- Build job:
+  - Builds one image and pushes **only** the stable tag `:do-latest`
+  - Runs DOCR garbage collection to delete untagged/old manifests (prevents storage growth)
+- Deploy job:
+  - Uploads `docker-compose.prod.yml` to `/opt/errandy_backend`
+  - Saves the currently running image as a local rollback tag `:rollback` (best-effort)
+  - Runs `docker compose pull` + `docker compose up -d --remove-orphans`
+  - Runs `docker image prune -af` (safe only if the droplet is dedicated)
+  - Verifies `GET /health` inside the `api` container (prints logs on failure)
 
 **Required GitHub secrets**
 - Droplet:
   - `DROPLET_HOST` (IP/hostname)
   - `DROPLET_USER` (e.g. `root` or `deploy`)
   - `DROPLET_SSH_KEY` (private key)
-- Registry (single repo + single tag strategy):
-  - `REGISTRY_HOST` (e.g. `registry.digitalocean.com`)
-  - `REGISTRY_USERNAME`
-  - `REGISTRY_PASSWORD`
-  - `REGISTRY_IMAGE` (e.g. `registry.digitalocean.com/<registry>/<repo>`)
-  - `DO_ACCESS_TOKEN` (required for DO registry garbage collection)
-- Optional:
-  - `HEALTHCHECK_URL` (defaults to `http://localhost/health` on the droplet)
+- DigitalOcean:
+  - `DO_ACCESS_TOKEN` (used for registry login + garbage collection)
+  - `DO_REGISTRY_NAME` (DigitalOcean Container Registry name)
+
+**Rollback**
+- There is a manual workflow (`.github/workflows/rollback-do-droplet.yml`) that redeploys the last saved local image tag `:rollback`.
+- Rollback only works if at least one deploy has already saved a rollback image on the droplet.
 
 **Redis security posture**
 - Redis is not exposed publicly (no published `6379` port).

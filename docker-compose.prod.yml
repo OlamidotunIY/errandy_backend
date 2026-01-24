@@ -23,15 +23,15 @@ services:
         max-file: "3"
 
   api:
-    image: registry.digitalocean.com/errandy/errandy-backend:do-latest
+    image: ${REGISTRY_IMAGE}:${IMAGE_TAG:-do-latest}
     restart: unless-stopped
     env_file: .env
     depends_on:
       redis:
         condition: service_healthy
-    # Host 80 -> container port (set API_CONTAINER_PORT in .env, default 3000)
+    # Host 80 -> container $PORT (defaults to 8080)
     ports:
-      - "80:8080"
+      - "80:${PORT:-8080}"
     environment:
       NODE_ENV: production
       REDIS_HOST: redis
@@ -45,7 +45,7 @@ services:
         max-file: "3"
 
   worker:
-    image: registry.digitalocean.com/errandy/errandy-backend:do-latest
+    image: ${REGISTRY_IMAGE}:${IMAGE_TAG:-do-latest}
     restart: unless-stopped
     env_file: .env
     depends_on:
