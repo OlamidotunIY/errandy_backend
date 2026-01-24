@@ -1,12 +1,17 @@
-name: Deploy NestJS to DigitalOcean Droplet (Docker Compose)
+name: Deploy NestJS to DigitalOcean Droplet (DOCR + Docker Compose)
 
 on:
   push:
-    branches: ["main"]
+    branches: ['main']
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
+    env:
+      IMAGE_REPO: registry.digitalocean.com/${{ secrets.DO_REGISTRY_NAME }}/errandy-backend
+      IMAGE_TAG: do-latest
+      APP_DIR: /opt/errandy_backend
 
     steps:
       - name: Checkout code
@@ -15,77 +20,98 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to container registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ secrets.REGISTRY_HOST }}
-          username: ${{ secrets.REGISTRY_USERNAME }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}
-
-      - name: Build and push droplet image (single stable tag)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: ${{ secrets.REGISTRY_IMAGE }}:do-latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Install doctl (for registry garbage collection)
+      - name: Install doctl
         uses: digitalocean/action-doctl@v2
         with:
           token: ${{ secrets.DO_ACCESS_TOKEN }}
 
-      - name: Registry cleanup (garbage collect untagged manifests)
+      - name: Login to DigitalOcean Container Registry (DOCR)
+        run: doctl registry login --expiry-seconds 1200
+
+      - name: Build and push image (single stable tag)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Optional but useful with strict registry storage limits
+      # Consider moving this to a nightly scheduled workflow later.
+      - name: Registry garbage collection (cleanup)
         run: doctl registry garbage-collection start --include-untagged-manifests --force
 
       - name: Prepare SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.DROPLET_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
+          echo "${{ secrets.DROPLET_SSH_KEY }}" > ~/.ssh/do_droplet_key
+          chmod 600 ~/.ssh/do_droplet_key
           ssh-keyscan -H "${{ secrets.DROPLET_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Ensure app directory exists
         run: |
-          ssh -i ~/.ssh/id_rsa "${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}" \
-            "mkdir -p /opt/errandy_backend"
+          ssh -i ~/.ssh/do_droplet_key "${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}" \
+            "mkdir -p '${{ env.APP_DIR }}'"
 
       - name: Upload docker-compose.prod.yml
         run: |
-          scp -i ~/.ssh/id_rsa docker-compose.prod.yml \
-            "${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}:/opt/errandy_backend/docker-compose.prod.yml"
+          scp -i ~/.ssh/do_droplet_key docker-compose.prod.yml \
+            "${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}:${{ env.APP_DIR }}/docker-compose.prod.yml"
 
       - name: Deploy on droplet
         env:
-          REGISTRY_HOST: ${{ secrets.REGISTRY_HOST }}
-          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
-          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
-          REGISTRY_IMAGE: ${{ secrets.REGISTRY_IMAGE }}
+          DO_ACCESS_TOKEN: ${{ secrets.DO_ACCESS_TOKEN }}
+          DO_REGISTRY_NAME: ${{ secrets.DO_REGISTRY_NAME }}
           HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
         run: |
-          ssh -i ~/.ssh/id_rsa "${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}" \
-            "REGISTRY_HOST='${REGISTRY_HOST}' REGISTRY_USERNAME='${REGISTRY_USERNAME}' REGISTRY_PASSWORD='${REGISTRY_PASSWORD}' REGISTRY_IMAGE='${REGISTRY_IMAGE}' HEALTHCHECK_URL='${HEALTHCHECK_URL}' bash -s" <<'EOF'
+          ssh -i ~/.ssh/do_droplet_key "${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}" \
+            "DO_ACCESS_TOKEN='${DO_ACCESS_TOKEN}' DO_REGISTRY_NAME='${DO_REGISTRY_NAME}' HEALTHCHECK_URL='${HEALTHCHECK_URL}' APP_DIR='${{ env.APP_DIR }}' bash -s" <<'EOF'
           set -euo pipefail
 
-          APP_DIR="/opt/errandy_backend"
           cd "$APP_DIR"
 
-          echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY_HOST" -u "$REGISTRY_USERNAME" --password-stdin
+          # Optional: install docker/compose if missing (safe to keep for first deploy)
+          if ! command -v docker >/dev/null 2>&1; then
+            echo "Docker not found. Install Docker Engine + compose plugin before deploying."
+            exit 1
+          fi
+          if ! docker compose version >/dev/null 2>&1; then
+            echo "Docker compose plugin not found. Install docker-compose-plugin before deploying."
+            exit 1
+          fi
 
-          export REGISTRY_IMAGE="$REGISTRY_IMAGE"
+          # Install doctl on droplet (needed to login to DOCR)
+          if ! command -v doctl >/dev/null 2>&1; then
+            echo "Installing doctl on droplet..."
+            # install from snap if available
+            if command -v snap >/dev/null 2>&1; then
+              sudo snap install doctl
+            else
+              echo "snap not available. Install doctl manually or via package manager."
+              exit 1
+            fi
+          fi
+
+          # Authenticate doctl non-interactively using the token passed from GitHub Actions
+          # Note: this writes config under ~/.config/doctl/
+          doctl auth init -t "$DO_ACCESS_TOKEN" >/dev/null 2>&1 || true
+
+          # Login docker to DOCR for pulling
+          doctl registry login --expiry-seconds 1200
 
           docker compose -f docker-compose.prod.yml pull
           docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
-          # Droplet-side cleanup (safe only if this droplet is dedicated)
-          docker image prune -af
+          # Safe only if droplet is dedicated to this app
+          docker image prune -af || true
 
-          HEALTH_URL="${HEALTHCHECK_URL:-http://localhost/health}"
+          HEALTH_URL="${HEALTHCHECK_URL:-http://localhost:3000/health}"
+          echo "Checking health: $HEALTH_URL"
           if ! curl -fsS "$HEALTH_URL" > /dev/null; then
             echo "Health check failed: $HEALTH_URL"
             docker compose -f docker-compose.prod.yml ps || true
-            docker compose -f docker-compose.prod.yml logs --tail 200 api worker || true
+            docker compose -f docker-compose.prod.yml logs --tail 200 api worker redis || true
             exit 1
           fi
 
