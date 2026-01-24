@@ -42,9 +42,13 @@ jobs:
       - name: Prepare SSH
         run: |
           mkdir -p ~/.ssh
-          printf "%s" "${{ secrets.DROPLET_SSH_KEY }}" > ~/.ssh/do_droplet_key
+          cat > ~/.ssh/do_droplet_key <<'KEY'
+          ${{ secrets.DROPLET_SSH_KEY }}
+          KEY
           chmod 600 ~/.ssh/do_droplet_key
+          sed -i 's/\r$//' ~/.ssh/do_droplet_key
           ssh-keyscan -H "${{ secrets.DROPLET_HOST }}" >> ~/.ssh/known_hosts
+
 
       - name: Ensure app directory exists
         run: |
