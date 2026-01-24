@@ -3,7 +3,6 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     env_file: .env
-    # Fail fast if REDIS_PASSWORD is missing
     command:
       [
         "sh",
@@ -23,15 +22,14 @@ services:
         max-file: "3"
 
   api:
-    image: ${REGISTRY_IMAGE}:${IMAGE_TAG:-do-latest}
+    image: registry.digitalocean.com/${DO_REGISTRY_NAME}/errandy-backend:do-latest
     restart: unless-stopped
     env_file: .env
     depends_on:
       redis:
         condition: service_healthy
-    # Host 80 -> container $PORT (defaults to 8080)
     ports:
-      - "80:${PORT:-8080}"
+      - "80:8080"
     environment:
       NODE_ENV: production
       REDIS_HOST: redis
@@ -39,13 +37,25 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     command: ["node", "dist/src/main.js"]
     stop_grace_period: 30s
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "const http=require('http');const req=http.get('http://127.0.0.1:8080/health',(res)=>process.exit(res.statusCode===200?0:1));req.on('error',()=>process.exit(1));",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
     logging:
       options:
         max-size: "10m"
         max-file: "3"
 
   worker:
-    image: ${REGISTRY_IMAGE}:${IMAGE_TAG:-do-latest}
+    image: registry.digitalocean.com/${DO_REGISTRY_NAME}/errandy-backend:do-latest
     restart: unless-stopped
     env_file: .env
     depends_on:

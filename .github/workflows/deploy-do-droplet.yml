@@ -7,7 +7,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     env:
       REGISTRY_IMAGE: registry.digitalocean.com/${{ secrets.DO_REGISTRY_NAME }}/errandy-backend
       IMAGE_TAG: do-latest
@@ -27,7 +26,7 @@ jobs:
       - name: Login Docker to DO Container Registry (CI)
         run: doctl registry login --expiry-seconds 1200
 
-      - name: Build and push image (single stable tag)
+      - name: Build and push image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -36,7 +35,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Optional; keep if you need it for free-tier storage control
       - name: Registry garbage collection (optional)
         run: doctl registry garbage-collection start --include-untagged-manifests --force
 
@@ -85,10 +83,14 @@ jobs:
           set -euo pipefail
 
           APP_DIR='${{ env.APP_DIR }}'
-          REGISTRY_IMAGE="registry.digitalocean.com/${DO_REGISTRY_NAME}/errandy-backend:do-latest"
+          DO_REGISTRY_NAME='${DO_REGISTRY_NAME}'
 
           cd "\$APP_DIR"
 
+          # make DO_REGISTRY_NAME available for docker-compose variable substitution
+          export DO_REGISTRY_NAME="\$DO_REGISTRY_NAME"
+
+          # DOCR login (no doctl on droplet)
           export DOCKER_CONFIG=/tmp/docker-config
           mkdir -p "\$DOCKER_CONFIG"
           echo '${DO_ACCESS_TOKEN}' | docker login registry.digitalocean.com -u token --password-stdin
@@ -100,7 +102,6 @@ jobs:
 
           echo "Checking API health inside container..."
           ok=0
-
           for i in \$(seq 1 60); do
             if docker compose -f docker-compose.prod.yml exec -T api node -e 'const http=require("http");const req=http.get("http://127.0.0.1:8080/health",(res)=>process.exit(res.statusCode===200?0:1));req.on("error",()=>process.exit(1));'; then
               ok=1
