@@ -16,13 +16,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-    logging:
-      options:
-        max-size: "10m"
-        max-file: "3"
 
   api:
-    image: registry.digitalocean.com/${DO_REGISTRY_NAME}/errandy-backend:do-latest
+    image: ${REGISTRY_IMAGE}:do-latest
     restart: unless-stopped
     env_file: .env
     depends_on:
@@ -32,30 +28,27 @@ services:
       - "80:8080"
     environment:
       NODE_ENV: production
+      PORT: 8080
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     command: ["node", "dist/src/main.js"]
-    stop_grace_period: 30s
     healthcheck:
+      # no curl dependency; node exists in your image
       test:
         [
           "CMD",
           "node",
           "-e",
-          "const http=require('http');const req=http.get('http://127.0.0.1:8080/health',(res)=>process.exit(res.statusCode===200?0:1));req.on('error',()=>process.exit(1));",
+          "require('http').get('http://127.0.0.1:'+(process.env.PORT||8080)+'/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1));",
         ]
       interval: 10s
       timeout: 3s
-      retries: 12
+      retries: 20
       start_period: 20s
-    logging:
-      options:
-        max-size: "10m"
-        max-file: "3"
 
   worker:
-    image: registry.digitalocean.com/${DO_REGISTRY_NAME}/errandy-backend:do-latest
+    image: ${REGISTRY_IMAGE}:do-latest
     restart: unless-stopped
     env_file: .env
     depends_on:
@@ -67,11 +60,6 @@ services:
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     command: ["node", "dist/src/worker.js"]
-    stop_grace_period: 30s
-    logging:
-      options:
-        max-size: "10m"
-        max-file: "3"
 
 volumes:
   redis_data:

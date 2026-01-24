@@ -1,4 +1,4 @@
-name: Build & Push Image to DOCR
+name: Build & Push (DOCR)
 
 on:
   push:
@@ -18,28 +18,16 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # HARD FORCE: write Docker auth config directly (no helpers, no doctl)
-      - name: Configure Docker auth for DOCR (force basic auth)
-        env:
-          DOCKER_REGISTRY_USERNAME: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
-          DO_ACCESS_TOKEN: ${{ secrets.DO_ACCESS_TOKEN }}
-        run: |
-          mkdir -p ~/.docker
-          AUTH="$(printf "%s:%s" "$DOCKER_REGISTRY_USERNAME" "$DO_ACCESS_TOKEN" | base64 -w 0)"
-          cat > ~/.docker/config.json <<EOF
-          {
-            "auths": {
-              "registry.digitalocean.com": {
-                "auth": "${AUTH}"
-              }
-            },
-            "credsStore": "",
-            "credHelpers": {}
-          }
-          EOF
-          echo "Wrote ~/.docker/config.json for registry.digitalocean.com"
+      # DigitalOcean CI auth: API token as BOTH username and password
+      # (This avoids the doctl/docker-config mismatch that can cause 401 with buildx.)
+      - name: Login to DO Container Registry (DOCR)
+        uses: docker/login-action@v3
+        with:
+          registry: registry.digitalocean.com
+          username: ${{ secrets.DO_ACCESS_TOKEN }}
+          password: ${{ secrets.DO_ACCESS_TOKEN }}
 
-      - name: Build and push image (single stable tag)
+      - name: Build and push (single stable tag)
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -47,12 +35,3 @@ jobs:
           tags: ${{ env.IMAGE }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      # Optional: keep storage under control on DOCR free tier
-      - name: Install doctl (for garbage collection)
-        uses: digitalocean/action-doctl@v2
-        with:
-          token: ${{ secrets.DO_ACCESS_TOKEN }}
-
-      - name: Registry garbage collection (optional)
-        run: doctl registry garbage-collection start --include-untagged-manifests --force
