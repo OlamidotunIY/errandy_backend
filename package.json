@@ -19,7 +19,7 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBound",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "prisma": "prisma generate --schema=prisma/model",
-    "prisma:push": "prisma db push --schema=prisma/model",
+    "prisma:push": "prisma db push --schema=prisma/model && node ./prisma/seed.ts",
     "postman:generate": "ts-node scripts/generate-postman-collection.ts"
   },
   "dependencies": {

@@ -35,4 +35,22 @@ export interface PaymentGateway {
    * @param accountDetails Account details for the refund
    */
   retryRefund(refundId: string, accountDetails: any): Promise<any>;
+
+  /**
+   * Charges a saved authorization (e.g. Paystack authorization_code).
+   * Must be idempotent for the provided key to avoid double-charging on retries.
+   *
+   * @param email Customer email
+   * @param amount Amount in smallest currency unit (e.g. kobo)
+   * @param authorizationCode Provider reference for the saved payment method
+   * @param idempotencyKey Idempotency key for safe retries
+   * @param metadata Additional metadata (optional)
+   */
+  charge(
+    email: string,
+    amount: number,
+    authorizationCode: string,
+    idempotencyKey: string,
+    metadata?: any,
+  ): Promise<any>;
 }

@@ -120,6 +120,41 @@ export class PaystackGateway implements PaymentGateway {
     }
   }
 
+  async charge(
+    email: string,
+    amount: number, // in kobo
+    authorizationCode: string,
+    idempotencyKey: string,
+    metadata?: any,
+  ): Promise<any> {
+    try {
+      const response = await axios.post(
+        `${this.baseUrl}/transaction/charge_authorization`,
+        {
+          email,
+          amount,
+          authorization_code: authorizationCode,
+          metadata,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${this.secretKey}`,
+            'Content-Type': 'application/json',
+            'Idempotency-Key': idempotencyKey,
+          },
+        },
+      );
+
+      return response.data;
+    } catch (error) {
+      this.logger.error(
+        'Error charging saved authorization',
+        error?.response?.data || error.message,
+      );
+      throw error;
+    }
+  }
+
   /**
    * Create a Paystack customer
    */

@@ -5,10 +5,14 @@ import { AcceptApplicationInput } from './dto/accept-application.input';
 import { ApplicationStatus } from './entities/applicationStatus.enum';
 import { ErrandStatus } from 'src/errands/entities/errandStatus.enum';
 import { ErrandApplicationSummary } from './entities/errand-application-summary.entity';
+import { EscrowService } from 'src/escrow/escrow.service';
 
 @Injectable()
 export class ApplicationService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly escrowService: EscrowService,
+  ) {}
 
   async apply(createApplicationInput: CreateApplicationInput, userId: string) {
     const provider = await this.prisma.provider.findUnique({
@@ -211,94 +215,6 @@ export class ApplicationService {
   }
 
   async acceptApplication(input: AcceptApplicationInput, userId: string) {
-    const application = await this.prisma.application.findUnique({
-      where: { id: input.applicationId },
-    });
-
-    if (!application) {
-      throw new Error('Application not found');
-    }
-
-    if (application.status !== ApplicationStatus.PENDING) {
-      throw new Error('Only pending applications can be accepted');
-    }
-
-    const errand = await this.prisma.errand.findUnique({
-      where: { id: application.errandId },
-      include: { client: true },
-    });
-
-    if (!errand) {
-      throw new Error('Errand not found');
-    }
-
-    const client = await this.prisma.client.findUnique({
-      where: { userId },
-    });
-
-    if (!client || client.id !== errand.clientId) {
-      throw new Error('Not authorized to accept this application');
-    }
-
-    if (errand.status !== ErrandStatus.OPEN) {
-      throw new Error('Only open errands can accept applications');
-    }
-
-    const existingAccepted = await this.prisma.application.findFirst({
-      where: {
-        errandId: errand.id,
-        status: ApplicationStatus.ACCEPTED,
-      },
-    });
-
-    if (existingAccepted) {
-      throw new Error('This errand already has an accepted application');
-    }
-
-    if (input.paymentMethodId) {
-      const paymentMethod = await this.prisma.paymentMethod.findUnique({
-        where: { id: input.paymentMethodId },
-      });
-
-      if (!paymentMethod || paymentMethod.userId !== client.id) {
-        throw new Error('Invalid payment method');
-      }
-
-      if (!paymentMethod.verified) {
-        throw new Error('Payment method is not verified');
-      }
-    }
-
-    const acceptedAt = new Date();
-
-    const [, updatedErrand] = await this.prisma.$transaction([
-      this.prisma.application.update({
-        where: { id: application.id },
-        data: {
-          status: ApplicationStatus.ACCEPTED,
-          acceptedAt,
-        },
-      }),
-      this.prisma.errand.update({
-        where: { id: errand.id },
-        data: {
-          status: ErrandStatus.IN_PROGRESS,
-          assignedTo: application.workerId,
-          assignedAt: acceptedAt,
-        },
-      }),
-      this.prisma.application.updateMany({
-        where: {
-          errandId: errand.id,
-          id: { not: application.id },
-          status: ApplicationStatus.PENDING,
-        },
-        data: {
-          status: ApplicationStatus.CANCELLED,
-        },
-      }),
-    ]);
-
-    return updatedErrand;
+    return this.escrowService.acceptApplicationAndFundEscrow(input, userId);
   }
 }

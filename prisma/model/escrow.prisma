@@ -1,0 +1,35 @@
+model Escrow {
+    id              String       @id @default(auto()) @map("_id") @db.ObjectId
+    errandId        String       @unique @db.ObjectId
+    clientId        String       @db.ObjectId
+    workerId        String       @db.ObjectId
+    // Stored in minor units (kobo)
+    amountGross     Int
+    platformFee     Int
+    amountNetWorker Int
+    currency        String
+    paymentRef      String
+    status          EscrowStatus
+    holdUntil       DateTime?
+    releasedAt      DateTime?
+    createdAt       DateTime     @default(now())
+    updatedAt       DateTime     @updatedAt
+
+    errand Errand   @relation(fields: [errandId], references: [id])
+    client Client   @relation(fields: [clientId], references: [id])
+    worker Provider @relation(fields: [workerId], references: [id])
+
+    @@index([clientId])
+    @@index([workerId])
+    @@index([status])
+    @@map("escrows")
+}
+
+enum EscrowStatus {
+    FUNDED
+    HELD
+    RELEASING
+    RELEASED
+    REFUNDED
+    DISPUTED
+}

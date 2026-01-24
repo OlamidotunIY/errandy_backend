@@ -70,51 +70,53 @@ export class PaymentGatewayController {
         // Handle successful charges (wallet funding via card, transfer, or QR)
         const metadata = data.metadata;
 
-        if (metadata?.type === 'WALLET_FUNDING') {
-          const clientId = metadata.clientId;
-          const channel = data.channel;
-          const amountInNaira = (data.amount || 0) / 100;
+	        if (metadata?.type === 'WALLET_FUNDING') {
+	          const clientId = metadata.clientId;
+	          const channel = data.channel;
+	          const amountKobo = Number(data.amount || 0);
+	          const amountInNaira = amountKobo / 100;
 
           this.logger.log(
             `Wallet funding successful via ${channel} for client ${clientId}: ₦${amountInNaira}`,
           );
 
-          // Find or create wallet
-          // Find or create wallet and credit it
-          await this.prisma.wallet.upsert({
-            where: {
-              ownerId_ownerType: {
-                ownerId: clientId,
-                ownerType: 'CLIENT',
-              },
-            },
-            create: {
-              ownerId: clientId,
-              ownerType: 'CLIENT',
-              available: amountInNaira,
-              held: 0,
-              currency: 'NGN',
-            },
-            update: {
-              available: { increment: amountInNaira },
-            },
-          });
+	          // Find or create wallet
+	          // Find or create wallet and credit it
+		          await this.prisma.wallet.upsert({
+		            where: {
+		              ownerId_ownerType: {
+		                ownerId: clientId,
+		                ownerType: 'CLIENT',
+		              },
+		            },
+		            create: {
+		              ownerId: clientId,
+		              ownerType: 'CLIENT',
+		              available: amountKobo,
+		              held: 0,
+		              currency: 'NGN',
+		            },
+		            update: {
+		              available: { increment: amountKobo },
+		            },
+		          });
 
-          // Create transaction record
-          await this.prisma.transaction.create({
-            data: {
-              userId: clientId,
-              amount: amountInNaira,
-              type: 'FUND',
-              status: 'SUCCESS',
-              reference: data.reference,
-              metadata: {
-                channel,
-                paystackTransactionId: data.id,
-                paidAt: data.paid_at,
-              },
-            },
-          });
+	          // Create transaction record
+		          await this.prisma.transaction.create({
+		            data: {
+		              ownerId: clientId,
+		              ownerType: 'CLIENT',
+		              amount: amountKobo,
+		              type: 'FUND',
+		              status: 'SUCCESS',
+		              reference: data.reference,
+		              metadata: {
+	                channel,
+	                paystackTransactionId: data.id,
+	                paidAt: data.paid_at,
+	              },
+	            },
+	          });
 
           this.logger.log(
             `Credited ₦${amountInNaira} to wallet for client ${clientId}`,
@@ -135,54 +137,63 @@ export class PaymentGatewayController {
           `Refund successful for reference: ${data.refund_reference}`,
         );
         // Update local Refund record if we had one?
-      } else if (event === 'refund.failed') {
+	      } else if (event === 'refund.failed') {
         this.logger.error(
           `Refund failed for reference: ${data.transaction_reference}`,
         );
 
         // Fallback: Deposit into User Wallet
-        const email = data.customer?.email;
-        if (email) {
-          const user = await this.prisma.user.findUnique({ where: { email } });
+	        const email = data.customer?.email;
+	        if (email) {
+	          const user = await this.prisma.user.findUnique({ where: { email } });
 
-          if (user) {
-            // Check for existing wallet
-            let wallet = await this.prisma.wallet.findFirst({
-              where: { ownerId: user.id },
-            });
+	          if (user) {
+	            const client = await this.prisma.client.findUnique({
+	              where: { userId: user.id },
+	            });
 
-            // Create if not exists
-            if (!wallet) {
-              wallet = await this.prisma.wallet.create({
-                data: {
-                  ownerId: user.id,
-                  ownerType: 'CLIENT', // Defaulting to CLIENT as per typical flow
-                  available: 0,
-                  held: 0,
-                  currency: 'NGN', // Assuming NGN based on refund context
-                },
-              });
-              this.logger.log(`Created new wallet for user ${user.id}`);
-            }
+	            if (!client) {
+	              this.logger.warn(
+	                `Refund failed fallback: user ${user.id} has no client profile.`,
+	              );
+	              return;
+	            }
 
-            // Deposit amount (convert kobo to NGN base unit if Float stores NGN)
-            // data.amount is in kobo (e.g., 5000)
-            // wallet.available is Float. safe to assume it's main currency unit.
-            const amountToAdd = (data.amount || 0) / 100;
+	            // Check for existing wallet
+	            let wallet = await this.prisma.wallet.findFirst({
+	              where: { ownerId: client.id, ownerType: 'CLIENT' },
+	            });
 
-            await this.prisma.wallet.update({
-              where: { id: wallet.id },
-              data: {
-                available: { increment: amountToAdd },
-              },
-            });
+	            // Create if not exists
+	            if (!wallet) {
+	              wallet = await this.prisma.wallet.create({
+	                data: {
+	                  ownerId: client.id,
+	                  ownerType: 'CLIENT', // Defaulting to CLIENT as per typical flow
+	                  available: 0,
+	                  held: 0,
+	                  currency: 'NGN', // Assuming NGN based on refund context
+	                },
+	              });
+	              this.logger.log(`Created new wallet for user ${user.id}`);
+	            }
 
-            this.logger.log(
-              `Deposited ${amountToAdd} NGN to user ${user.id} wallet as refund fallback.`,
-            );
-          } else {
-            this.logger.warn(
-              `Could not find user with email ${email} to deposit refund.`,
+	            // Deposit amount. Paystack sends amounts in kobo; wallet stores minor units (kobo).
+	            const amountToAddKobo = Number(data.amount || 0);
+
+	            await this.prisma.wallet.update({
+	              where: { id: wallet.id },
+	              data: {
+	                available: { increment: amountToAddKobo },
+	              },
+	            });
+
+	            this.logger.log(
+	              `Deposited ₦${amountToAddKobo / 100} to client ${client.id} wallet as refund fallback.`,
+	            );
+	          } else {
+	            this.logger.warn(
+	              `Could not find user with email ${email} to deposit refund.`,
             );
           }
         } else {

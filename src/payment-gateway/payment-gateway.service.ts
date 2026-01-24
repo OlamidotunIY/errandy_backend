@@ -157,7 +157,7 @@ export class PaymentGatewayService {
 
         // Fallback: Credit user's wallet instead of card refund
         try {
-          const refundAmountNaira = response.data.amount / 100; // Convert kobo to Naira
+          const refundAmountKobo = Number(response.data.amount || 0);
 
           // Find or create wallet for this client
           let wallet = await this.prisma.wallet.findFirst({
@@ -179,14 +179,15 @@ export class PaymentGatewayService {
           // Credit wallet
           await this.prisma.wallet.update({
             where: { id: wallet.id },
-            data: { available: { increment: refundAmountNaira } },
+            data: { available: { increment: refundAmountKobo } },
           });
 
           // Create transaction record for audit
           await this.prisma.transaction.create({
             data: {
-              userId: client.id,
-              amount: refundAmountNaira,
+              ownerId: client.id,
+              ownerType: 'CLIENT',
+              amount: refundAmountKobo,
               type: 'FUND',
               status: 'SUCCESS',
               reference: `REFUND_FALLBACK_${reference}`,
@@ -199,7 +200,7 @@ export class PaymentGatewayService {
           });
 
           this.logger.log(
-            `Credited ₦${refundAmountNaira} to wallet for user ${client.id} (refund fallback)`,
+            `Credited ₦${refundAmountKobo / 100} to wallet for user ${client.id} (refund fallback)`,
           );
         } catch (walletError) {
           this.logger.error(
@@ -415,6 +416,78 @@ export class PaymentGatewayService {
     );
 
     return response.data;
+  }
+
+  /**
+   * Charges a saved payment method (e.g. Paystack authorization_code).
+   * The underlying gateway call must be idempotent for the provided key.
+   */
+  async chargeSavedPaymentMethod(
+    user: User,
+    paymentMethodId: string,
+    amount: number, // in smallest currency unit (e.g. kobo)
+    idempotencyKey: string,
+    metadata?: any,
+  ): Promise<{ paymentRef: string; raw: any }> {
+    const client = await this.prisma.client.findUnique({
+      where: { userId: user.id },
+    });
+
+    if (!client) {
+      throw new BadRequestException('User does not have a client profile');
+    }
+
+    const paymentMethod = await this.prisma.paymentMethod.findUnique({
+      where: { id: paymentMethodId },
+    });
+
+    if (!paymentMethod || paymentMethod.userId !== client.id) {
+      throw new BadRequestException('Invalid payment method');
+    }
+
+    if (!paymentMethod.verified) {
+      throw new BadRequestException('Payment method is not verified');
+    }
+
+    const gateway = this.paymentGatewayFactory.getGateway(paymentMethod.provider);
+
+    this.logger.log(
+      `Charging client ${client.id} via ${paymentMethod.provider} (idempotencyKey=${idempotencyKey})`,
+    );
+
+    const result = await gateway.charge(
+      user.email,
+      amount,
+      paymentMethod.providerRef,
+      idempotencyKey,
+      metadata,
+    );
+
+    const paymentRef =
+      result?.data?.reference ||
+      result?.reference ||
+      result?.data?.id?.toString?.();
+
+    if (!paymentRef) {
+      throw new BadRequestException('Payment gateway did not return a reference');
+    }
+
+    // Paystack-style: { status: true, data: { status: "success" } }
+    if (result?.status === false) {
+      throw new BadRequestException(result?.message || 'Charge failed');
+    }
+
+    const gatewayStatus: string | undefined = result?.data?.status;
+    if (
+      gatewayStatus &&
+      !['success', 'successful'].includes(gatewayStatus.toLowerCase())
+    ) {
+      throw new BadRequestException(
+        `Charge not successful (status=${gatewayStatus})`,
+      );
+    }
+
+    return { paymentRef, raw: result };
   }
 
   /**

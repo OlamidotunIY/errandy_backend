@@ -158,7 +158,7 @@ export class ClientService {
           (errand.materialsBudget ?? 0)
         );
       }, 0);
-      walletBalance = wallet?.available ?? 0;
+      walletBalance = (wallet?.available ?? 0) / 100;
     }
 
     const marketTrends = await this.getMarketTrends();

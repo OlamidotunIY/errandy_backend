@@ -28,6 +28,7 @@ model Errand {
     savedErrands SavedErrand[]
     service      Service?        @relation(fields: [serviceId], references: [id])
     template     ErrandTemplate? @relation(fields: [templateId], references: [id])
+    escrow       Escrow?
 
     @@map("errands")
 }

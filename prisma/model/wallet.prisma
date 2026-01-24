@@ -1,9 +1,10 @@
 model Wallet {
     id        String   @id @default(auto()) @map("_id") @db.ObjectId
     ownerId   String   @db.ObjectId
-    ownerType UserRole // CLIENT | WORKER
-    available Float    @default(0) // Can withdraw
-    held      Float    @default(0) // Pending release
+    ownerType UserRole // CLIENT | PROVIDER
+    // Stored in minor units (kobo) to avoid Float/Decimal issues on Mongo connector
+    available Int      @default(0) // Can withdraw (kobo)
+    held      Int      @default(0) // Pending release (kobo)
     currency  String?
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
@@ -14,20 +15,26 @@ model Wallet {
 
 model Transaction {
     id        String   @id @default(auto()) @map("_id") @db.ObjectId
-    userId    String   @db.ObjectId
-    amount    Float
+    ownerId   String   @db.ObjectId
+    ownerType UserRole
+    errandId  String?  @db.ObjectId
+    // Stored in minor units (kobo)
+    amount    Int
     type      TxType
     status    TxStatus
     reference String   @unique
     metadata  Json? // e.g. { jobId: "...", workerId: "...", fee: 20 }
     createdAt DateTime @default(now())
 
+    @@index([ownerId, ownerType])
+    @@index([errandId])
     @@map("transactions")
 }
 
 enum TxType {
     FUND
     ESCROW_HOLD
+    ESCROW_PENDING_CREDIT
     ESCROW_RELEASE
     WITHDRAWAL
 }

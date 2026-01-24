@@ -41,11 +41,13 @@ import {
   RemoveBundleItemInput,
   CreateErrandsFromBundleInput,
 } from './dto/errand-bundle.dto';
+import { EscrowService } from 'src/escrow/escrow.service';
 
 @Resolver(() => Errand)
 export class ErrandsResolver {
   constructor(
     private readonly errandsService: ErrandsService,
+    private readonly escrowService: EscrowService,
   ) {}
 
   @UseGuards(GqlAuthGuard)
@@ -94,6 +96,15 @@ export class ErrandsResolver {
   @Mutation(() => Errand)
   removeErrand(@Args('id', { type: () => ID }) id: string) {
     return this.errandsService.remove(id);
+  }
+
+  @UseGuards(GqlAuthGuard)
+  @Mutation(() => Errand)
+  markErrandCompleted(
+    @Args('errandId', { type: () => ID }) errandId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.escrowService.markErrandCompleted(errandId, user.id);
   }
 
   @UseGuards(GqlAuthGuard)
