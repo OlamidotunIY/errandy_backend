@@ -3,38 +3,49 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     env_file: .env
+    # Fail fast if REDIS_PASSWORD is missing
     command:
       [
         "sh",
-        "-c",
-        "redis-server --appendonly yes --appendfsync everysec --requirepass \"$REDIS_PASSWORD\"",
+        "-lc",
+        "test -n \"$REDIS_PASSWORD\" && redis-server --appendonly yes --appendfsync everysec --requirepass \"$REDIS_PASSWORD\"",
       ]
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "sh", "-c", "redis-cli -a \"$REDIS_PASSWORD\" ping"]
+      test: ["CMD", "sh", "-lc", "redis-cli -a \"$REDIS_PASSWORD\" ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 10
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   api:
-    image: ${REGISTRY_IMAGE}:do-latest
+    image: registry.digitalocean.com/errandy/errandy-backend:do-latest
     restart: unless-stopped
     env_file: .env
     depends_on:
       redis:
         condition: service_healthy
+    # Host 80 -> container port (set API_CONTAINER_PORT in .env, default 3000)
     ports:
-      - "80:${PORT:-8080}"
+      - "80:${API_CONTAINER_PORT:-3000}"
     environment:
       NODE_ENV: production
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     command: ["node", "dist/src/main.js"]
+    stop_grace_period: 30s
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   worker:
-    image: ${REGISTRY_IMAGE}:do-latest
+    image: registry.digitalocean.com/errandy/errandy-backend:do-latest
     restart: unless-stopped
     env_file: .env
     depends_on:
@@ -46,7 +57,11 @@ services:
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     command: ["node", "dist/src/worker.js"]
+    stop_grace_period: 30s
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   redis_data:
-
