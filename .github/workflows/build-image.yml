@@ -23,8 +23,12 @@ jobs:
         with:
           token: ${{ secrets.DO_ACCESS_TOKEN }}
 
-      - name: Login Docker to DO Container Registry (CI)
-        run: doctl registry login --expiry-seconds 1200
+      - name: Login to DOCR (CI)
+        uses: docker/login-action@v3
+        with:
+          registry: registry.digitalocean.com
+          username: token
+          password: ${{ secrets.DO_ACCESS_TOKEN }}
 
       - name: Build and push image (single stable tag)
         uses: docker/build-push-action@v6
