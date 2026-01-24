@@ -28,36 +28,104 @@
 ## Project setup
 
 ```bash
-$ pnpm install
+$ npm install
 ```
 
 ## Compile and run the project
 
 ```bash
 # development
-$ pnpm run start
+$ npm run start
 
 # watch mode
-$ pnpm run start:dev
+$ npm run start:dev
 
 # production mode
-$ pnpm run start:prod
+$ npm run start:prod
 ```
 
 ## Run tests
 
 ```bash
 # unit tests
-$ pnpm run test
+$ npm run test
 
 # e2e tests
-$ pnpm run test:e2e
+$ npm run test:e2e
 
 # test coverage
-$ pnpm run test:cov
+$ npm run test:cov
 ```
 
 ## Deployment
+
+### Deploying to a DigitalOcean Droplet (Docker Compose)
+
+This repo deploys the NestJS API and a dedicated BullMQ worker as separate containers on a persistent droplet.
+
+**What runs on the droplet**
+- `api`: NestJS HTTP server (serves `GET /health`)
+- `worker`: NestJS application context only (BullMQ processor + repeatable jobs)
+- `redis`: self-managed Redis (password required, AOF persistence, no public port)
+
+**One-time droplet setup**
+1. Provision a droplet and install Docker + Docker Compose plugin.
+2. Create the app directory:
+   ```bash
+   sudo mkdir -p /opt/errandy_backend
+   sudo chown -R $USER:$USER /opt/errandy_backend
+   ```
+3. Create `/opt/errandy_backend/.env` (do not commit this). It must include at least:
+   - `DATABASE_URL=...`
+   - `PORT=8080` (the API container maps host port `80` -> container `$PORT`)
+   - `REDIS_PASSWORD=...` (required)
+   - plus any existing secrets (JWT, payment gateway keys, etc.)
+
+**Cloudflare DNS**
+- Create an A record: `api.errandy.com.ng` -> `<droplet_public_ip>` (no automation required).
+
+**How GitHub Actions deploy works**
+- On every push to `main`, CI builds one image and pushes **only** the stable tag `:do-latest`.
+- CI triggers DigitalOcean registry garbage collection to delete untagged/old manifests (prevents storage growth).
+- CI SSHes into the droplet and runs:
+  - `docker compose -f docker-compose.prod.yml pull`
+  - `docker compose -f docker-compose.prod.yml up -d --remove-orphans`
+  - `docker image prune -af` (safe only if the droplet is dedicated)
+  - `curl http://localhost/health` (fails the workflow if unhealthy and prints logs)
+
+**Required GitHub secrets**
+- Droplet:
+  - `DROPLET_HOST` (IP/hostname)
+  - `DROPLET_USER` (e.g. `root` or `deploy`)
+  - `DROPLET_SSH_KEY` (private key)
+- Registry (single repo + single tag strategy):
+  - `REGISTRY_HOST` (e.g. `registry.digitalocean.com`)
+  - `REGISTRY_USERNAME`
+  - `REGISTRY_PASSWORD`
+  - `REGISTRY_IMAGE` (e.g. `registry.digitalocean.com/<registry>/<repo>`)
+  - `DO_ACCESS_TOKEN` (required for DO registry garbage collection)
+- Optional:
+  - `HEALTHCHECK_URL` (defaults to `http://localhost/health` on the droplet)
+
+**Redis security posture**
+- Redis is not exposed publicly (no published `6379` port).
+- Password is required (`REDIS_PASSWORD`).
+- Persistence is enabled (AOF + named Docker volume).
+- To exec into Redis on the droplet:
+  ```bash
+  cd /opt/errandy_backend
+  docker compose -f docker-compose.prod.yml exec redis redis-cli -a "$REDIS_PASSWORD"
+  ```
+
+**Operational notes**
+- Droplet sysctl recommendation for Redis:
+  - `vm.overcommit_memory=1` (documented by Redis for better background save behavior)
+- View logs:
+  ```bash
+  cd /opt/errandy_backend
+  docker compose -f docker-compose.prod.yml logs -f api
+  docker compose -f docker-compose.prod.yml logs -f worker
+  ```
 
 When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
 

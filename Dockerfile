@@ -24,7 +24,8 @@ RUN npx prisma generate --schema=prisma/model
 # Run build and verify output exists
 RUN npm run build && \
     ls -la dist/ && \
-    test -f dist/src/main.js || (echo "ERROR: dist/src/main.js not found!" && exit 1)
+    test -f dist/src/main.js || (echo "ERROR: dist/src/main.js not found!" && exit 1) && \
+    test -f dist/src/worker.js || (echo "ERROR: dist/src/worker.js not found!" && exit 1)
 
 RUN npm prune --production
 
@@ -45,9 +46,9 @@ COPY --from=builder --chown=nestjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nestjs:nodejs /app/errandy-480815-firebase-adminsdk-fbsvc-4e860235e5.json ./
 
 USER nestjs
-EXPOSE 3500
+EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:3500/health || exit 1
+    CMD sh -c 'wget --no-verbose --tries=1 --spider "http://localhost:${PORT:-8080}/health" || exit 1'
 
 CMD ["node", "dist/src/main.js"]

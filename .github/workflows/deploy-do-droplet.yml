@@ -1,0 +1,93 @@
+name: Deploy NestJS to DigitalOcean Droplet (Docker Compose)
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.REGISTRY_HOST }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build and push droplet image (single stable tag)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.REGISTRY_IMAGE }}:do-latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Install doctl (for registry garbage collection)
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DO_ACCESS_TOKEN }}
+
+      - name: Registry cleanup (garbage collect untagged manifests)
+        run: doctl registry garbage-collection start --include-untagged-manifests --force
+
+      - name: Prepare SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DROPLET_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${{ secrets.DROPLET_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Ensure app directory exists
+        run: |
+          ssh -i ~/.ssh/id_rsa "${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}" \
+            "mkdir -p /opt/errandy_backend"
+
+      - name: Upload docker-compose.prod.yml
+        run: |
+          scp -i ~/.ssh/id_rsa docker-compose.prod.yml \
+            "${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}:/opt/errandy_backend/docker-compose.prod.yml"
+
+      - name: Deploy on droplet
+        env:
+          REGISTRY_HOST: ${{ secrets.REGISTRY_HOST }}
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+          REGISTRY_IMAGE: ${{ secrets.REGISTRY_IMAGE }}
+          HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
+        run: |
+          ssh -i ~/.ssh/id_rsa "${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}" \
+            "REGISTRY_HOST='${REGISTRY_HOST}' REGISTRY_USERNAME='${REGISTRY_USERNAME}' REGISTRY_PASSWORD='${REGISTRY_PASSWORD}' REGISTRY_IMAGE='${REGISTRY_IMAGE}' HEALTHCHECK_URL='${HEALTHCHECK_URL}' bash -s" <<'EOF'
+          set -euo pipefail
+
+          APP_DIR="/opt/errandy_backend"
+          cd "$APP_DIR"
+
+          echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY_HOST" -u "$REGISTRY_USERNAME" --password-stdin
+
+          export REGISTRY_IMAGE="$REGISTRY_IMAGE"
+
+          docker compose -f docker-compose.prod.yml pull
+          docker compose -f docker-compose.prod.yml up -d --remove-orphans
+
+          # Droplet-side cleanup (safe only if this droplet is dedicated)
+          docker image prune -af
+
+          HEALTH_URL="${HEALTHCHECK_URL:-http://localhost/health}"
+          if ! curl -fsS "$HEALTH_URL" > /dev/null; then
+            echo "Health check failed: $HEALTH_URL"
+            docker compose -f docker-compose.prod.yml ps || true
+            docker compose -f docker-compose.prod.yml logs --tail 200 api worker || true
+            exit 1
+          fi
+
+          echo "Deploy successful. Health check OK: $HEALTH_URL"
+          EOF

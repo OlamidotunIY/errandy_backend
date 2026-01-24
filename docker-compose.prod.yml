@@ -1,0 +1,52 @@
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    env_file: .env
+    command:
+      [
+        "sh",
+        "-c",
+        "redis-server --appendonly yes --appendfsync everysec --requirepass \"$REDIS_PASSWORD\"",
+      ]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "sh", "-c", "redis-cli -a \"$REDIS_PASSWORD\" ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    image: ${REGISTRY_IMAGE}:do-latest
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "80:${PORT:-8080}"
+    environment:
+      NODE_ENV: production
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    command: ["node", "dist/src/main.js"]
+
+  worker:
+    image: ${REGISTRY_IMAGE}:do-latest
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    command: ["node", "dist/src/worker.js"]
+
+volumes:
+  redis_data:
+
