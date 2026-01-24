@@ -165,6 +165,7 @@ export class ErrandsService {
         client: {
           include: {
             user: true,
+            paymentMethods: true,
           },
         },
       },
