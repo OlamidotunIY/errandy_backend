@@ -1,31 +1,57 @@
-name: Deploy to DigitalOcean Droplet
+name: Deploy NestJS to DigitalOcean Droplet (DOCR + Docker Compose)
 
 on:
-  workflow_run:
-    workflows: ['Build and Push DOCR']
-    types:
-      - completed
+  push:
+    branches: ['main']
 
 jobs:
   deploy:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
 
     env:
+      IMAGE: registry.digitalocean.com/${{ secrets.DO_REGISTRY_NAME }}/errandy-backend:do-latest
       APP_DIR: /opt/errandy_backend
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Authenticate doctl in CI (works; no droplet config involved)
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DO_ACCESS_TOKEN }}
+
+      - name: Login Docker to DO Container Registry (CI)
+        run: doctl registry login --expiry-seconds 1200
+
+      - name: Build and push image (single stable tag)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Optional: keep storage under control on DOCR free tier
+      - name: Registry garbage collection (optional)
+        run: doctl registry garbage-collection start --include-untagged-manifests --force
+
       - name: Prepare SSH key (runner)
         run: |
           mkdir -p ~/.ssh
+          # Write the key exactly as stored (preserves newlines)
           cat > ~/.ssh/do_droplet_key <<'KEY'
           ${{ secrets.DROPLET_SSH_KEY }}
           KEY
           chmod 600 ~/.ssh/do_droplet_key
+          # Remove any Windows CRLF that can break key parsing
           sed -i 's/\r$//' ~/.ssh/do_droplet_key
+          # Pin host key to avoid interactive prompt
           ssh-keyscan -H "${{ secrets.DROPLET_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Validate SSH key parses (runner)
@@ -47,15 +73,15 @@ jobs:
         env:
           DO_ACCESS_TOKEN: ${{ secrets.DO_ACCESS_TOKEN }}
           HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
-          REGISTRY_IMAGE: ${{ secrets.DO_REGISTRY_NAME }}
         run: |
           ssh -i ~/.ssh/do_droplet_key "${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}" \
-            "DO_ACCESS_TOKEN='${DO_ACCESS_TOKEN}' HEALTHCHECK_URL='${HEALTHCHECK_URL}' REGISTRY_IMAGE='${REGISTRY_IMAGE}' APP_DIR='${{ env.APP_DIR }}' bash -s" <<'EOF'
+            "DO_ACCESS_TOKEN='${DO_ACCESS_TOKEN}' HEALTHCHECK_URL='${HEALTHCHECK_URL}' APP_DIR='${{ env.APP_DIR }}' bash -s" <<'EOF'
           set -euo pipefail
 
           cd "$APP_DIR"
 
-          # Login to DOCR from droplet using Docker only (no doctl required on droplet)
+          # DOCR login WITHOUT doctl.
+          # Use a writable docker config dir to avoid HOME permission problems.
           export DOCKER_CONFIG=/tmp/docker-config
           mkdir -p "$DOCKER_CONFIG"
           echo "$DO_ACCESS_TOKEN" | docker login registry.digitalocean.com -u token --password-stdin
@@ -63,6 +89,7 @@ jobs:
           docker compose -f docker-compose.prod.yml pull
           docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
+          # Safe if droplet is dedicated to this app
           docker image prune -af || true
 
           HEALTH_URL="${HEALTHCHECK_URL:-http://localhost/health}"
@@ -83,6 +110,7 @@ jobs:
             docker compose -f docker-compose.prod.yml logs --tail 300 api worker redis || true
             exit 1
           fi
+
 
           echo "Deploy successful. Health check OK: $HEALTH_URL"
           EOF
