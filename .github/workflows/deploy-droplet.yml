@@ -1,10 +1,10 @@
-name: Deploy to Droplet
+name: Deploy to DigitalOcean Droplet
 
 on:
   workflow_run:
-    workflows: ["Build & Push (DOCR)"]
-    types: [completed]
-    branches: ["main"]
+    workflows: ["Build & Push Image to DOCR"]
+    types:
+      - completed
 
 jobs:
   deploy:
@@ -12,7 +12,6 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      REGISTRY_IMAGE: registry.digitalocean.com/${{ secrets.DO_REGISTRY_NAME }}/errandy-backend
       APP_DIR: /opt/errandy_backend
 
     steps:
@@ -37,7 +36,7 @@ jobs:
       - name: Ensure app directory exists (droplet)
         run: |
           ssh -i ~/.ssh/do_droplet_key "${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}" \
-            "sudo mkdir -p '${{ env.APP_DIR }}' && sudo chown -R $USER:$USER '${{ env.APP_DIR }}'"
+            "mkdir -p '${{ env.APP_DIR }}'"
 
       - name: Upload docker-compose.prod.yml (droplet)
         run: |
@@ -47,38 +46,30 @@ jobs:
       - name: Deploy on droplet
         env:
           DO_ACCESS_TOKEN: ${{ secrets.DO_ACCESS_TOKEN }}
-          REGISTRY_IMAGE: ${{ env.REGISTRY_IMAGE }}
-          APP_DIR: ${{ env.APP_DIR }}
+          HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
         run: |
           ssh -i ~/.ssh/do_droplet_key "${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}" \
-            "DO_ACCESS_TOKEN='${DO_ACCESS_TOKEN}' REGISTRY_IMAGE='${REGISTRY_IMAGE}' APP_DIR='${APP_DIR}' bash -s" <<'EOF'
+            "DO_ACCESS_TOKEN='${DO_ACCESS_TOKEN}' HEALTHCHECK_URL='${HEALTHCHECK_URL}' APP_DIR='${{ env.APP_DIR }}' bash -s" <<'EOF'
           set -euo pipefail
 
           cd "$APP_DIR"
 
-          # Avoid HOME permission issues; use a writable docker config directory
+          # Login to DOCR from droplet using Docker only (no doctl required on droplet)
           export DOCKER_CONFIG=/tmp/docker-config
           mkdir -p "$DOCKER_CONFIG"
-
-          # DOCR login (no doctl on droplet)
-          # Use token as both username/password for CI-style auth
-          echo "$DO_ACCESS_TOKEN" | docker login registry.digitalocean.com -u "$DO_ACCESS_TOKEN" --password-stdin
-
-          # Ensure compose variable is available
-          export REGISTRY_IMAGE="$REGISTRY_IMAGE"
+          echo "$DO_ACCESS_TOKEN" | docker login registry.digitalocean.com -u token --password-stdin
 
           docker compose -f docker-compose.prod.yml pull
           docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
           docker image prune -af || true
 
-          # Health check locally on droplet (avoid Cloudflare/DNS/TLS variables)
-          HEALTH_URL="http://127.0.0.1/health"
+          HEALTH_URL="${HEALTHCHECK_URL:-http://localhost/health}"
           echo "Checking health: $HEALTH_URL"
 
           ok=0
           for i in $(seq 1 45); do
-            if curl -fsS "$HEALTH_URL" >/dev/null; then
+            if curl -fsS "$HEALTH_URL" > /dev/null; then
               ok=1
               break
             fi
@@ -92,5 +83,5 @@ jobs:
             exit 1
           fi
 
-          echo "Deploy successful. Health check OK."
+          echo "Deploy successful. Health check OK: $HEALTH_URL"
           EOF
