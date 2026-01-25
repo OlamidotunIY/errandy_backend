@@ -1,8 +1,8 @@
-name: Build & Push (DOCR)
+name: Build and Push DOCR
 
 on:
   push:
-    branches: ["main"]
+    branches: ['main']
 
 jobs:
   build:
