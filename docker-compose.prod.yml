@@ -24,8 +24,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-    ports:
-      - "80:8080"
+    expose:
+      - "8080"
     environment:
       NODE_ENV: production
       PORT: 8080
@@ -46,6 +46,17 @@ services:
       timeout: 3s
       retries: 20
       start_period: 20s
+
+  nginx:
+    image: nginx:stable-alpine
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
 
   worker:
     image: ${REGISTRY_IMAGE}:do-latest

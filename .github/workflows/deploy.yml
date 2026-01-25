@@ -74,6 +74,11 @@ jobs:
           scp -i ~/.ssh/do_droplet_key docker-compose.prod.yml \
             "${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}:${{ env.APP_DIR }}/docker-compose.prod.yml"
 
+      - name: Upload nginx config (droplet)
+        run: |
+          scp -i ~/.ssh/do_droplet_key -r nginx \
+            "${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}:${{ env.APP_DIR }}/"
+
       - name: Deploy on droplet
         env:
           DO_ACCESS_TOKEN: ${{ secrets.DO_ACCESS_TOKEN }}
