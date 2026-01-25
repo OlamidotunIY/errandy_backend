@@ -49,7 +49,7 @@ jobs:
           HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
         run: |
           ssh -i ~/.ssh/do_droplet_key "${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}" \
-            "DO_ACCESS_TOKEN='${DO_ACCESS_TOKEN}' HEALTHCHECK_URL='${HEALTHCHECK_URL}' APP_DIR='${{ env.APP_DIR }}' bash -s" <<'EOF'
+            "DO_ACCESS_TOKEN='${DO_ACCESS_TOKEN}' HEALTHCHECK_URL='${HEALTHCHECK_URL}' REGISTRY_IMAGE='${REGISTRY_IMAGE}' APP_DIR='${{ env.APP_DIR }}' bash -s" <<'EOF'
           set -euo pipefail
 
           cd "$APP_DIR"
