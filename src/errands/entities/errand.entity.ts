@@ -43,6 +43,12 @@ export class Errand {
   providerType?: ProviderType;
 
   @Field({ nullable: true })
+  providerOrgId?: string;
+
+  @Field(() => String, { defaultValue: 'CLIENT_JOB' })
+  sourceType: string;
+
+  @Field({ nullable: true })
   serviceId?: string;
 
   @Field(() => Service, { nullable: true })

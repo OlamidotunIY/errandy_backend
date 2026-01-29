@@ -21,6 +21,7 @@ model Service {
   category   ServiceCategory     @relation(fields: [categoryId], references: [id])
   providers    ServicesOnProviders[]
   errands    Errand[]
+  errandTemplates ErrandTemplate[]
 
   @@map("services")
 }

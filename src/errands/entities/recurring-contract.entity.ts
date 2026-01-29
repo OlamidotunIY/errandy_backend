@@ -1,15 +1,17 @@
 import { ObjectType, Field, ID } from '@nestjs/graphql';
 import { RecurrenceFrequency } from './recurrence-frequency.enum';
-import Client from 'src/client/entities/client.entities';
 import { ErrandTemplate } from './errand-template.entity';
 
 @ObjectType()
-export class RecurringErrand {
+export class RecurringContract {
   @Field(() => ID)
   id: string;
 
   @Field()
   clientId: string;
+
+  @Field()
+  providerOrgId: string;
 
   @Field()
   templateId: string;
@@ -23,9 +25,12 @@ export class RecurringErrand {
   @Field()
   active: boolean;
 
-  @Field(() => Client, { nullable: true })
-  client?: Client;
+  @Field()
+  providerPreAccepted: boolean;
 
-  @Field(() => ErrandTemplate, { nullable: true })
-  template?: ErrandTemplate;
+  @Field({ nullable: true })
+  acceptedAt?: Date;
+
+  @Field(() => ErrandTemplate)
+  template: ErrandTemplate;
 }

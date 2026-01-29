@@ -1289,13 +1289,13 @@ export class ErrandsService {
   }
 
   async deleteTemplate(id: string) {
-    // Check if template is in use by recurring errands
-    const recurringCount = await this.prisma.recurringErrand.count({
+    // Check if template is in use by recurring contracts
+    const recurringCount = await this.prisma.recurringContract.count({
       where: { templateId: id },
     });
     if (recurringCount > 0) {
       throw new Error(
-        'Cannot delete template that is in use by recurring errands',
+        'Cannot delete template that is in use by recurring contracts',
       );
     }
 
@@ -1387,9 +1387,10 @@ export class ErrandsService {
       input.startDate || new Date(),
     );
 
-    return this.prisma.recurringErrand.create({
+    return this.prisma.recurringContract.create({
       data: {
         clientId: client.id,
+        providerOrgId: '', // Will need to be provided
         templateId: input.templateId,
         frequency: input.frequency,
         nextRunAt,
@@ -1408,7 +1409,7 @@ export class ErrandsService {
 
     // Recalculate nextRunAt if frequency changed
     if (updateData.frequency) {
-      const current = await this.prisma.recurringErrand.findUnique({
+      const current = await this.prisma.recurringContract.findUnique({
         where: { id },
       });
       if (current) {
@@ -1419,7 +1420,7 @@ export class ErrandsService {
       }
     }
 
-    return this.prisma.recurringErrand.update({
+    return this.prisma.recurringContract.update({
       where: { id },
       data: updateData,
       include: { template: true },
@@ -1427,14 +1428,14 @@ export class ErrandsService {
   }
 
   async cancelRecurringErrand(id: string) {
-    return this.prisma.recurringErrand.update({
+    return this.prisma.recurringContract.update({
       where: { id },
       data: { active: false },
     });
   }
 
   async deleteRecurringErrand(id: string) {
-    return this.prisma.recurringErrand.delete({ where: { id } });
+    return this.prisma.recurringContract.delete({ where: { id } });
   }
 
   async getMyRecurringErrands(userId: string) {
@@ -1443,7 +1444,7 @@ export class ErrandsService {
       throw new Error('Client not found');
     }
 
-    return this.prisma.recurringErrand.findMany({
+    return this.prisma.recurringContract.findMany({
       where: { clientId: client.id },
       include: { template: true },
       orderBy: { nextRunAt: 'asc' },
@@ -1599,5 +1600,421 @@ export class ErrandsService {
     );
 
     return errands;
+  }
+
+  /**
+   * ========================================
+   * LISTING & ORGANIZATION METHODS
+   * ========================================
+   */
+
+  /**
+   * Create a new listing (provider-owned errand template)
+   */
+  async createListing(
+    providerId: string,
+    data: any, // CreateListingInput
+  ) {
+    // Verify provider owns the organization
+    const org = await this.prisma.organization.findFirst({
+      where: {
+        id: data.providerOrgId,
+        ownerId: providerId,
+      },
+    });
+
+    if (!org) {
+      throw new Error('Organization not found or you do not own it');
+    }
+
+    const listing = await this.prisma.errandTemplate.create({
+      data: {
+        ...data,
+        isListing: true,
+        publishState: 'DRAFT',
+      },
+      include: {
+        providerOrg: true,
+      },
+    });
+
+    return listing;
+  }
+
+  /**
+   * Update an existing listing
+   */
+  async updateListing(providerId: string, data: any) {
+    const listing = await this.prisma.errandTemplate.findFirst({
+      where: {
+        id: data.id,
+        isListing: true,
+        providerOrg: {
+          ownerId: providerId,
+        },
+      },
+    });
+
+    if (!listing) {
+      throw new Error('Listing not found or you do not own it');
+    }
+
+    return this.prisma.errandTemplate.update({
+      where: { id: data.id },
+      data,
+    });
+  }
+
+  /**
+   * Publish a listing
+   */
+  async publishListing(providerId: string, listingId: string) {
+    const listing = await this.prisma.errandTemplate.findFirst({
+      where: {
+        id: listingId,
+        isListing: true,
+        providerOrg: {
+          ownerId: providerId,
+        },
+      },
+    });
+
+    if (!listing) {
+      throw new Error('Listing not found or you do not own it');
+    }
+
+    return this.prisma.errandTemplate.update({
+      where: { id: listingId },
+      data: {
+        publishState: 'PUBLISHED',
+        publishedAt: new Date(),
+      },
+    });
+  }
+
+  /**
+   * Get a single listing by ID
+   */
+  async getListing(userId: string, id: string) {
+    return this.prisma.errandTemplate.findFirst({
+      where: {
+        id,
+        isListing: true,
+      },
+      include: {
+        service: true,
+        providerOrg: true,
+      },
+    });
+  }
+
+  /**
+   * Get all listings (optionally filtered by organization)
+   */
+  async getListings(providerOrgId?: string) {
+    return this.prisma.errandTemplate.findMany({
+      where: {
+        isListing: true,
+        publishState: 'PUBLISHED',
+        ...(providerOrgId && { providerOrgId }),
+      },
+      include: {
+        providerOrg: true,
+      },
+      orderBy: {
+        publishedAt: 'desc',
+      },
+    });
+  }
+
+  /**
+   * Hire from a listing (one-off)
+   */
+  async hireFromListing(clientId: string, templateId: string) {
+    const template = await this.prisma.errandTemplate.findFirst({
+      where: {
+        id: templateId,
+        isListing: true,
+        publishState: 'PUBLISHED',
+      },
+      include: {
+        providerOrg: true,
+      },
+    });
+
+    if (!template) {
+      throw new Error('Listing not found or not published');
+    }
+
+    // Create errand from template
+    const errand = await this.prisma.errand.create({
+      data: {
+        clientId,
+        title: template.title,
+        description: template.description,
+        pricingType: template.pricingType,
+        price: template.price,
+        hourlyRate: template.hourlyRate,
+        serviceId: template.serviceId,
+        providerType: template.providerType,
+        serviceAddress: template.serviceAddress,
+        location: template.location,
+        sourceType: 'LISTING_HIRE',
+        providerOrgId: template.providerOrgId,
+        status: 'DRAFT', // Needs dispatch before going OPEN
+      },
+      include: {
+        client: true,
+      },
+    });
+
+    // Check if org has only one member - auto-assign
+    const orgMemberCount = await this.prisma.orgMember.count({
+      where: {
+        orgId: template.providerOrgId!,
+        active: true,
+      },
+    });
+
+    if (orgMemberCount === 1) {
+      const owner = await this.prisma.orgMember.findFirst({
+        where: {
+          orgId: template.providerOrgId!,
+          role: 'OWNER',
+        },
+      });
+
+      if (owner) {
+        await this.prisma.errandAssignment.create({
+          data: {
+            errandId: errand.id,
+            providerOrgId: template.providerOrgId!,
+            workerId: owner.userId,
+            role: 'LEAD',
+            status: 'ASSIGNED',
+          },
+        });
+
+        // Update errand status to OPEN
+        await this.prisma.errand.update({
+          where: { id: errand.id },
+          data: { status: 'OPEN' },
+        });
+      }
+    }
+
+    return errand;
+  }
+
+  /**
+   * Create a recurring contract
+   */
+  async createRecurringContract(
+    clientId: string,
+    templateId: string,
+    frequency: 'WEEKLY' | 'MONTHLY',
+  ) {
+    const template = await this.prisma.errandTemplate.findFirst({
+      where: {
+        id: templateId,
+        isListing: true,
+        publishState: 'PUBLISHED',
+      },
+    });
+
+    if (!template) {
+      throw new Error('Listing not found or not published');
+    }
+
+    // Calculate next run date
+    const now = new Date();
+    const nextRunAt = new Date(now);
+    if (frequency === 'WEEKLY') {
+      nextRunAt.setDate(now.getDate() + 7);
+    } else {
+      nextRunAt.setMonth(now.getMonth() + 1);
+    }
+
+    const contract = await this.prisma.recurringContract.create({
+      data: {
+        clientId,
+        providerOrgId: template.providerOrgId!,
+        templateId,
+        frequency,
+        nextRunAt,
+        providerPreAccepted: true, // Provider pre-accepts via listing
+        acceptedAt: new Date(),
+      },
+      include: {
+        client: true,
+        template: true,
+      },
+    });
+
+    return contract;
+  }
+
+  /**
+   * Dispatch an errand to a team member with distance validation
+   */
+  async dispatchErrand(
+    providerId: string,
+    errandId: string,
+    providerOrgId: string,
+    workerId?: string,
+    role: 'LEAD' | 'MEMBER' = 'MEMBER',
+  ) {
+    // Verify provider owns the organization
+    const org = await this.prisma.organization.findFirst({
+      where: {
+        id: providerOrgId,
+        ownerId: providerId,
+      },
+    });
+
+    if (!org) {
+      throw new Error('Organization not found or you do not own it');
+    }
+
+    // Get errand with location
+    const errand = await this.prisma.errand.findUnique({
+      where: { id: errandId },
+    });
+
+    if (!errand) {
+      throw new Error('Errand not found');
+    }
+
+    if (
+      errand.sourceType !== 'LISTING_HIRE' &&
+      errand.sourceType !== 'RECURRING_CONTRACT'
+    ) {
+      throw new Error(
+        'Can only dispatch listing-hire or recurring contract errands',
+      );
+    }
+
+    // If workerId provided, validate distance
+    if (workerId && errand.location) {
+      const member = await this.prisma.orgMember.findFirst({
+        where: {
+          orgId: providerOrgId,
+          userId: workerId,
+          active: true,
+        },
+      });
+
+      if (!member) {
+        throw new Error('Member not found in organization');
+      }
+
+      // Get user's active address for distance validation
+      const user = await this.prisma.user.findUnique({
+        where: { id: workerId },
+        include: { activeAddress: true },
+      });
+
+      if (user?.activeAddress?.location) {
+        const { isWithinDistance } = await import('../utils/haversine');
+        const errandLocation = errand.location as any;
+        const memberLocation = user.activeAddress.location as any;
+
+        if (!isWithinDistance(errandLocation, memberLocation, 50)) {
+          throw new Error('Member is more than 50km away from errand location');
+        }
+      }
+    }
+
+    // Create assignment
+    const assignment = await this.prisma.errandAssignment.create({
+      data: {
+        errandId,
+        providerOrgId,
+        workerId,
+        role,
+        status: 'ASSIGNED',
+      },
+    });
+
+    // Update errand status to OPEN if still DRAFT
+    if (errand.status === 'DRAFT') {
+      await this.prisma.errand.update({
+        where: { id: errandId },
+        data: { status: 'OPEN' },
+      });
+    }
+
+    return assignment;
+  }
+
+  /**
+   * Get dispatch queue for a provider organization
+   */
+  async getDispatchQueue(providerId: string, providerOrgId: string) {
+    // Verify provider owns the organization
+    const org = await this.prisma.organization.findFirst({
+      where: {
+        id: providerOrgId,
+        ownerId: providerId,
+      },
+    });
+
+    if (!org) {
+      throw new Error('Organization not found or you do not own it');
+    }
+
+    // Get errands that need dispatch
+    const errands = await this.prisma.errand.findMany({
+      where: {
+        providerOrgId,
+        sourceType: {
+          in: ['LISTING_HIRE', 'RECURRING_CONTRACT'],
+        },
+        status: 'DRAFT', // Not yet dispatched
+      },
+      include: {
+        client: {
+          include: {
+            user: true,
+          },
+        },
+        assignments: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    return errands;
+  }
+
+  /**
+   * Validate errand flow based on sourceType
+   */
+  async validateErrandFlow(errandId: string, action: string): Promise<void> {
+    const errand = await this.prisma.errand.findUnique({
+      where: { id: errandId },
+      include: { assignments: true },
+    });
+
+    if (!errand) {
+      throw new Error('Errand not found');
+    }
+
+    // Guard: LISTING_HIRE cannot accept applications
+    if (errand.sourceType === 'LISTING_HIRE' && action === 'apply') {
+      throw new Error(
+        'Cannot apply to listing-hire errands. Use hire endpoint instead.',
+      );
+    }
+
+    // Guard: LISTING_HIRE cannot go IN_PROGRESS without assignment
+    if (
+      errand.sourceType === 'LISTING_HIRE' &&
+      action === 'start' &&
+      !errand.assignments.some((a) => a.status === 'ACCEPTED')
+    ) {
+      throw new Error('Listing-hire errand must be dispatched before starting');
+    }
   }
 }

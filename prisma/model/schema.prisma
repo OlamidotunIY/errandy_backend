@@ -38,6 +38,7 @@ model User {
 
   chatRoomIds String[]   @db.ObjectId
   chatRooms   ChatRoom[] @relation(fields: [chatRoomIds], references: [id])
+  orgMemberships OrgMember[]
 
   @@unique([email])
   @@unique([username])

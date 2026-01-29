@@ -16,6 +16,12 @@ model Errand {
     completionDurationDays Int? // e.g. 10
     completionDeadline     DateTime? // computed AFTER assignment
 
+    // Source type to distinguish job types
+    sourceType     ErrandSourceType @default(CLIENT_JOB)
+
+    // Snapshot of provider org (for listings)
+    providerOrgId  String?          @db.ObjectId
+
     serviceAddress String?
     location       Json?
     templateId     String?  @db.ObjectId
@@ -29,6 +35,7 @@ model Errand {
     service      Service?        @relation(fields: [serviceId], references: [id])
     template     ErrandTemplate? @relation(fields: [templateId], references: [id])
     escrow       Escrow?
+    assignments  ErrandAssignment[]
 
     @@map("errands")
 }
@@ -43,21 +50,6 @@ model SavedErrand {
     errand Errand @relation(fields: [errandId], references: [id])
 
     @@map("saved_errands")
-}
-
-model RecurringErrand {
-    id         String @id @default(auto()) @map("_id") @db.ObjectId
-    clientId   String @db.ObjectId
-    templateId String @db.ObjectId
-
-    frequency RecurrenceFrequency
-    nextRunAt DateTime
-    active    Boolean             @default(true)
-
-    client   Client         @relation(fields: [clientId], references: [id])
-    template ErrandTemplate @relation(fields: [templateId], references: [id])
-
-    @@map("recurring_errands")
 }
 
 model ErrandBundle {
@@ -98,13 +90,97 @@ model ErrandTemplate {
     serviceAddress String?
     location       Json?
 
+    // Listing ownership
+    providerOrgId String? @db.ObjectId
+
+    // Listing state
+    publishState ListingPublishState @default(DRAFT)
+    publishedAt  DateTime?
+
+    // Listing metadata
+    isListing   Boolean  @default(false)
+    listingTags String[]
+
     createdAt DateTime @default(now())
 
-    recurringErrands RecurringErrand[]
-    errands          Errand[]
-    bundleItems      BundleItem[]
+    providerOrg        Organization?     @relation(fields: [providerOrgId], references: [id])
+    service            Service?          @relation(fields: [serviceId], references: [id])
+    errands            Errand[]
+    bundleItems        BundleItem[]
+    recurringContracts RecurringContract[]
 
     @@map("errand_templates")
+}
+
+model ErrandAssignment {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  errandId String @db.ObjectId
+
+  // who is responsible at org level
+  providerOrgId  String @db.ObjectId
+
+  // optional: specific members assigned
+  workerId String? @db.ObjectId
+
+  role AssignmentRole @default(MEMBER)
+  status AssignmentStatus @default(ASSIGNED)
+
+  assignedAt DateTime @default(now())
+
+  errand Errand @relation(fields: [errandId], references: [id])
+
+  @@index([errandId])
+  @@map("errand_assignments")
+}
+
+model RecurringContract {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  clientId      String @db.ObjectId
+  providerOrgId String @db.ObjectId
+  templateId    String @db.ObjectId
+
+  frequency RecurrenceFrequency
+  nextRunAt DateTime
+  active    Boolean @default(true)
+
+  // Pre-acceptance flag
+  providerPreAccepted Boolean @default(false)
+  acceptedAt          DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  client   Client         @relation(fields: [clientId], references: [id])
+  template ErrandTemplate @relation(fields: [templateId], references: [id])
+
+  @@map("recurring_contracts")
+}
+
+enum AssignmentRole {
+  LEAD
+  MEMBER
+}
+
+enum AssignmentStatus {
+  ASSIGNED
+  ACCEPTED
+  DECLINED
+  REMOVED
+}
+
+
+enum ErrandSourceType {
+    CLIENT_JOB         // Traditional client-posted job
+    LISTING_HIRE       // One-off hire from provider listing
+    RECURRING_CONTRACT // Recurring contract from listing
+}
+
+enum ListingPublishState {
+    DRAFT
+    PUBLISHED
+    ARCHIVED
 }
 
 enum RecurrenceFrequency {

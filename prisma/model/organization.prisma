@@ -1,13 +1,40 @@
 model Organization {
-    id String @id @default(auto()) @map("_id") @db.ObjectId
-    name String
-    description String?
-    logo String?
-    ownerId String @db.ObjectId
-    owner Provider @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  id        String @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  type      OrgType // CLIENT, PROVIDER, BOTH
+  createdAt DateTime @default(now())
+  ownerId   String @db.ObjectId
 
-    // Relations
+  owner     Provider @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
+  members   OrgMember[]
+  listings  ErrandTemplate[]
 
-    @@map("organizations")
+  @@map("organizations")
+}
+
+model OrgMember {
+  id      String @id @default(auto()) @map("_id") @db.ObjectId
+  orgId   String @db.ObjectId
+  userId  String @db.ObjectId
+  role    OrgRole @default(MEMBER)
+  active  Boolean @default(true)
+
+  org     Organization @relation(fields: [orgId], references: [id])
+  user    User         @relation(fields: [userId], references: [id])
+
+  @@unique([orgId, userId])
+  @@map("org_members")
+}
+
+enum OrgType {
+  CLIENT
+  PROVIDER
+  BOTH
+}
+
+enum OrgRole {
+  OWNER
+  ADMIN
+  MEMBER
 }

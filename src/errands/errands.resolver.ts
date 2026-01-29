@@ -10,7 +10,6 @@ import { ErrandsService } from './errands.service';
 import { Errand } from './entities/errand.entity';
 import { ErrandTemplate } from './entities/errand-template.entity';
 import { ErrandBundle } from './entities/errand-bundle.entity';
-import { RecurringErrand } from './entities/recurring-errand.entity';
 import { BundleItem } from './entities/bundle-item.entity';
 import { CreateErrandInput } from './dto/create-errand.input';
 import { UpdateErrandInput } from './dto/update-errand.input';
@@ -41,7 +40,11 @@ import {
   RemoveBundleItemInput,
   CreateErrandsFromBundleInput,
 } from './dto/errand-bundle.dto';
+import { CreateListingInput, UpdateListingInput } from './dto/listing.input';
+import { DispatchErrandInput } from './dto/dispatch.input';
 import { EscrowService } from 'src/escrow/escrow.service';
+import { RecurringContract } from './entities/recurring-contract.entity';
+import { ErrandAssignment } from './entities/errand-assignment.entity';
 
 @Resolver(() => Errand)
 export class ErrandsResolver {
@@ -188,7 +191,7 @@ export class ErrandsResolver {
   // ==========================================
 
   @UseGuards(GqlAuthGuard)
-  @Mutation(() => RecurringErrand)
+  @Mutation(() => RecurringContract)
   createRecurringErrand(
     @Args('input') input: CreateRecurringErrandInput,
     @CurrentUser() user: User,
@@ -197,25 +200,25 @@ export class ErrandsResolver {
   }
 
   @UseGuards(GqlAuthGuard)
-  @Mutation(() => RecurringErrand)
+  @Mutation(() => RecurringContract)
   updateRecurringErrand(@Args('input') input: UpdateRecurringErrandInput) {
     return this.errandsService.updateRecurringErrand(input);
   }
 
   @UseGuards(GqlAuthGuard)
-  @Mutation(() => RecurringErrand)
+  @Mutation(() => RecurringContract)
   cancelRecurringErrand(@Args('id', { type: () => ID }) id: string) {
     return this.errandsService.cancelRecurringErrand(id);
   }
 
   @UseGuards(GqlAuthGuard)
-  @Mutation(() => RecurringErrand)
+  @Mutation(() => RecurringContract)
   deleteRecurringErrand(@Args('id', { type: () => ID }) id: string) {
     return this.errandsService.deleteRecurringErrand(id);
   }
 
   @UseGuards(GqlAuthGuard)
-  @Query(() => [RecurringErrand], { name: 'myRecurringErrands' })
+  @Query(() => [RecurringContract], { name: 'myRecurringErrands' })
   getMyRecurringErrands(@CurrentUser() user: User) {
     return this.errandsService.getMyRecurringErrands(user.id);
   }
@@ -282,6 +285,113 @@ export class ErrandsResolver {
       input.bundleId,
       user.id,
       input.serviceAddress,
+    );
+  }
+
+  @UseGuards(GqlAuthGuard)
+  @Query(() => ErrandTemplate, { name: 'listing', nullable: true })
+  getListing(
+    @Args('id', { type: () => ID }) id: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.errandsService.getListing(user.id, id);
+  }
+
+  // ==========================================
+  // LISTING RESOLVERS
+  // ==========================================
+
+  @UseGuards(GqlAuthGuard)
+  @Mutation(() => ErrandTemplate)
+  createListing(
+    @Args('input') input: CreateListingInput,
+    @CurrentUser() user: User,
+  ) {
+    // Get provider ID from user
+    return this.errandsService.createListing(user.id, input);
+  }
+
+  @UseGuards(GqlAuthGuard)
+  @Mutation(() => ErrandTemplate)
+  updateListing(
+    @Args('input') input: UpdateListingInput,
+    @CurrentUser() user: User,
+  ) {
+    return this.errandsService.updateListing(user.id, input);
+  }
+
+  @UseGuards(GqlAuthGuard)
+  @Mutation(() => ErrandTemplate)
+  publishListing(
+    @Args('id', { type: () => ID }) id: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.errandsService.publishListing(user.id, id);
+  }
+
+  @UseGuards(GqlAuthGuard)
+  @Query(() => [ErrandTemplate], { name: 'listings' })
+  getListings(
+    @Args('providerOrgId', { type: () => ID, nullable: true })
+    providerOrgId?: string,
+  ) {
+    return this.errandsService.getListings(providerOrgId);
+  }
+
+  @UseGuards(GqlAuthGuard)
+  @Mutation(() => Errand)
+  hireFromListing(
+    @Args('templateId', { type: () => ID }) templateId: string,
+    @CurrentUser() user: User,
+  ) {
+    // Get client ID from user
+    return this.errandsService.hireFromListing(user.id, templateId);
+  }
+
+  // ==========================================
+  // DISPATCH RESOLVERS
+  // ==========================================
+
+  @UseGuards(GqlAuthGuard)
+  @Mutation(() => ErrandAssignment) // Returns ErrandAssignment
+  dispatchErrand(
+    @Args('input') input: DispatchErrandInput,
+    @CurrentUser() user: User,
+  ) {
+    return this.errandsService.dispatchErrand(
+      user.id,
+      input.errandId,
+      input.providerOrgId,
+      input.workerId,
+      input.role,
+    );
+  }
+
+  @UseGuards(GqlAuthGuard)
+  @Query(() => [Errand], { name: 'dispatchQueue' })
+  getDispatchQueue(
+    @Args('providerOrgId', { type: () => ID }) providerOrgId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.errandsService.getDispatchQueue(user.id, providerOrgId);
+  }
+
+  // ==========================================
+  // RECURRING CONTRACT RESOLVERS
+  // ==========================================
+
+  @UseGuards(GqlAuthGuard)
+  @Mutation(() => RecurringContract) // Returns RecurringContract
+  createRecurringContractFromListing(
+    @Args('templateId', { type: () => ID }) templateId: string,
+    @Args('frequency') frequency: string,
+    @CurrentUser() user: User,
+  ) {
+    // Get client ID from user
+    return this.errandsService.createRecurringContract(
+      user.id,
+      templateId,
+      frequency as 'WEEKLY' | 'MONTHLY',
     );
   }
 }

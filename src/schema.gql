@@ -2,6 +2,11 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+input AcceptApplicationInput {
+  applicationId: ID!
+  paymentMethodId: ID
+}
+
 input AddBundleItemInput {
   bundleId: ID!
   templateId: ID!
@@ -44,6 +49,7 @@ type Application {
   id: ID!
   source: ApplicationSource!
   status: ApplicationStatus!
+  worker: Provider
   workerId: String!
 }
 
@@ -56,6 +62,18 @@ enum ApplicationStatus {
   ACCEPTED
   CANCELLED
   PENDING
+  REJECTED
+}
+
+enum AssignmentRole {
+  LEAD
+  MEMBER
+}
+
+enum AssignmentStatus {
+  ACCEPTED
+  ASSIGNED
+  COMPLETED
   REJECTED
 }
 
@@ -97,7 +115,7 @@ type Client {
   id: ID!
   paymentMethods: [PaymentMethod]
   ratings: [Rating]
-  recurringErrands: [RecurringErrand]
+  recurringContracts: [RecurringContract]
   user: User!
   userId: ID!
 }
@@ -169,6 +187,19 @@ input CreateErrandsFromBundleInput {
   serviceAddress: String
 }
 
+input CreateListingInput {
+  description: String
+  hourlyRate: Float
+  listingTags: [String!]
+  price: Float
+  pricingType: PricingType!
+  providerOrgId: String!
+  providerType: ProviderType
+  serviceAddress: String
+  serviceId: String
+  title: String!
+}
+
 input CreateRecurringErrandInput {
   frequency: RecurrenceFrequency!
   startDate: DateTime
@@ -197,6 +228,13 @@ input DeleteRatingReplyInput {
   replyId: ID!
 }
 
+input DispatchErrandInput {
+  errandId: String!
+  providerOrgId: String!
+  role: AssignmentRole = MEMBER
+  workerId: String
+}
+
 type Errand {
   assignedAt: DateTime
   assignedTo: String
@@ -213,16 +251,39 @@ type Errand {
   materialsBudget: Float
   price: Float
   pricingType: PricingType!
+  providerOrgId: String
   providerType: ProviderType
   ratings: [Rating]
   service: Service
   serviceAddress: String
   serviceId: String
+  sourceType: String!
   status: ErrandStatus
   templateId: String
   title: String!
   transportAllowance: Float
   updatedAt: DateTime!
+}
+
+type ErrandApplicationSummary {
+  acceptedApplications: Int!
+  cancelledApplications: Int!
+  chattingApplicants: Int!
+  myApplicationStatus: ApplicationStatus
+  pendingApplications: Int!
+  rejectedApplications: Int!
+  totalApplications: Int!
+}
+
+type ErrandAssignment {
+  assignedAt: DateTime!
+  errand: Errand!
+  errandId: String!
+  id: ID!
+  providerOrgId: String!
+  role: AssignmentRole!
+  status: AssignmentStatus!
+  workerId: String
 }
 
 type ErrandBundle {
@@ -262,10 +323,16 @@ type ErrandTemplate {
   description: String
   hourlyRate: Float
   id: ID!
+  isListing: Boolean!
+  listingTags: [String!]
   location: JSON
   price: Float
   pricingType: PricingType!
+  providerOrgId: String
   providerType: ProviderType
+  publishState: ListingPublishState!
+  publishedAt: DateTime
+  service: Service
   serviceAddress: String
   serviceId: String
   title: String!
@@ -300,11 +367,13 @@ type ErrandWithClient {
   materialsBudget: Float
   price: Float
   pricingType: PricingType!
+  providerOrgId: String
   providerType: ProviderType
   ratings: [Rating]
   service: Service
   serviceAddress: String
   serviceId: String
+  sourceType: String!
   status: ErrandStatus
   templateId: String
   title: String!
@@ -343,6 +412,12 @@ The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://
 """
 scalar JSON
 
+enum ListingPublishState {
+  ARCHIVED
+  DRAFT
+  PUBLISHED
+}
+
 type Message {
   content: String
   contentUrl: String
@@ -373,6 +448,7 @@ enum MessageType {
 }
 
 type Mutation {
+  acceptApplication(input: AcceptApplicationInput!): Errand!
   acceptSharedProvider(providerId: ID!): TrustedCircle!
   addAddress(dto: CreateAddressInput!): User!
   addBundleItem(input: AddBundleItemInput!): BundleItem!
@@ -380,7 +456,7 @@ type Mutation {
   addToCircle(input: AddToCircleInput!): TrustedCircle!
   addWorkerServices(dto: AddWorkerServicesInput!): User!
   apply(createApplicationInput: CreateApplicationInput!): Application!
-  cancelRecurringErrand(id: ID!): RecurringErrand!
+  cancelRecurringErrand(id: ID!): RecurringContract!
 
   """Clear user search history"""
   clearSearchHistory: Boolean!
@@ -389,7 +465,9 @@ type Mutation {
   createErrandFromTemplate(input: CreateErrandFromTemplateInput!): Errand!
   createErrandTemplate(input: CreateErrandTemplateInput!): ErrandTemplate!
   createErrandsFromBundle(input: CreateErrandsFromBundleInput!): [Errand!]!
-  createRecurringErrand(input: CreateRecurringErrandInput!): RecurringErrand!
+  createListing(input: CreateListingInput!): ErrandTemplate!
+  createRecurringContractFromListing(frequency: String!, templateId: ID!): RecurringContract!
+  createRecurringErrand(input: CreateRecurringErrandInput!): RecurringContract!
   createUserRole(role: UserRole!): User!
   createWallet(createWalletInput: CreateWalletInput!): Wallet!
 
@@ -398,8 +476,10 @@ type Mutation {
   deleteErrandBundle(id: ID!): ErrandBundle!
   deleteErrandTemplate(id: ID!): ErrandTemplate!
   deleteRatingReply(input: DeleteRatingReplyInput!): RatingReply!
-  deleteRecurringErrand(id: ID!): RecurringErrand!
+  deleteRecurringErrand(id: ID!): RecurringContract!
+  dispatchErrand(input: DispatchErrandInput!): ErrandAssignment!
   getOrCreateChat(createChatInput: CreateChatInput!): ChatRoom!
+  hireFromListing(templateId: ID!): Errand!
   initializePaymentMethod(provider: String = "paystack"): PaymentInitializationResponse!
   initializeWalletFunding(
     """Amount in kobo"""
@@ -408,8 +488,10 @@ type Mutation {
     """Payment channel: card, transfer, or qr"""
     channel: WalletFundingChannel!
   ): WalletFundingResponse!
+  markErrandCompleted(errandId: ID!): Errand!
   markMessageAsDelivered(messageId: String!): Message!
   markMessageAsSeen(messageId: String!): Message!
+  publishListing(id: ID!): ErrandTemplate!
   rejectSharedProvider(providerId: ID!): TrustedCircle!
   removeBundleItem(input: RemoveBundleItemInput!): BundleItem!
   removeErrand(id: ID!): Errand!
@@ -423,7 +505,8 @@ type Mutation {
   updateErrand(updateErrandInput: UpdateErrandInput!): Errand!
   updateErrandBundle(input: UpdateErrandBundleInput!): ErrandBundle!
   updateErrandTemplate(input: UpdateErrandTemplateInput!): ErrandTemplate!
-  updateRecurringErrand(input: UpdateRecurringErrandInput!): RecurringErrand!
+  updateListing(input: UpdateListingInput!): ErrandTemplate!
+  updateRecurringErrand(input: UpdateRecurringErrandInput!): RecurringContract!
   updateUser(updateUserInput: UpdateUserInput!): User!
   updateWallet(updateWalletInput: UpdateWalletInput!): Wallet!
   useCurrentAddress(input: ReverseGeocodeInput!): User!
@@ -447,6 +530,31 @@ enum OnboardingProgress {
   NONE
   ROLE_SELECTED
   SERVICES_SELECTED
+}
+
+type OrgMember {
+  active: Boolean!
+  id: ID!
+  orgId: String!
+  role: OrgRole!
+  user: User!
+  userId: String!
+}
+
+enum OrgRole {
+  ADMIN
+  MEMBER
+  OWNER
+}
+
+type Organization {
+  description: String
+  id: ID!
+  logo: String
+  members: [OrgMember]
+  name: String!
+  owner: Provider
+  ownerId: String!
 }
 
 type PaginatedErrands {
@@ -555,10 +663,15 @@ type QRCodeDetails {
 }
 
 type Query {
+  application(id: ID!): Application!
+
   """Get client dashboard data including requirements and errands"""
   clientDashboard: ClientDashboard!
   clientRatings(clientId: ID!): [Rating!]!
+  dispatchQueue(providerOrgId: ID!): [Errand!]!
   errand(input: GetErrandInput!): Errand!
+  errandApplicationSummary(errandId: ID!): ErrandApplicationSummary!
+  errandApplications(errandId: ID!): [Application!]!
   errandBundle(id: ID!): ErrandBundle
   errandBundles: [ErrandBundle!]!
   errandRatings(errandId: ID!): [Rating!]!
@@ -579,10 +692,14 @@ type Query {
   getTrustedCircle: TrustedCircle
   getUserAddresses: [UserAddress!]!
   getUserChats: [ChatRoom!]!
+  listing(id: ID!): ErrandTemplate
+  listings(providerOrgId: ID): [ErrandTemplate!]!
+  myApplicationForErrand(errandId: ID!): Application
   myErrandTemplates: [ErrandTemplate!]!
+  myOrganization: Organization
   myPaymentMethods: [PaymentMethod!]!
   myPaystackCustomer: PaystackCustomer
-  myRecurringErrands: [RecurringErrand!]!
+  myRecurringErrands: [RecurringContract!]!
   placeDetails(input: PlaceDetailsInput!): AddressDetails!
   presence(userId: ID!): UserPresence!
   searchProviders(input: SearchProvidersInput!): [Provider!]!
@@ -648,14 +765,16 @@ enum RecurrenceFrequency {
   WEEKLY
 }
 
-type RecurringErrand {
+type RecurringContract {
+  acceptedAt: DateTime
   active: Boolean!
-  client: Client
   clientId: String!
   frequency: RecurrenceFrequency!
   id: ID!
   nextRunAt: DateTime!
-  template: ErrandTemplate
+  providerOrgId: String!
+  providerPreAccepted: Boolean!
+  template: ErrandTemplate!
   templateId: String!
 }
 
@@ -818,6 +937,15 @@ input UpdateErrandTemplateInput {
   providerType: ProviderType
   serviceAddress: String
   serviceId: ID
+  title: String
+}
+
+input UpdateListingInput {
+  description: String
+  hourlyRate: Float
+  id: String!
+  listingTags: [String!]
+  price: Float
   title: String
 }
 

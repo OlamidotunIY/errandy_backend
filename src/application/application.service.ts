@@ -35,6 +35,16 @@ export class ApplicationService {
       throw new Error('This errand is not open for applications');
     }
 
+    // Guard: Cannot apply to listing-hire or recurring contract errands
+    if (
+      errand.sourceType === 'LISTING_HIRE' ||
+      errand.sourceType === 'RECURRING_CONTRACT'
+    ) {
+      throw new Error(
+        'Cannot apply to listing-hire or recurring contract errands. These are pre-assigned by the provider organization.',
+      );
+    }
+
     return this.prisma.application.create({
       data: {
         ...createApplicationInput,
@@ -189,8 +199,9 @@ export class ApplicationService {
         }
       }
 
-      chattingApplicants = providers.filter((p) => chattingWith.has(p.userId))
-        .length;
+      chattingApplicants = providers.filter((p) =>
+        chattingWith.has(p.userId),
+      ).length;
     }
 
     const myApplication = await this.myApplicationForErrand(errandId, userId);

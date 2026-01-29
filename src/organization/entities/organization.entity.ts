@@ -1,5 +1,6 @@
 import { ObjectType, Field, ID } from '@nestjs/graphql';
 import { Provider } from 'src/provider/entities/provider.entity';
+import { OrgMember } from './org-member.entity';
 
 @ObjectType()
 export class Organization {
@@ -20,4 +21,7 @@ export class Organization {
 
   @Field(() => Provider, { nullable: true })
   owner?: Provider;
+
+  @Field(() => [OrgMember], { nullable: 'itemsAndList' })
+  members?: OrgMember[];
 }
