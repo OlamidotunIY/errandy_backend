@@ -32,6 +32,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_URL: ""
     command: ["node", "dist/src/main.js"]
     healthcheck:
       # no curl dependency; node exists in your image
@@ -70,6 +71,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_URL: ""
     command: ["node", "dist/src/worker.js"]
 
 volumes:
