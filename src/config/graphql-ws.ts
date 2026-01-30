@@ -2,6 +2,7 @@ import {
   ApolloServerPluginLandingPageLocalDefault,
   ApolloServerPluginLandingPageProductionDefault,
 } from '@apollo/server/plugin/landingPage/default';
+import { ApolloServerPluginInlineTrace } from '@apollo/server/plugin/inlineTrace';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { UnauthorizedException } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -45,6 +46,10 @@ export const GqlConfig = GraphQLModule.forRootAsync<ApolloDriverConfig>({
               includeCookies: true, // Enable cookie support for authentication
             })
           : ApolloServerPluginLandingPageLocalDefault(),
+        // Enable Apollo Studio reporting in production
+        ...(isProduction && configService.get('APOLLO_KEY')
+          ? [ApolloServerPluginInlineTrace()]
+          : []),
       ],
       autoSchemaFile: isProduction
         ? true
@@ -172,6 +177,14 @@ export const GqlConfig = GraphQLModule.forRootAsync<ApolloDriverConfig>({
           },
         },
       },
+      // Apollo Studio configuration for schema reporting
+      apollo:
+        isProduction && configService.get('APOLLO_KEY')
+          ? {
+              key: configService.get('APOLLO_KEY'),
+              graphRef: configService.get('APOLLO_GRAPH_REF'),
+            }
+          : undefined,
       introspection: true, // Enable in all environments for Apollo Sandbox
     };
   },
