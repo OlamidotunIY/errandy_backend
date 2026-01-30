@@ -1,4 +1,7 @@
-import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin/landingPage/default';
+import {
+  ApolloServerPluginLandingPageLocalDefault,
+  ApolloServerPluginLandingPageProductionDefault,
+} from '@apollo/server/plugin/landingPage/default';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { UnauthorizedException } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -33,8 +36,16 @@ export const GqlConfig = GraphQLModule.forRootAsync<ApolloDriverConfig>({
   ) => {
     const isProduction = configService.get('NODE_ENV') === 'production';
     return {
-      playground: false,
-      plugins: [ApolloServerPluginLandingPageLocalDefault()],
+      playground: false, // Disabled in favor of Apollo Sandbox
+      plugins: [
+        isProduction
+          ? ApolloServerPluginLandingPageProductionDefault({
+              graphRef: configService.get('APOLLO_GRAPH_REF')!,
+              embed: true,
+              includeCookies: true, // Enable cookie support for authentication
+            })
+          : ApolloServerPluginLandingPageLocalDefault(),
+      ],
       autoSchemaFile: isProduction
         ? true
         : join(process.cwd(), 'src/schema.gql'),
@@ -161,7 +172,7 @@ export const GqlConfig = GraphQLModule.forRootAsync<ApolloDriverConfig>({
           },
         },
       },
-      introspection: !isProduction,
+      introspection: true, // Enable in all environments for Apollo Sandbox
     };
   },
 });
