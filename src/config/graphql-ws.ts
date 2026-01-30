@@ -2,6 +2,8 @@ import {
   ApolloServerPluginLandingPageLocalDefault,
   ApolloServerPluginLandingPageProductionDefault,
 } from '@apollo/server/plugin/landingPage/default';
+import { ApolloServerPluginUsageReporting } from '@apollo/server/plugin/usageReporting';
+import { ApolloServerPluginSchemaReporting } from '@apollo/server/plugin/schemaReporting';
 import { ApolloServerPluginInlineTrace } from '@apollo/server/plugin/inlineTrace';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { UnauthorizedException } from '@nestjs/common';
@@ -48,7 +50,11 @@ export const GqlConfig = GraphQLModule.forRootAsync<ApolloDriverConfig>({
           : ApolloServerPluginLandingPageLocalDefault(),
         // Enable Apollo Studio reporting in production
         ...(isProduction && configService.get('APOLLO_KEY')
-          ? [ApolloServerPluginInlineTrace()]
+          ? [
+              ApolloServerPluginUsageReporting(),
+              ApolloServerPluginSchemaReporting(),
+              ApolloServerPluginInlineTrace(),
+            ]
           : []),
       ],
       autoSchemaFile: isProduction
