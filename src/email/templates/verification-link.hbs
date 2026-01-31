@@ -1,27 +1,159 @@
-<div class='message-box'>
-  <h2>Verify your email address</h2>
-  <p>Hello {{name}},</p>
-  <p>Thanks for signing up for Errandy! Please click the button below to verify
-    your email address:</p>
+<html>
+  <head>
+    <meta charset='utf-8' />
+    <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+    <title>{{subject}}</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
 
-  <div style='text-align: center; margin: 30px 0;'>
-    <a href='{{url}}' class='button'>Verify Email Address</a>
-  </div>
+      body {
+        font-family:
+          'Inter',
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        line-height: 1.6;
+        color: #374151;
+        background-color: #f3f4f6;
+        margin: 0;
+        padding: 0;
+        -webkit-font-smoothing: antialiased;
+      }
 
-  <p>If the button doesn't work, you can also click these link:</p>
-  <p><a href='{{url}}'>{{url}}</a></p>
+      .wrapper {
+        width: 100%;
+        background-color: #f3f4f6;
+        padding: 40px 0;
+      }
 
-  <p>If you didn't create an account, you can safely ignore this email.</p>
-</div>
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #ffffff;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow:
+          0 4px 6px -1px rgba(0, 0, 0, 0.1),
+          0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      }
 
-<style>
-  .button {
-    display: inline-block;
-    padding: 14px 28px;
-    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-    color: white !important;
-    text-decoration: none;
-    border-radius: 8px;
-    font-weight: 600;
-  }
-</style>
+      .header {
+        text-align: center;
+        padding: 32px 20px;
+        background-color: #ffffff;
+        border-bottom: 1px solid #f3f4f6;
+      }
+
+      .logo {
+        height: 40px;
+        width: auto;
+      }
+
+      .content {
+        padding: 40px 32px;
+        text-align: center;
+      }
+
+      h1 {
+        color: #111827;
+        font-size: 24px;
+        font-weight: 700;
+        margin-top: 0;
+        margin-bottom: 16px;
+      }
+
+      p {
+        margin-bottom: 24px;
+        color: #4b5563;
+        text-align: left;
+      }
+
+      .button-container {
+        margin: 32px 0;
+        text-align: center;
+      }
+
+      .button {
+        display: inline-block;
+        padding: 14px 32px;
+        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+        color: #ffffff !important;
+        text-decoration: none;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 16px;
+        box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);
+        transition: all 0.2s;
+      }
+
+      .link-text {
+        word-break: break-all;
+        font-size: 14px;
+        color: #4f46e5;
+      }
+
+      .footer {
+        background-color: #f9fafb;
+        padding: 32px 20px;
+        text-align: center;
+        border-top: 1px solid #e5e7eb;
+      }
+
+      .footer p {
+        font-size: 13px;
+        color: #9ca3af;
+        margin-bottom: 8px;
+      }
+
+      .footer a {
+        color: #6b7280;
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <div class='wrapper'>
+      <div class='container'>
+        <div class='header'>
+          <img
+            src='https://firebasestorage.googleapis.com/v0/b/errandy-480815.firebasestorage.app/o/logo.png?alt=media&token=e1ffc278-42e2-43e1-a79d-84f2345bf620'
+            alt='Errandy'
+            class='logo'
+          />
+        </div>
+
+        <div class='content'>
+          <h1>Verify your email address</h1>
+
+          <p>Hello {{name}},</p>
+          <p>Thanks for signing up for Errandy! Please click the button below to
+            verify your email address:</p>
+
+          <div class='button-container'>
+            <a href='{{url}}' class='button'>Verify Email Address</a>
+          </div>
+
+          <p>If the button doesn't work, you can also click this link:</p>
+          <p style='text-align: center;'><a
+              href='{{url}}'
+              class='link-text'
+            >{{url}}</a></p>
+
+          <p>If you didn't create an account, you can safely ignore this email.</p>
+        </div>
+
+        <div class='footer'>
+          <p>&copy; {{year}} Errandy. All rights reserved.</p>
+          <p>Lagos, Nigeria</p>
+          <p>
+            <a href='{{unsubscribeUrl}}'>Unsubscribe</a>
+            •
+            <a href='https://errandy.app/privacy'>Privacy Policy</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

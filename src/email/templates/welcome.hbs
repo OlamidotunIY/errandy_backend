@@ -1,37 +1,229 @@
-<h1>Welcome to Errandy, {{name}}! 🎉</h1>
+<html>
+  <head>
+    <meta charset='utf-8' />
+    <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+    <title>Welcome to Errandy</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
 
-<p>We're thrilled to have you join our community! Errandy connects you with
-  trusted service providers in your area.</p>
+      body {
+        font-family:
+          'Inter',
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        line-height: 1.6;
+        color: #374151;
+        background-color: #f3f4f6;
+        margin: 0;
+        padding: 0;
+        -webkit-font-smoothing: antialiased;
+      }
 
-<div style='margin: 20px 0;'>
-  <div style='display: flex; align-items: center; margin: 15px 0;'>
-    <span style='font-size: 24px; margin-right: 15px;'>✅</span>
-    <span><strong>Post Errands</strong>
-      - Get help with tasks big and small</span>
-  </div>
-  <div style='display: flex; align-items: center; margin: 15px 0;'>
-    <span style='font-size: 24px; margin-right: 15px;'>👥</span>
-    <span><strong>Trusted Providers</strong>
-      - Connect with verified professionals</span>
-  </div>
-  <div style='display: flex; align-items: center; margin: 15px 0;'>
-    <span style='font-size: 24px; margin-right: 15px;'>🔒</span>
-    <span><strong>Secure Payments</strong> - Pay safely through the app</span>
-  </div>
-  <div style='display: flex; align-items: center; margin: 15px 0;'>
-    <span style='font-size: 24px; margin-right: 15px;'>⭐</span>
-    <span><strong>Rate & Review</strong> - Help build a trusted community</span>
-  </div>
-</div>
+      .wrapper {
+        width: 100%;
+        background-color: #f3f4f6;
+        padding: 40px 0;
+      }
 
-<p>Ready to get started?</p>
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #ffffff;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow:
+          0 4px 6px -1px rgba(0, 0, 0, 0.1),
+          0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      }
 
-<a
-  href='https://errandy.app'
-  style='display: inline-block; padding: 14px 28px; background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%); color: white !important; text-decoration: none; border-radius: 8px; margin: 15px 0; font-weight: 600;'
->Open Errandy</a>
+      .header {
+        text-align: center;
+        padding: 32px 20px;
+        background-color: #ffffff;
+        border-bottom: 1px solid #f3f4f6;
+      }
 
-<p style='margin-top: 30px; color: #666;'>
-  If you have any questions, just reply to this email - we're always happy to
-  help!
-</p>
+      .logo {
+        height: 40px;
+        width: auto;
+      }
+
+      .content {
+        padding: 40px 32px;
+      }
+
+      h1 {
+        color: #111827;
+        font-size: 24px;
+        font-weight: 700;
+        margin-top: 0;
+        margin-bottom: 16px;
+      }
+
+      p {
+        margin-bottom: 24px;
+        color: #4b5563;
+      }
+
+      .hero-text {
+        font-size: 16px;
+        margin-bottom: 32px;
+      }
+
+      .feature-grid {
+        background-color: #f9fafb;
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 32px;
+      }
+
+      .feature-item {
+        margin-bottom: 20px;
+        display: flex;
+        align-items: flex-start;
+      }
+
+      .feature-item:last-child {
+        margin-bottom: 0;
+      }
+
+      .feature-icon {
+        font-size: 20px;
+        margin-right: 12px;
+        min-width: 24px;
+        text-align: center;
+      }
+
+      .feature-content strong {
+        display: block;
+        color: #111827;
+        margin-bottom: 4px;
+      }
+
+      .feature-content span {
+        font-size: 14px;
+        color: #6b7280;
+      }
+
+      .cta-section {
+        text-align: center;
+        margin-top: 40px;
+        margin-bottom: 32px;
+      }
+
+      .button {
+        display: inline-block;
+        padding: 14px 32px;
+        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+        color: #ffffff !important;
+        text-decoration: none;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 16px;
+        box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);
+        transition: all 0.2s;
+      }
+
+      .next-steps {
+        border-top: 1px solid #f3f4f6;
+        padding-top: 32px;
+      }
+
+      .step-title {
+        font-weight: 600;
+        color: #111827;
+        margin-bottom: 16px;
+        display: block;
+      }
+
+      .footer {
+        background-color: #f9fafb;
+        padding: 32px 20px;
+        text-align: center;
+        border-top: 1px solid #e5e7eb;
+      }
+
+      .footer p {
+        font-size: 13px;
+        color: #9ca3af;
+        margin-bottom: 8px;
+      }
+
+      .footer a {
+        color: #6b7280;
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <div class='wrapper'>
+      <div class='container'>
+        <div class='header'>
+          <img
+            src='https://firebasestorage.googleapis.com/v0/b/errandy-480815.firebasestorage.app/o/logo.png?alt=media&token=e1ffc278-42e2-43e1-a79d-84f2345bf620'
+            alt='Errandy'
+            class='logo'
+          />
+        </div>
+
+        <div class='content'>
+          <h1>Welcome to Errandy! 🎉</h1>
+
+          <p class='hero-text'>Hi
+            {{name}}, we're thrilled to have you on board! Errandy is your new
+            go-to platform for getting things done.</p>
+
+          <div class='feature-grid'>
+            <div class='feature-item'>
+              <span class='feature-icon'>🚀</span>
+              <div class='feature-content'>
+                <strong>Post Errands Easily</strong>
+                <span>Describe what you need, set your budget, and let us handle
+                  the rest.</span>
+              </div>
+            </div>
+            <div class='feature-item'>
+              <span class='feature-icon'>🛡️</span>
+              <div class='feature-content'>
+                <strong>Trusted & Verified</strong>
+                <span>Connect with vetted providers you can rely on for quality
+                  service.</span>
+              </div>
+            </div>
+            <div class='feature-item'>
+              <span class='feature-icon'>💳</span>
+              <div class='feature-content'>
+                <strong>Secure Payments</strong>
+                <span>Funds are held safely until you're 100% satisfied with the
+                  work.</span>
+              </div>
+            </div>
+          </div>
+
+          <div class='next-steps'>
+            <span class='step-title'>Here is what you can do next:</span>
+            <p>Complete your profile to build trust with the community, explore
+              available services, or post your very first errand today!</p>
+          </div>
+
+          <div class='cta-section'>
+            <a href='https://errandy.app' class='button'>Get Started Now</a>
+          </div>
+        </div>
+
+        <div class='footer'>
+          <p>&copy; {{year}} Errandy. All rights reserved.</p>
+          <p>Lagos, Nigeria</p>
+          <p>
+            <a href='{{unsubscribeUrl}}'>Unsubscribe</a>
+            •
+            <a href='https://errandy.app/privacy'>Privacy Policy</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
