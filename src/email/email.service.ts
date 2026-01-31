@@ -4,14 +4,6 @@ import { SendEmailOptions } from './email.interface';
 
 export type EmailType = 'promotional' | 'transactional';
 
-// Template IDs from Resend (will be populated after running setup script)
-// Run: npx ts-node scripts/setup-resend-templates.ts
-const TEMPLATE_IDS: Record<string, string> = {
-  welcome: process.env.RESEND_TEMPLATE_WELCOME || '',
-  'verification-otp': process.env.RESEND_TEMPLATE_VERIFICATION_OTP || '',
-  'reset-password-otp': process.env.RESEND_TEMPLATE_RESET_PASSWORD_OTP || '',
-};
-
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
@@ -20,8 +12,7 @@ export class EmailService {
   // Sender emails (must be verified in Resend)
   private readonly PROMOTIONAL_FROM =
     'Dotun from Errandy <dotuniyanda@errandy.com.ng>';
-  private readonly TRANSACTIONAL_FROM =
-    'Errandy <no-reply@errandy.com.ng>';
+  private readonly TRANSACTIONAL_FROM = 'Errandy <no-reply@errandy.com.ng>';
 
   constructor() {
     this.resend = new Resend(process.env.RESEND_API);
@@ -47,14 +38,26 @@ export class EmailService {
 
     try {
       // Use template if specified and template ID exists
-      if (options.template && TEMPLATE_IDS[options.template]) {
+      // Use template if specified
+      if (options.template) {
+        // Prepare global variables
+        const globalVariables = {
+          year: new Date().getFullYear(),
+          unsubscribeUrl: 'https://errandy.app/unsubscribe', // Placeholder
+          companyName: 'Errandy',
+          companyAddress: 'Lagos, Nigeria',
+        };
+
         const { data, error } = await this.resend.emails.send({
           from,
           to,
           subject: options.subject,
           template: {
-            id: TEMPLATE_IDS[options.template],
-            variables: options.context || {},
+            id: options.template, // Use the slug provided directly (e.g., 'welcome')
+            variables: {
+              ...globalVariables,
+              ...(options.context || {}),
+            },
           },
         } as Parameters<typeof this.resend.emails.send>[0]);
 

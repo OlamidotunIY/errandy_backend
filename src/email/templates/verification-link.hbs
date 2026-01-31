@@ -2,111 +2,96 @@
   <head>
     <meta charset='utf-8' />
     <meta name='viewport' content='width=device-width, initial-scale=1.0' />
-    <title>{{subject}}</title>
+    <title>{{{subject}}}</title>
     <style>
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-
+      /* Base Resets */
       body {
-        font-family:
-          'Inter',
-          -apple-system,
-          BlinkMacSystemFont,
-          'Segoe UI',
-          Roboto,
-          sans-serif;
-        line-height: 1.6;
-        color: #374151;
-        background-color: #f3f4f6;
         margin: 0;
         padding: 0;
-        -webkit-font-smoothing: antialiased;
+        width: 100%;
+        -webkit-text-size-adjust: 100%;
+        -ms-text-size-adjust: 100%;
+        background-color: #ffffff;
+        color: #111827;
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
+          Arial, sans-serif;
+        line-height: 1.5;
       }
 
+      /* Container */
       .wrapper {
         width: 100%;
-        background-color: #f3f4f6;
-        padding: 40px 0;
+        background-color: #ffffff;
+        padding: 60px 0;
       }
-
       .container {
         max-width: 600px;
         margin: 0 auto;
-        background-color: #ffffff;
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow:
-          0 4px 6px -1px rgba(0, 0, 0, 0.1),
-          0 2px 4px -1px rgba(0, 0, 0, 0.06);
-      }
-
-      .header {
-        text-align: center;
-        padding: 32px 20px;
-        background-color: #ffffff;
-        border-bottom: 1px solid #f3f4f6;
-      }
-
-      .logo {
-        height: 40px;
-        width: auto;
-      }
-
-      .content {
-        padding: 40px 32px;
+        padding: 0 20px;
         text-align: center;
       }
 
+      /* Typography */
       h1 {
-        color: #111827;
+        margin: 0 0 16px 0;
         font-size: 24px;
-        font-weight: 700;
-        margin-top: 0;
-        margin-bottom: 16px;
+        font-weight: 800;
+        color: #111827;
       }
-
       p {
-        margin-bottom: 24px;
+        margin: 0 0 24px 0;
+        font-size: 16px;
         color: #4b5563;
-        text-align: left;
       }
 
-      .button-container {
-        margin: 32px 0;
-        text-align: center;
+      /* Elements */
+      .logo {
+        width: 120px;
+        height: auto;
+        margin: 0 auto 40px auto;
+        display: block;
+      }
+      .icon {
+        font-size: 48px;
+        margin-bottom: 24px;
+        display: block;
       }
 
       .button {
         display: inline-block;
-        padding: 14px 32px;
-        background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-        color: #ffffff !important;
-        text-decoration: none;
+        background-color: #111827;
+        color: #ffffff;
+        padding: 16px 40px;
         border-radius: 8px;
+        text-decoration: none;
         font-weight: 600;
         font-size: 16px;
-        box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);
-        transition: all 0.2s;
+        margin: 32px 0;
+        transition: background-color 0.2s;
+      }
+      .button:hover {
+        background-color: #000000;
       }
 
       .link-text {
+        color: #4f46e5;
         word-break: break-all;
         font-size: 14px;
-        color: #4f46e5;
+        text-decoration: none;
       }
 
+      /* Footer */
       .footer {
-        background-color: #f9fafb;
-        padding: 32px 20px;
-        text-align: center;
-        border-top: 1px solid #e5e7eb;
+        margin-top: 60px;
+        padding-top: 32px;
+        border-top: 1px solid #f3f4f6;
       }
-
       .footer p {
         font-size: 13px;
         color: #9ca3af;
         margin-bottom: 8px;
       }
-
       .footer a {
         color: #6b7280;
         text-decoration: underline;
@@ -116,40 +101,29 @@
   <body>
     <div class='wrapper'>
       <div class='container'>
-        <div class='header'>
-          <img
-            src='https://firebasestorage.googleapis.com/v0/b/errandy-480815.firebasestorage.app/o/logo.png?alt=media&token=e1ffc278-42e2-43e1-a79d-84f2345bf620'
-            alt='Errandy'
-            class='logo'
-          />
-        </div>
+        <img
+          src='https://firebasestorage.googleapis.com/v0/b/errandy-480815.firebasestorage.app/o/logo.png?alt=media&token=e1ffc278-42e2-43e1-a79d-84f2345bf620'
+          alt='Errandy'
+          class='logo'
+        />
 
-        <div class='content'>
-          <h1>Verify your email address</h1>
+        <span class='icon'>✉️</span>
+        <h1>Verify your email</h1>
 
-          <p>Hello {{name}},</p>
-          <p>Thanks for signing up for Errandy! Please click the button below to
-            verify your email address:</p>
+        <p>Hi {{{name}}}, thank you for joining Errandy.</p>
+        <p>Please confirm your email address to activate your account.</p>
 
-          <div class='button-container'>
-            <a href='{{url}}' class='button'>Verify Email Address</a>
-          </div>
+        <a href='{{{url}}}' class='button'>Verify Email</a>
 
-          <p>If the button doesn't work, you can also click this link:</p>
-          <p style='text-align: center;'><a
-              href='{{url}}'
-              class='link-text'
-            >{{url}}</a></p>
-
-          <p>If you didn't create an account, you can safely ignore this email.</p>
-        </div>
+        <p style='font-size: 14px; color: #9CA3AF;'>Or paste this link into your
+          browser:</p>
+        <p><a href='{{{url}}}' class='link-text'>{{{url}}}</a></p>
 
         <div class='footer'>
-          <p>&copy; {{year}} Errandy. All rights reserved.</p>
-          <p>Lagos, Nigeria</p>
+          <p>&copy; {{{year}}} Errandy. All rights reserved.</p>
           <p>
-            <a href='{{unsubscribeUrl}}'>Unsubscribe</a>
-            •
+            <a href='{{{unsubscribeUrl}}}'>Unsubscribe</a>
+            &bull;
             <a href='https://errandy.app/privacy'>Privacy Policy</a>
           </p>
         </div>

@@ -1,9 +1,12 @@
+// @ts-nocheck
 import { Resend } from 'resend';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
 
-dotenv.config();
+// Explicitly load .env from project root
+const envPath = path.join(__dirname, '../.env');
+dotenv.config({ path: envPath });
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
@@ -87,20 +90,70 @@ async function syncTemplates() {
     const slug = path.basename(file, '.hbs');
     console.log(`\nProcessing: ${slug}`);
 
-    if (existingSlugs.has(slug)) {
-      console.log(`  ⏭️  Template "${slug}" already exists. Skipping.`);
-      continue;
+    // Add delay to prevent rate limiting (2 req/sec limit)
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // Common logic to prepare content and variables
+    let content = fs.readFileSync(path.join(TEMPLATES_DIR, file), 'utf-8');
+    const variableSet = new Set<string>();
+    const tripleBraceRegex = /\{\{\{(\s*[\w\.]+\s*)\}\}\}/g;
+
+    let match;
+    while ((match = tripleBraceRegex.exec(content)) !== null) {
+      variableSet.add(match[1].trim());
     }
 
-    console.log(`  ✨ Creating template "${slug}"...`);
+    const variables = Array.from(variableSet).map((key) => ({
+      key,
+      type: 'string',
+      fallbackValue: '',
+    }));
 
-    try {
-      const content = fs.readFileSync(path.join(TEMPLATES_DIR, file), 'utf-8');
+    console.log(
+      `  📝 Detected variables: ${Array.from(variableSet).join(', ')}`,
+    );
 
+    if (existingSlugs.has(slug)) {
+      console.log(`  🔄 Template "${slug}" exists. Updating...`);
+
+      const existingTemplate = existingTemplates.find(
+        (t) => t.alias === slug || t.name === slug,
+      );
+
+      if (!existingTemplate) {
+        console.error(
+          `  ❌ Critical error: Could not find ID for existing slug "${slug}"`,
+        );
+        continue;
+      }
+
+      // @ts-ignore
+      const { data, error } = await resend.templates.update(
+        existingTemplate.id,
+        {
+          name: slug,
+          html: content,
+          // alias cannot be updated usually, but name/html can
+        },
+      );
+
+      if (error) {
+        console.error(
+          `  ❌ Failed to update template "${slug}":`,
+          error.message,
+        );
+      } else {
+        console.log(`  ✅ Template updated successfully! ID: ${data?.id}`);
+      }
+    } else {
+      console.log(`  ✨ Creating template "${slug}"...`);
+
+      // @ts-ignore
       const { data, error } = await resend.templates.create({
         name: slug,
         html: content,
-        alias: slug, // Using slug as alias for easier reference
+        alias: slug,
+        variables: variables.length > 0 ? variables : undefined,
       });
 
       if (error) {
@@ -111,8 +164,6 @@ async function syncTemplates() {
       } else {
         console.log(`  ✅ Template created successfully! ID: ${data?.id}`);
       }
-    } catch (err) {
-      console.error(`  ❌ Error processing file ${file}:`, err);
     }
   }
 
