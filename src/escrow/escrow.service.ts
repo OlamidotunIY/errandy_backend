@@ -9,6 +9,7 @@ import { PrismaService } from 'src/prisma.service';
 @Injectable()
 export class EscrowService {
   private readonly logger = new Logger(EscrowService.name);
+  private static readonly HOLD_PERIOD_DAYS = 3;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -65,7 +66,10 @@ export class EscrowService {
    * - Escrow has unique(errandId) => one escrow per errand
    * - Ledger "hold" has unique reference: ESCROW_HOLD:<errandId>
    */
-  async acceptApplicationAndFundEscrow(input: AcceptApplicationInput, userId: string) {
+  async acceptApplicationAndFundEscrow(
+    input: AcceptApplicationInput,
+    userId: string,
+  ) {
     const application = await this.prisma.application.findUnique({
       where: { id: input.applicationId },
     });
@@ -88,7 +92,9 @@ export class EscrowService {
     });
 
     if (!client || client.id !== errand.clientId) {
-      throw new BadRequestException('Not authorized to accept this application');
+      throw new BadRequestException(
+        'Not authorized to accept this application',
+      );
     }
 
     const existingEscrow = await this.prisma.escrow.findUnique({
@@ -158,11 +164,15 @@ export class EscrowService {
     }
 
     if (application.status !== ApplicationStatus.PENDING) {
-      throw new BadRequestException('Only pending applications can be accepted');
+      throw new BadRequestException(
+        'Only pending applications can be accepted',
+      );
     }
 
     if (errand.status !== ErrandStatus.OPEN) {
-      throw new BadRequestException('Only open errands can accept applications');
+      throw new BadRequestException(
+        'Only open errands can accept applications',
+      );
     }
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -203,21 +213,22 @@ export class EscrowService {
 
     const idempotencyKey = `CHARGE_ERRAND_ACCEPT:${errand.id}`;
 
-    const chargeResult = await this.paymentGatewayService.chargeSavedPaymentMethod(
-      user,
-      paymentMethod.id,
-      amountGrossKobo,
-      idempotencyKey,
-      {
-        type: 'ERRAND_ESCROW',
-        errandId: errand.id,
-        applicationId: application.id,
-        clientId: client.id,
-        workerId: application.workerId,
-        currency,
+    const chargeResult =
+      await this.paymentGatewayService.chargeSavedPaymentMethod(
+        user,
+        paymentMethod.id,
         amountGrossKobo,
-      },
-    );
+        idempotencyKey,
+        {
+          type: 'ERRAND_ESCROW',
+          errandId: errand.id,
+          applicationId: application.id,
+          clientId: client.id,
+          workerId: application.workerId,
+          currency,
+          amountGrossKobo,
+        },
+      );
 
     const paymentRef = chargeResult.paymentRef;
     const acceptedAt = new Date();
@@ -248,7 +259,9 @@ export class EscrowService {
         });
 
         if (appUpdated.count === 0) {
-          throw new BadRequestException('Only pending applications can be accepted');
+          throw new BadRequestException(
+            'Only pending applications can be accepted',
+          );
         }
 
         const errandUpdated = await tx.errand.updateMany({
@@ -261,7 +274,9 @@ export class EscrowService {
         });
 
         if (errandUpdated.count === 0) {
-          throw new BadRequestException('Only open errands can accept applications');
+          throw new BadRequestException(
+            'Only open errands can accept applications',
+          );
         }
 
         await tx.application.updateMany({
@@ -349,12 +364,16 @@ export class EscrowService {
    * - Ledger entry uses unique reference: ESCROW_PENDING_CREDIT:<errandId>
    */
   async markErrandCompleted(errandId: string, userId: string) {
-    const provider = await this.prisma.provider.findUnique({ where: { userId } });
+    const provider = await this.prisma.provider.findUnique({
+      where: { userId },
+    });
     if (!provider) {
       throw new BadRequestException('User does not have a provider profile');
     }
 
-    const errand = await this.prisma.errand.findUnique({ where: { id: errandId } });
+    const errand = await this.prisma.errand.findUnique({
+      where: { id: errandId },
+    });
     if (!errand) {
       throw new BadRequestException('Errand not found');
     }
@@ -363,7 +382,11 @@ export class EscrowService {
       throw new BadRequestException('Not authorized to complete this errand');
     }
 
-    if (![ErrandStatus.IN_PROGRESS, ErrandStatus.COMPLETED].includes(errand.status as any)) {
+    if (
+      ![ErrandStatus.IN_PROGRESS, ErrandStatus.COMPLETED].includes(
+        errand.status as any,
+      )
+    ) {
       throw new BadRequestException('Errand is not in a completable state');
     }
 
@@ -376,8 +399,11 @@ export class EscrowService {
       throw new BadRequestException('Escrow worker mismatch');
     }
 
-    const now = new Date();
-    const holdUntil = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+    const completedAt = new Date();
+    const holdUntil = new Date(
+      completedAt.getTime() +
+        EscrowService.HOLD_PERIOD_DAYS * 24 * 60 * 60 * 1000,
+    );
 
     await this.prisma.$transaction(async (tx) => {
       await tx.errand.updateMany({
