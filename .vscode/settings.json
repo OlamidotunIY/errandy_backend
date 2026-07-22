@@ -16,58 +16,6 @@
   // Include import completions
   "js/ts.preferences.includeCompletionsForImportStatements": true,
 
-  // Automatically add missing imports while typing
-  "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": "explicit",
-    "source.organizeImports": "always",
-    "source.fixAll": "explicit"
-  },
-
   // Automatically close imports after completion
   "typescript.preferences.includeCompletionsForImportStatements": true,
-
-  // ============================================================
-  // Typescript
-  // ============================================================
-  "typescript.tsserver.maxTsServerMemory": 4096,
-  "typescript.preferences.quoteStyle": "single",
-  "typescript.preferences.useAliasesForRenames": true,
-
-  // ============================================================
-  // ESLint
-  // ============================================================
-  "eslint.format.enable": true,
-  "eslint.validate": [
-    "javascript",
-    "javascriptreact",
-    "typescript",
-    "typescriptreact"
-  ],
-  "eslint.codeActionsOnSave.mode": "all",
-
-  // ============================================================
-  // Prettier
-  // ============================================================
-  "prettier.singleQuote": true,
-  "prettier.trailingComma": "all",
-  "prettier.semi": true,
-  "prettier.printWidth": 100,
-
-  // ============================================================
-  // Files
-  // ============================================================
-  "files.trimTrailingWhitespace": true,
-  "files.insertFinalNewline": true,
-  "files.autoSave": "afterDelay",
-
-  // ============================================================
-  // Git
-  // ============================================================
-  "git.autofetch": true,
-  "git.confirmSync": false,
-
-  // ============================================================
-  // Error Lens
-  // ============================================================
-  "errorLens.enabled": true
 }

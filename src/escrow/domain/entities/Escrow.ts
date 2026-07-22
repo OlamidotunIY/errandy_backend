@@ -21,6 +21,7 @@ class Escrow extends AggregateRoot<EscrowId> {
     private _holdUntil: Date | null,
     private _releasedAt: Date | null,
     private _refundedAt: Date | null,
+    private _completedAt: Date | null,
     public readonly createdAt: Date,
     public readonly updatedAt: Date,
   ) {
@@ -65,6 +66,7 @@ class Escrow extends AggregateRoot<EscrowId> {
       null,
       releasedAt,
       refundedAt,
+      null, // completedAt
       createdAt,
       updatedAt,
     );
@@ -82,6 +84,7 @@ class Escrow extends AggregateRoot<EscrowId> {
     holdUntil: Date | null;
     releasedAt: Date | null;
     refundedAt: Date | null;
+    completedAt: Date | null;
     createdAt: Date;
     updatedAt: Date;
   }): Escrow {
@@ -97,22 +100,25 @@ class Escrow extends AggregateRoot<EscrowId> {
       props.holdUntil,
       props.releasedAt,
       props.refundedAt,
+      props.completedAt,
       props.createdAt,
       props.updatedAt,
     );
   }
 
-  hold(completedAt: Date = new Date()): void {
+  markCompleted(completedAt: Date = new Date()): void {
     if (this._status !== EscrowStatus.FUNDED) {
-      throw new InvalidStatusTransitionError(this._status, EscrowStatus.HELD);
+      throw new InvalidStatusTransitionError(
+        this._status,
+        EscrowStatus.COMPLETED_PENDING_PAYOUT,
+      );
     }
 
-    const holdUntil = new Date(
+    this._holdUntil = new Date(
       completedAt.getTime() + Escrow.HOLD_PERIOD_DAYS * 24 * 60 * 60 * 1000,
     );
-
-    this._status = EscrowStatus.HELD;
-    this._holdUntil = holdUntil;
+    this._completedAt = completedAt;
+    this._status = EscrowStatus.COMPLETED_PENDING_PAYOUT;
   }
 
   fund(): void {
@@ -124,7 +130,7 @@ class Escrow extends AggregateRoot<EscrowId> {
   }
 
   beginRelease(): void {
-    if (this._status !== EscrowStatus.HELD) {
+    if (this._status !== EscrowStatus.COMPLETED_PENDING_PAYOUT) {
       throw new InvalidStatusTransitionError(
         this._status,
         EscrowStatus.RELEASING,
@@ -135,7 +141,7 @@ class Escrow extends AggregateRoot<EscrowId> {
   }
 
   beginRefund(reason: RefundReason): void {
-    if (this._status !== EscrowStatus.HELD) {
+    if (this._status !== EscrowStatus.COMPLETED_PENDING_PAYOUT) {
       throw new InvalidStatusTransitionError(
         this._status,
         EscrowStatus.REFUNDING,
@@ -157,12 +163,6 @@ class Escrow extends AggregateRoot<EscrowId> {
     // this.addDomainEvent(new EscrowReleasedEvent());
   }
 
-  /**
-   * Completes refund (REFUNDING → REFUNDED) after funds are returned to client.
-   * @param refundedAt Timestamp of successful refund
-   * @throws InvalidStatusTransitionError when status is not REFUNDING
-   * @emits EscrowRefundedEvent
-   */
   completeRefund(refundedAt: Date): void {
     if (this._status !== EscrowStatus.REFUNDING) {
       throw new InvalidStatusTransitionError(
@@ -175,13 +175,8 @@ class Escrow extends AggregateRoot<EscrowId> {
     // this.addDomainEvent(new EscrowRefundedEvent(this));
   }
 
-  /**
-   * Freezes escrow (HELD → DISPUTED) when a dispute is opened.
-   * @throws InvalidStatusTransitionError when status is not HELD
-   * @emits EscrowDisputedEvent
-   */
   dispute(): void {
-    if (this._status !== EscrowStatus.HELD) {
+    if (this._status !== EscrowStatus.COMPLETED_PENDING_PAYOUT) {
       throw new InvalidStatusTransitionError(
         this._status,
         EscrowStatus.DISPUTED,
@@ -191,14 +186,9 @@ class Escrow extends AggregateRoot<EscrowId> {
     // this.addDomainEvent(new EscrowDisputedEvent(this));
   }
 
-  /**
-   * Checks if escrow hold period has expired (current time > holdUntil).
-   * Used by scheduled job to auto-release funds to worker after hold period.
-   * @returns true if funds can be auto-released to worker
-   */
   isHoldExpired(): boolean {
     return (
-      this._status === EscrowStatus.HELD &&
+      this._status === EscrowStatus.COMPLETED_PENDING_PAYOUT &&
       this._holdUntil !== null &&
       new Date() > this._holdUntil
     );
@@ -225,6 +215,9 @@ class Escrow extends AggregateRoot<EscrowId> {
   }
   get refundedAt(): Date | null {
     return this._refundedAt;
+  }
+  get completedAt(): Date | null {
+    return this._completedAt;
   }
 }
 
