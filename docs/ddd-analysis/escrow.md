@@ -64,6 +64,7 @@ Manages payment escrow for errand completion: funds are held when a client accep
 **Business logic in service**:
 
 - `acceptApplicationAndFundEscrow` (line 58-168) is a 110-line god method orchestrating:
+
   1. Fetch application + errand + client + payment method (data access)
   2. Validate business rules (errand status, application status, payment method verified)
   3. Calculate amounts (domain logic)
@@ -106,10 +107,11 @@ infrastructure/
 **Command/Event patterns** (critical for decoupling):
 
 1. **Replace direct method calls with events**:
+
    - Current: `ErrandsResolver.markErrandCompleted` → `EscrowService.markErrandCompleted` (direct call).
    - Proposed: `ErrandsResolver` → `CompleteErrandCommandHandler` → emits `ErrandCompleted` event → `EscrowEventHandler` listens and releases escrow.
-
 2. **Accept application as a Saga**:
+
    - Current: `acceptApplicationAndFundEscrow` orchestrates 7 steps inline (lines 58-168).
    - Proposed: Use NestJS CQRS Saga or event-driven process manager:
      ```
@@ -121,8 +123,8 @@ infrastructure/
          → Create wallet transaction (WalletDebitedEvent)
      ```
    - Each step is idempotent with compensation logic (e.g., if escrow creation fails after payment, auto-refund).
-
 3. **Retry / Dead Letter**:
+
    - Payment gateway calls (line 148: `paymentGatewayService.chargeAuthorization`) can fail (network timeout, gateway down).
    - No retry logic — failure throws exception, client sees error.
    - Recommendation: Queue `ChargePendingEscrow` command to BullMQ, retry 3x with exponential backoff, send to dead-letter queue if all fail.
@@ -222,13 +224,14 @@ src/escrow/
 ### Aggregate Boundary Violations
 
 1. **EscrowService directly mutates Errand.status**
+
    - **Evidence**: `src/errands/errands.service.ts` (lines 198, 1799, 1941) calls `prisma.errand.update({ data: { status } })` directly.
    - **Schema gap**: `Escrow.errand` relation has no protection against direct updates from other modules.
    - **Impact**: Errand status can change without Errand aggregate's validation (e.g., cannot complete if not assigned).
    - **Fix priority**: PHASE 1 — replace with event: `EscrowReleased` → `ErrandEventHandler.updateStatus()`.
    - **Migration notes**: No schema change needed (code-only refactoring). Risk: MEDIUM (need saga to coordinate Errand + Escrow state changes).
-
 2. **EscrowService directly mutates Application.status**
+
    - **Evidence**: `EscrowService.acceptApplicationAndFundEscrow` (line ~90 in escrow.service.ts) updates application.status.
    - **Schema gap**: No cascade or constraint preventing this.
    - **Impact**: Application acceptance bypasses Application aggregate invariants.
@@ -237,6 +240,7 @@ src/escrow/
 ### Dangling Reference Risks
 
 1. **Escrow.errandId → Errand (Financial audit trail at risk)**
+
    - **Schema**: No cascade rule (`Escrow.errand` relation missing `onDelete`).
    - **Bug**: If errand deleted (admin cleanup or future soft-delete), escrow record becomes orphaned — cannot trace payment back to job.
    - **Impact**: **HIGH** — audit compliance violation (financial records must be traceable).
@@ -250,14 +254,14 @@ src/escrow/
    - **Migration**: `npx prisma db push` (additive, no backfill needed).
    - **Rollback**: Safe (can remove constraint if breaks admin features).
    - **Priority**: PHASE 1 (before errand deletion feature is built).
-
 2. **Escrow.clientId → Client**
+
    - **Schema**: No cascade rule.
    - **Bug**: Deleting client orphans all their escrows.
    - **Impact**: MEDIUM (client deletion unlikely, but user account deletion might be needed for GDPR).
    - **Fix**: Add `onDelete: Restrict` (prevent client deletion if escrows exist).
-
 3. **Escrow.workerId → Provider**
+
    - **Schema**: No cascade rule.
    - **Bug**: Deleting provider orphans all their escrows.
    - **Impact**: MEDIUM (same as client).
@@ -283,15 +287,15 @@ src/escrow/
 **Phase 1 changes for Escrow**:
 
 1. **Add cascade constraints** (errandId, clientId, workerId):
+
    - Migration: `npx prisma db push`
    - Rollback: Safe (remove constraints)
    - Risk: LOW
-
 2. **Extract Escrow aggregate + events** (code-only):
+
    - Migration: Code deployment
    - Rollback: Code revert
    - Risk: MEDIUM (need dual-write during transition if using feature flags)
-
 3. **No backfill scripts needed** (no data migration).
 
 **Risk revised from MEDIUM-HIGH to MEDIUM**: Schema analysis shows no complex migrations needed (only additive constraints). Main risk is event-driven refactoring coordination with Errands/Application modules.

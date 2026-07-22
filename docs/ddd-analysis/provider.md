@@ -39,10 +39,11 @@ Manages provider (worker) discovery and profile enrichment:
 **Aggregate boundaries**:
 
 - **Option 1: Provider as part of User aggregate**:
+
   - `User` aggregate owns `Provider` as a child entity (like `Client`).
   - Benefits: Keeps all user identity data in one place.
-
 - **Option 2: Provider as separate aggregate**:
+
   - `Provider` is its own aggregate root with `userId` as a value object reference.
   - Benefits: Decouples worker-specific logic from generic user profile.
 
@@ -104,12 +105,13 @@ infrastructure/
 **Command/Event patterns**:
 
 1. **ProviderProfileUpdated event**:
+
    - When provider updates skills, bio, or profile, emit event.
    - Listeners:
      - Recommendation engine reindexes provider.
      - Notification sends "profile verified" message if bio passes moderation.
-
 2. **ProviderRatingChanged event**:
+
    - When a new rating is submitted, emit event.
    - Listeners:
      - Provider service updates cached average rating (denormalized field).
@@ -118,6 +120,7 @@ infrastructure/
 **Aggregator**:
 
 - `getProviders` (line 66-150) aggregates data from multiple sources:
+
   - Trusted providers (from TrustedCircle).
   - New providers (sorted by user.createdAt).
   - Popular providers (grouped by errand completion count).
