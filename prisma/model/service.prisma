@@ -5,7 +5,7 @@ enum ServiceCategoryType {
 }
 
 model ServiceCategory {
-  id       String              @id @default(auto()) @map("_id") @db.ObjectId
+  id       String               @id @default(uuid()) @map("_id")
   name     String              @unique
   type     ServiceCategoryType
   services Service[]
@@ -14,10 +14,10 @@ model ServiceCategory {
 }
 
 model Service {
-  id         String              @id @default(auto()) @map("_id") @db.ObjectId
+  id         String               @id @default(uuid()) @map("_id")
   name       String              @unique
   type       ServiceCategoryType
-  categoryId String              @db.ObjectId
+  categoryId String              
   category   ServiceCategory     @relation(fields: [categoryId], references: [id])
   providers    ServicesOnProviders[]
   errands    Errand[]
@@ -27,9 +27,9 @@ model Service {
 }
 
 model ServicesOnProviders {
-  id        String @id @default(auto()) @map("_id") @db.ObjectId
-  serviceId String @db.ObjectId
-  providerId  String @db.ObjectId
+  id        String  @id @default(uuid()) @map("_id")
+  serviceId String 
+  providerId  String 
 
   service Service @relation(fields: [serviceId], references: [id])
   provider  Provider  @relation(fields: [providerId], references: [id])

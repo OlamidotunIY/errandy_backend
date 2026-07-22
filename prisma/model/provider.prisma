@@ -1,5 +1,5 @@
 model Provider {
-    id           String        @id @default(auto()) @map("_id") @db.ObjectId
+    id           String         @id @default(uuid()) @map("_id")
     providerType ProviderType?
     userId       String        @unique
 

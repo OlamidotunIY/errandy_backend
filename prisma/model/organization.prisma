@@ -1,9 +1,9 @@
 model Organization {
-  id        String @id @default(auto()) @map("_id") @db.ObjectId
+  id        String  @id @default(uuid()) @map("_id")
   name      String
   type      OrgType // CLIENT, PROVIDER, BOTH
   createdAt DateTime @default(now())
-  ownerId   String @db.ObjectId
+  ownerId   String 
 
   owner     Provider @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
@@ -14,9 +14,9 @@ model Organization {
 }
 
 model OrgMember {
-  id      String @id @default(auto()) @map("_id") @db.ObjectId
-  orgId   String @db.ObjectId
-  userId  String @db.ObjectId
+  id      String  @id @default(uuid()) @map("_id")
+  orgId   String 
+  userId  String 
   role    OrgRole @default(MEMBER)
   active  Boolean @default(true)
 

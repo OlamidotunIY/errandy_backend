@@ -1,5 +1,5 @@
 model WebhookEvent {
-    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    id        String    @id @default(uuid()) @map("_id")
     eventId   String   @unique
     provider  String // paystack
     eventType String // refund.processed, refund.failed

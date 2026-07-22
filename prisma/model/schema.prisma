@@ -8,7 +8,7 @@ datasource db {
 }
 
 model User {
-  id                  String             @id @map("_id")
+  id                  String              @id @default(uuid()) @map("_id")
   name                String
   email               String
   emailVerified       Boolean
@@ -29,14 +29,14 @@ model User {
   activeRole          UserRole?
 
   // Active address reference
-  activeAddressId String?      @db.ObjectId
+  activeAddressId String?      
   activeAddress   UserAddress? @relation("ActiveAddress", fields: [activeAddressId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   provider          Provider?
   client            Client?
   paystackCustomers PaystackCustomer?
 
-  chatRoomIds String[]   @db.ObjectId
+  chatRoomIds String[]   
   chatRooms   ChatRoom[] @relation(fields: [chatRoomIds], references: [id])
   orgMemberships OrgMember[]
 
@@ -46,7 +46,7 @@ model User {
 }
 
 model UserAddress {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  id        String    @id @default(uuid()) @map("_id")
   userId    String
   label     String
   address   String
@@ -64,7 +64,7 @@ model UserAddress {
 }
 
 model Session {
-  id        String   @id @map("_id")
+  id        String    @id @default(uuid()) @map("_id")
   expiresAt DateTime
   token     String
   createdAt DateTime
@@ -79,7 +79,7 @@ model Session {
 }
 
 model Account {
-  id                    String    @id @map("_id")
+  id                    String     @id @default(uuid()) @map("_id")
   accountId             String
   providerId            String
   userId                String
@@ -98,7 +98,7 @@ model Account {
 }
 
 model TwoFactor {
-  id          String @id @map("_id")
+  id          String  @id @default(uuid()) @map("_id")
   secret      String
   backupCodes String
   userId      String

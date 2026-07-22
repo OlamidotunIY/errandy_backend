@@ -1,8 +1,8 @@
 model Escrow {
     id              String       @id @default(uuid()) @map("_id")
-    errandId        String       @unique @db.ObjectId
-    clientId        String       @db.ObjectId
-    workerId        String       @db.ObjectId
+    errandId        String      @unique
+    clientId        String
+    workerId        String
     // Stored in minor units (kobo)
     amountGross     Int
     platformFee     Int

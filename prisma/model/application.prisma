@@ -1,7 +1,7 @@
 model Application {
-    id       String @id @default(auto()) @map("_id") @db.ObjectId
-    errandId String @db.ObjectId
-    workerId String @db.ObjectId
+    id       String  @id @default(uuid()) @map("_id")
+    errandId String
+    workerId String 
 
     status     AppStatus @default(PENDING)
     acceptedAt DateTime?

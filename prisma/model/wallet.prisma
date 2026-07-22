@@ -1,6 +1,6 @@
 model Wallet {
-    id        String   @id @default(auto()) @map("_id") @db.ObjectId
-    ownerId   String   @db.ObjectId
+    id        String    @id @default(uuid()) @map("_id")
+    ownerId   String   
     ownerType UserRole // CLIENT | PROVIDER
     // Stored in minor units (kobo) to avoid Float/Decimal issues on Mongo connector
     available Int      @default(0) // Can withdraw (kobo)
@@ -14,10 +14,10 @@ model Wallet {
 }
 
 model Transaction {
-    id        String   @id @default(auto()) @map("_id") @db.ObjectId
-    ownerId   String   @db.ObjectId
+    id        String    @id @default(uuid()) @map("_id")
+    ownerId   String   
     ownerType UserRole
-    errandId  String?  @db.ObjectId
+    errandId  String?  
     // Stored in minor units (kobo)
     amount    Int
     type      TxType

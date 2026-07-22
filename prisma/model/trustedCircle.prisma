@@ -1,6 +1,6 @@
 model TrustedCircle {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  clientId  String   @db.ObjectId
+  id        String    @id @default(uuid()) @map("_id")
+  clientId  String   
   name      String? // e.g. "Family Helpers"
   createdAt DateTime @default(now())
 
@@ -11,9 +11,9 @@ model TrustedCircle {
 }
 
 model TrustedCircleMember {
-  id              String       @id @default(auto()) @map("_id") @db.ObjectId
-  trustedCircleId String       @db.ObjectId
-  providerId      String       @db.ObjectId
+  id              String        @id @default(uuid()) @map("_id")
+  trustedCircleId String       
+  providerId      String       
   addedAt         DateTime     @default(now())
   source          CircleSource @default(COMPLETED_TASK)
 

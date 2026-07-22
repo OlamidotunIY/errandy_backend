@@ -1,6 +1,6 @@
 model Errand {
-    id                     String        @id @default(auto()) @map("_id") @db.ObjectId
-    clientId               String        @db.ObjectId
+    id                     String       @id @default(uuid()) @map("_id")
+    clientId               String        
     title                  String
     description            String?
     pricingType            PricingType   @default(FIXED)
@@ -10,8 +10,8 @@ model Errand {
     materialsBudget        Float?
     status                 ErrandStatus? @default(DRAFT)
     providerType           ProviderType?
-    serviceId              String?       @db.ObjectId
-    assignedTo             String?       @db.ObjectId
+    serviceId              String?       
+    assignedTo             String?       
     assignedAt             DateTime?
     completionDurationDays Int? // e.g. 10
     completionDeadline     DateTime? // computed AFTER assignment
@@ -20,11 +20,11 @@ model Errand {
     sourceType     ErrandSourceType @default(CLIENT_JOB)
 
     // Snapshot of provider org (for listings)
-    providerOrgId  String?          @db.ObjectId
+    providerOrgId  String?          
 
     serviceAddress String?
     location       Json?
-    templateId     String?  @db.ObjectId
+    templateId     String?  
     isRecurring    Boolean  @default(false)
     createdAt      DateTime @default(now())
     updatedAt      DateTime @updatedAt
@@ -41,9 +41,9 @@ model Errand {
 }
 
 model SavedErrand {
-    id       String   @id @default(auto()) @map("_id") @db.ObjectId
+    id       String    @id @default(uuid()) @map("_id")
     userId   String
-    errandId String   @db.ObjectId
+    errandId String
     savedAt  DateTime @default(now())
 
     // Relation
@@ -53,7 +53,7 @@ model SavedErrand {
 }
 
 model ErrandBundle {
-    id          String  @id @default(auto()) @map("_id") @db.ObjectId
+    id          String   @id @default(uuid()) @map("_id")
     name        String
     description String
     basePrice   Float
@@ -65,9 +65,9 @@ model ErrandBundle {
 }
 
 model BundleItem {
-    id         String @id @default(auto()) @map("_id") @db.ObjectId
-    bundleId   String @db.ObjectId
-    templateId String @db.ObjectId
+    id         String  @id @default(uuid()) @map("_id")
+    bundleId   String 
+    templateId String 
 
     bundle   ErrandBundle   @relation(fields: [bundleId], references: [id])
     template ErrandTemplate @relation(fields: [templateId], references: [id])
@@ -76,7 +76,7 @@ model BundleItem {
 }
 
 model ErrandTemplate {
-    id String @id @default(auto()) @map("_id") @db.ObjectId
+    id String  @id @default(uuid()) @map("_id")
 
     title       String
     description String?
@@ -84,14 +84,14 @@ model ErrandTemplate {
     price       Float?
     hourlyRate  Float?
 
-    serviceId    String?       @db.ObjectId
+    serviceId    String?       
     providerType ProviderType?
 
     serviceAddress String?
     location       Json?
 
     // Listing ownership
-    providerOrgId String? @db.ObjectId
+    providerOrgId String? 
 
     // Listing state
     publishState ListingPublishState @default(DRAFT)
@@ -113,14 +113,14 @@ model ErrandTemplate {
 }
 
 model ErrandAssignment {
-  id       String @id @default(auto()) @map("_id") @db.ObjectId
-  errandId String @db.ObjectId
+  id       String  @id @default(uuid()) @map("_id")
+  errandId String 
 
   // who is responsible at org level
-  providerOrgId  String @db.ObjectId
+  providerOrgId  String 
 
   // optional: specific members assigned
-  workerId String? @db.ObjectId
+  workerId String? 
 
   role AssignmentRole @default(MEMBER)
   status AssignmentStatus @default(ASSIGNED)
@@ -134,11 +134,11 @@ model ErrandAssignment {
 }
 
 model RecurringContract {
-  id String @id @default(auto()) @map("_id") @db.ObjectId
+  id String  @id @default(uuid()) @map("_id")
 
-  clientId      String @db.ObjectId
-  providerOrgId String @db.ObjectId
-  templateId    String @db.ObjectId
+  clientId      String 
+  providerOrgId String 
+  templateId    String 
 
   frequency RecurrenceFrequency
   nextRunAt DateTime

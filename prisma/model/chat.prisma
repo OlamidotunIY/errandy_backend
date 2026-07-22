@@ -1,12 +1,12 @@
 model ChatRoom {
-    id             String   @id @default(auto()) @map("_id") @db.ObjectId
+    id             String    @id @default(uuid()) @map("_id")
     participantIds String[] // array of user IDs
     participants   User[]   @relation(fields: [participantIds], references: [id])
     roomKey        String?  @unique
 
     unreadCount Int @default(0)
 
-    lastMessageId String?  @unique @db.ObjectId
+    lastMessageId String?  @unique 
     lastMessage   Message? @relation("LastMessage", fields: [lastMessageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
     messages Message[] @relation("RoomMessages")
@@ -18,8 +18,8 @@ model ChatRoom {
 }
 
 model Message {
-    id       String @id @default(auto()) @map("_id") @db.ObjectId
-    roomId   String @db.ObjectId
+    id       String  @id @default(uuid()) @map("_id")
+    roomId   String 
     senderId String
 
     content    String?
@@ -49,8 +49,8 @@ model Message {
 }
 
 model Reaction {
-    id        String  @id @default(auto()) @map("_id") @db.ObjectId
-    messageId String  @db.ObjectId
+    id        String   @id @default(uuid()) @map("_id")
+    messageId String  
     userId    String
     emoji     String // e.g. "👍", "❤️", etc.
     Message   Message @relation(fields: [messageId], references: [id])

@@ -1,5 +1,5 @@
 model Client {
-    id     String @id @default(auto()) @map("_id") @db.ObjectId
+    id     String  @id @default(uuid()) @map("_id")
     userId String @unique
 
     paymentMethods     PaymentMethod[]

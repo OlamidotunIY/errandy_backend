@@ -4,11 +4,11 @@ enum RateeType {
 }
 
 model Rating {
-    id        String    @id @default(auto()) @map("_id") @db.ObjectId
-    raterId   String    @db.ObjectId
-    rateeId   String    @db.ObjectId
+    id        String     @id @default(uuid()) @map("_id")
+    raterId   String    
+    rateeId   String    
     rateeType RateeType
-    errandId  String?   @db.ObjectId
+    errandId  String?   
     rating    Int
     comment   String?
     createdAt DateTime  @default(now())
@@ -24,9 +24,9 @@ model Rating {
 }
 
 model RatingReaction {
-    id        String   @id @default(auto()) @map("_id") @db.ObjectId
-    ratingId  String   @db.ObjectId
-    userId    String   @db.ObjectId
+    id        String    @id @default(uuid()) @map("_id")
+    ratingId  String   
+    userId    String   
     emoji     String // e.g. "👍", "❤️", "😊"
     createdAt DateTime @default(now())
 
@@ -37,9 +37,9 @@ model RatingReaction {
 }
 
 model RatingReply {
-    id        String   @id @default(auto()) @map("_id") @db.ObjectId
-    ratingId  String   @db.ObjectId
-    userId    String   @db.ObjectId
+    id        String    @id @default(uuid()) @map("_id")
+    ratingId  String   
+    userId    String   
     content   String
     createdAt DateTime @default(now())
 

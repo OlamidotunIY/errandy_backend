@@ -1,6 +1,6 @@
 model PaymentMethod {
-    id     String @id @default(auto()) @map("_id") @db.ObjectId
-    userId String @db.ObjectId
+    id     String  @id @default(uuid()) @map("_id")
+    userId String 
     client Client @relation(fields: [userId], references: [id])
 
     provider    String // "paystack", "stripe", "paypal", "adyen"
@@ -21,7 +21,7 @@ model PaymentMethod {
 }
 
 model PaystackCustomer {
-    id String @id @default(auto()) @map("_id") @db.ObjectId
+    id String  @id @default(uuid()) @map("_id")
     customer_code String
     customer_id String
 

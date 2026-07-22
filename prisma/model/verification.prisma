@@ -1,8 +1,8 @@
 model ProviderVerification {
-    id         String             @id @map("_id")
+    id         String              @id @default(uuid()) @map("_id")
     identifier String
     value      String
-    providerId String             @db.ObjectId
+    providerId String             
     type       VerificationType
     status     VerificationStatus
     metadata   Json?
