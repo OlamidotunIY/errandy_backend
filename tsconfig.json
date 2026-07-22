@@ -9,13 +9,26 @@
     "target": "ES2023",
     "sourceMap": true,
     "outDir": "./dist",
-    "baseUrl": "./",
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": true,
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": false,
     "strictBindCallApply": false,
-    "noFallthroughCasesInSwitch": false
+    "noFallthroughCasesInSwitch": false,
+    "ignoreDeprecations": "6.0",
+    "baseUrl": ".",
+    "paths": {
+      "@escrow": ["src/escrow"],
+      "@escrow/*": ["src/escrow/*"],
+      "@errands": ["src/errands"],
+      "@errands/*": ["src/errands/*"],
+      "@client": ["src/client"],
+      "@client/*": ["src/client/*"],
+      "@provider": ["src/provider"],
+      "@provider/*": ["src/provider/*"],
+      "@payments": ["src/payment-gateway"],
+      "@payments/*": ["src/payment-gateway/*"],
+    }
   }
 }
