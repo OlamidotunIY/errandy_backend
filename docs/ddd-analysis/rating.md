@@ -224,7 +224,216 @@ src/rating/
       RatingStatsType.ts
 ```
 
-## 10. Migration Risk & Priority
+---
+
+## 10. Schema Findings
+
+**Context**: Analysis of `prisma/model/rating.prisma`.
+
+### Aggregate Boundary Violations
+
+**None found for Rating aggregate** — no other modules directly mutate Rating fields. Rating aggregate integrity is intact at schema level.
+
+**Note**: RatingService creates ratings, but this is appropriate (Rating is the entry point for rating creation).
+
+### Dangling Reference Risks
+
+1. **Rating.errandId → Errand** (MEDIUM)
+   - **Schema**: No cascade rule.
+   - **Bug**: Deleting errand orphans all ratings for that errand.
+   - **Impact**: MEDIUM — cannot link rating to originating job context, but rating itself remains useful (attached to provider/client profile).
+   - **Current cleanup**: None (errand deletion not implemented yet).
+   - **Fix**: Add `onDelete: SetNull` (preserve rating for provider/client profile, but clear errand link).
+   - **Justification**: Ratings are valuable historical data for provider/client reputation even after errand deleted.
+   - **Schema change**:
+     ```prisma
+     model Rating {
+       errand Errand? @relation(fields: [errandId], references: [id], onDelete: SetNull)
+     }
+     ```
+   - **Migration**: `npx prisma db push` (additive).
+   - **Rollback**: Safe (remove cascade rule).
+   - **Priority**: PHASE 2 (before errand deletion feature).
+
+2. **Rating.rateeId → Provider OR Client** (polymorphic reference)
+   - **Schema**: `rateeId` with `rateeType` enum (polymorphic), no formal relation, so no cascade possible.
+   - **Bug**: Deleting provider/client leaves dangling `rateeId`.
+   - **Impact**: MEDIUM — cannot resolve rated entity in GraphQL queries.
+   - **Current cleanup**: None.
+   - **Fix**: Add event handlers:
+     - `ProviderDeleted` → nullify all `Rating.rateeId` where `rateeType = PROVIDER` and `rateeId = deletedId`.
+     - `ClientDeleted` → nullify all `Rating.rateeId` where `rateeType = CLIENT` and `rateeId = deletedId`.
+   - **Alternative**: Soft-delete provider/client instead (set `isDeleted = true`), preserve ratings.
+   - **Recommendation**: Soft-delete approach (preserve rating data for platform statistics).
+   - **Priority**: PHASE 2 (defer until provider/client deletion implemented).
+
+3. **Rating.raterId → Provider OR Client** (polymorphic reference)
+   - **Schema**: Similar to rateeId (polymorphic, no formal relation).
+   - **Bug**: Deleting rater leaves dangling `raterId`.
+   - **Impact**: LOW — can still display rating, just cannot link back to rater profile.
+   - **Fix**: Same event handlers as rateeId (nullify on deletion).
+   - **Recommendation**: Soft-delete approach.
+   - **Priority**: PHASE 2.
+
+4. **RatingReply.userId → User**
+   - **Schema**: No cascade rule.
+   - **Bug**: Deleting user orphans all rating replies from that user.
+   - **Impact**: LOW — reply text remains, just cannot link to user profile.
+   - **Fix**: Add `onDelete: SetNull` OR cascade delete replies.
+   - **Recommendation**: `onDelete: SetNull` (preserve reply content).
+   - **Priority**: PHASE 2.
+
+5. **RatingReaction.userId → User**
+   - **Schema**: No cascade rule.
+   - **Bug**: Deleting user orphans all rating reactions from that user.
+   - **Impact**: LOW — reaction emoji remains, just cannot link to user.
+   - **Fix**: Add `onDelete: Cascade` (remove reaction on user deletion).
+   - **Recommendation**: Cascade (reactions have no value without user context).
+   - **Priority**: PHASE 2.
+
+### Missing Indexes
+
+**Critical indexes MISSING** (HIGH priority):
+
+1. **Rating.errandId** (HIGH for query performance)
+   - **Query pattern**: `RatingService.getErrandRatings` (line ~80) queries `where: { errandId }`.
+   - **Impact**: Full collection scan when fetching ratings for an errand (common query).
+   - **Fix**: Add `@@index([errandId])`.
+   - **Priority**: **PHASE 2** (HIGH).
+
+2. **Rating.rateeId + rateeType** (CRITICAL for provider/client profile queries)
+   - **Query pattern**: Provider/Client profile showing "Ratings I received" — queries `where: { rateeId, rateeType }`.
+   - **Impact**: Full collection scan when fetching ratings for a provider/client (CRITICAL for profile page performance).
+   - **Fix**: Add compound index `@@index([rateeId, rateeType])`.
+   - **Priority**: **PHASE 2** (CRITICAL).
+
+3. **Rating.raterId + raterType** (MEDIUM for "Ratings I gave" queries)
+   - **Query pattern**: User profile showing "Ratings I gave" — queries `where: { raterId, raterType }`.
+   - **Impact**: Full collection scan.
+   - **Fix**: Add compound index `@@index([raterId, raterType])`.
+   - **Priority**: PHASE 2.
+
+4. **Rating.createdAt** (LOW for sorting)
+   - **Query pattern**: Sorting ratings by date (`orderBy: { createdAt: 'desc' }`).
+   - **Impact**: Inefficient sorting on large datasets.
+   - **Fix**: Add `@@index([createdAt])`.
+   - **Priority**: PHASE 3 (optimization).
+
+**Schema changes needed**:
+
+```prisma
+model Rating {
+  // ... existing fields ...
+
+  @@index([errandId])
+  @@index([rateeId, rateeType])
+  @@index([raterId, raterType])
+  @@index([createdAt])
+  @@map("ratings")
+}
+```
+
+**Migration**: `npx prisma db push` (additive, no backfill).
+**Rollback**: Safe (drop indexes).
+
+### Embed vs. Reference Decisions
+
+**Denormalization proposal: Add averageRating and ratingCount to Provider/Client models**:
+
+1. **Current**: Every provider/client profile query must aggregate ratings in real-time.
+   - **Query**: `db.ratings.aggregate([{ $match: { rateeId, rateeType } }, { $group: { _id: null, avg: { $avg: '$score' } } }])`
+   - **Impact**: Slow profile page load (N+1 if loading multiple providers).
+
+2. **Proposal**: Add denormalized fields to Provider and Client models:
+
+   ```prisma
+   model Provider {
+     averageRating Float?
+     ratingCount   Int @default(0)
+   }
+
+   model Client {
+     averageRating Float?
+     ratingCount   Int @default(0)
+   }
+   ```
+
+3. **Implementation**:
+   - Event handler: `OnRatingCreatedUpdateStats` listens to `RatingCreated` event.
+   - Recalculate average: `(currentAvg * currentCount + newScore) / (currentCount + 1)`.
+   - Increment count: `currentCount + 1`.
+   - Update Provider/Client record.
+
+4. **Migration**:
+   - Add columns: `npx prisma db push`.
+   - Backfill script:
+     ```typescript
+     // scripts/backfill-rating-stats.ts
+     async function backfillRatingStats() {
+       const providers = await prisma.provider.findMany();
+       for (const provider of providers) {
+         const ratings = await prisma.rating.findMany({
+           where: { rateeId: provider.id, rateeType: 'PROVIDER' },
+         });
+         const avg =
+           ratings.reduce((sum, r) => sum + r.score, 0) / ratings.length;
+         await prisma.provider.update({
+           where: { id: provider.id },
+           data: { averageRating: avg || null, ratingCount: ratings.length },
+         });
+       }
+       // Repeat for clients...
+     }
+     ```
+   - Rollback: Drop columns (safe).
+   - Risk: MEDIUM (need event listener with retry/dead-letter queue for partial failure recovery).
+
+5. **Priority**: PHASE 2 (performance optimization for provider/client discovery).
+
+### Migration / Rollback Strategy
+
+**Phase 2 changes for Rating**:
+
+1. **Add cascade rules** (5 dangling-reference fixes):
+   - `Rating.errandId` → `onDelete: SetNull`
+   - `RatingReply.userId` → `onDelete: SetNull`
+   - `RatingReaction.userId` → `onDelete: Cascade`
+   - Migration: `npx prisma db push`.
+   - Rollback: Safe (remove cascade rules).
+   - Risk: LOW.
+
+2. **Add indexes** (4 missing indexes):
+   - Migration: `npx prisma db push`.
+   - Rollback: Safe (drop indexes).
+   - Risk: LOW.
+
+3. **Add event handlers for polymorphic deletions** (Rating.rateeId, Rating.raterId):
+   - Migration: Code deployment.
+   - Rollback: Code revert.
+   - Risk: LOW.
+
+4. **Add denormalized rating stats** (Provider/Client.averageRating, ratingCount):
+   - Schema change: Add columns.
+   - Backfill: Run `scripts/backfill-rating-stats.ts`.
+   - Event listener: Deploy `OnRatingCreatedUpdateStats` handler.
+   - Migration: Schema + backfill + code.
+   - Rollback: Code revert + drop columns (backfill cannot be rolled back, but safe).
+   - Risk: MEDIUM (event listener must handle partial failures).
+
+5. **Extract Rating aggregate** (code-only):
+   - Create `Rating.addReaction()`, `Rating.addReply()` methods.
+   - Emit events: `RatingCreated`, `RatingUpdated`.
+   - Migration: Code deployment.
+   - Rollback: Code revert.
+   - Risk: LOW (Rating is isolated module, minimal cross-module dependencies).
+
+**Risk revised from LOW-MEDIUM to LOW-MEDIUM**: Schema changes are low-risk (additive). Main risk is denormalization event listener (MEDIUM) due to partial failure handling.
+
+**Mitigation**: Add indexes first (Phase 2 start), implement denormalization later (Phase 2 end) after event infrastructure proven stable.
+
+---
+
+## 11. Migration Risk & Priority
 
 **Risk**: **LOW-MEDIUM**
 

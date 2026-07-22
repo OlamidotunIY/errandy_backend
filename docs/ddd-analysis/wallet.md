@@ -228,7 +228,103 @@ src/wallet/
       TransactionType.ts
 ```
 
-## 10. Migration Risk & Priority
+---
+
+## 10. Schema Findings
+
+**Context**: Analysis of `prisma/model/wallet.prisma` and cross-module references.
+
+### Aggregate Boundary Violations
+
+1. **EscrowService creates Transactions directly**
+   - **Evidence**: `src/escrow/escrow.service.ts` (~line 150) calls `prisma.transaction.create()` directly (creates `ESCROW_HOLD` transactions).
+   - **Schema gap**: `Transaction` model has no ownership constraint enforcing that only Wallet module can create transactions.
+   - **Impact**: **CRITICAL** — wallet balance can become inconsistent if transactions created outside Wallet aggregate (no invariant enforcement: balance = SUM(transactions)).
+   - **Fix priority**: PHASE 1 — `EscrowFunded` event → `WalletEventHandler.holdFunds()` → creates transaction.
+   - **Migration notes**: Requires dual-write during transition (emit events AND create transaction directly) to ensure no data loss during rollout.
+
+2. **PaymentGatewayService updates Wallet.available directly**
+   - **Evidence**: `src/payment-gateway/payment-gateway.service.ts` (line 180) calls `prisma.wallet.update({ data: { available: { increment } } })` directly.
+   - **Schema gap**: No constraint preventing direct wallet mutations.
+   - **Impact**: **CRITICAL** — balance updates bypass Wallet aggregate's invariants (available >= 0, ledger immutability).
+   - **Fix priority**: PHASE 1 — `RefundFailed` event → `WalletEventHandler.creditRefund()`.
+
+### Dangling Reference Risks
+
+1. **Transaction.errandId → Errand (Financial audit trail at risk)**
+   - **Schema**: `Transaction.errandId` is nullable `String? @db.ObjectId`, no cascade rule.
+   - **Bug**: If errand deleted, all wallet transactions for that errand become orphaned — **cannot trace payment back to job**.
+   - **Impact**: **CRITICAL** — audit compliance violation (financial records must link to originating transaction).
+   - **Current cleanup**: None.
+   - **Fix**: Add constraint to Errand schema (prevent errand deletion if transactions exist):
+     ```prisma
+     // In errand.prisma, add this check via code (Prisma doesn't support FK checks on nullable fields)
+     // Or add event handler: ErrandDeleting → check if transactions exist → reject if found
+     ```
+   - **Alternative**: Use `onDelete: SetNull` to preserve transaction but clear errand link (acceptable for audit — transaction still shows amount/date).
+   - **Migration**: Code-level check (no Prisma schema change possible for nullable FK).
+   - **Priority**: PHASE 1 (before errand deletion feature built).
+
+2. **Transaction.ownerId → Client/Provider (polymorphic relation risk)**
+   - **Schema**: `Transaction.ownerId` + `ownerType` enum (CLIENT | PROVIDER) — polymorphic relation, no cascade rules.
+   - **Bug**: Deleting client or provider orphans all their transactions.
+   - **Impact**: **CRITICAL** — financial audit trail broken (cannot show user's payment history).
+   - **Current cleanup**: None.
+   - **Fix**: Add code-level check (prevent user deletion if wallet transactions exist) OR soft-delete users (mark inactive, preserve data).
+   - **Priority**: PHASE 1 (coordinate with Users module — user deletion feature).
+
+### Missing Indexes
+
+**All critical indexes already present** (analysis confirmed):
+
+- `@@unique([ownerId, ownerType])` on Wallet ✅
+- `@@index([ownerId, ownerType])` on Transaction ✅
+- `@@index([errandId])` on Transaction ✅
+- `@@unique([reference])` on Transaction ✅
+
+**No additional indexes needed** — Wallet/Transaction queries covered.
+
+### Embed vs. Reference Decisions
+
+**Not applicable** — Wallet has no denormalization proposals. Wallet balance is computed from transaction ledger (event sourcing pattern — rebuild from log).
+
+**Note on balance integrity**:
+
+- Current schema stores `Wallet.available` and `Wallet.held` as denormalized fields (updated on each transaction).
+- **Risk**: If transaction creation succeeds but wallet update fails, balance becomes inconsistent.
+- **Alternative**: Remove `available`/`held` fields, compute balance from `SUM(transactions)` on-demand.
+- **Tradeoff**: Read performance vs. consistency.
+- **Decision**: Keep current approach (denormalized balance) but add domain invariant: `Wallet.updateBalance()` method MUST be called inside same transaction as `Transaction.create()`.
+
+### Migration / Rollback Strategy
+
+**Phase 1 changes for Wallet**:
+
+1. **Add cascade protections for transactions** (code-level):
+   - Add event handler: `ErrandDeleting` → check if transactions exist → reject if found.
+   - Add event handler: `UserDeleting` → check if wallet exists → reject if found (or soft-delete user).
+   - Migration: Code deployment (no schema change).
+   - Rollback: Code revert.
+   - Risk: LOW.
+
+2. **Extract Wallet aggregate + events** (code-only):
+   - Create `Wallet.credit()`, `Wallet.debit()`, `Wallet.hold()`, `Wallet.release()` methods.
+   - Emit events: `FundsCredited`, `FundsDebited`, `FundsHeld`, `FundsReleased`.
+   - Migration: Code deployment.
+   - Rollback: Code revert.
+   - Risk: **MEDIUM** — requires dual-write during transition (emit events AND direct Prisma) to avoid breaking Escrow/Payment-Gateway.
+
+3. **No schema changes needed** (no indexes/constraints to add).
+
+4. **No backfill scripts needed** (existing wallet/transaction data is valid).
+
+**Risk revised from LOW-MEDIUM to MEDIUM**: Dual-write complexity for coordinating Wallet aggregate with Escrow/Payment-Gateway makes this moderately risky. Requires feature flag + gradual rollout.
+
+**Mitigation**: Use BullMQ queue for wallet operations (retry on failure) + monitoring (alert if transaction created but balance not updated).
+
+---
+
+## 11. Migration Risk & Priority
 
 **Risk**: **LOW-MEDIUM**
 

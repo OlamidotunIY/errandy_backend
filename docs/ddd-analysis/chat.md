@@ -246,7 +246,170 @@ src/chat/
       MessageType.ts
 ```
 
-## 10. Migration Risk & Priority
+---
+
+## 10. Schema Findings
+
+**Context**: Analysis of `prisma/model/chat.prisma`.
+
+### Aggregate Boundary Violations
+
+**None found for ChatRoom/Message aggregates** — no other modules directly mutate chat entities. Chat aggregate integrity is intact at schema level.
+
+### Dangling Reference Risks
+
+1. **ChatRoom.lastMessageId → Message** (CRITICAL BUG — already documented)
+   - **Schema**: `ChatRoom.lastMessage` relation has `onDelete: NoAction, onUpdate: NoAction`.
+   - **Bug**: Deleting message that is `lastMessage` leaves dangling `lastMessageId`.
+   - **Evidence**: No handler in `src/chat/chat.service.ts` to update `ChatRoom.lastMessageId` when message deleted.
+   - **Impact**: **URGENT** — GraphQL queries resolving `ChatRoom.lastMessage` will fail.
+   - **Current cleanup**: None.
+   - **Fix** (already documented in Critical Issues):
+
+     ```typescript
+     async deleteMessage(messageId: string) {
+       const message = await this.prisma.message.findUnique({ where: { id: messageId } });
+       const room = await this.prisma.chatRoom.findUnique({ where: { id: message.roomId } });
+
+       if (room.lastMessageId === messageId) {
+         const previousMessage = await this.prisma.message.findFirst({
+           where: { roomId: message.roomId, id: { not: messageId } },
+           orderBy: { createdAt: 'desc' },
+         });
+         await this.prisma.chatRoom.update({
+           where: { id: message.roomId },
+           data: { lastMessageId: previousMessage?.id || null },
+         });
+       }
+
+       await this.prisma.message.delete({ where: { id: messageId } });
+     }
+     ```
+
+   - **Backfill script** (clean production data):
+     ```typescript
+     // scripts/fix-dangling-last-messages.ts
+     async function fixDanglingLastMessages() {
+       const rooms = await prisma.chatRoom.findMany({
+         where: { lastMessageId: { not: null } },
+       });
+       for (const room of rooms) {
+         const messageExists = await prisma.message.findUnique({
+           where: { id: room.lastMessageId },
+         });
+         if (!messageExists) {
+           const latestMessage = await prisma.message.findFirst({
+             where: { roomId: room.id },
+             orderBy: { createdAt: 'desc' },
+           });
+           await prisma.chatRoom.update({
+             where: { id: room.id },
+             data: { lastMessageId: latestMessage?.id || null },
+           });
+           console.log(`Fixed dangling lastMessageId for room ${room.id}`);
+         }
+       }
+     }
+     ```
+   - **Migration**: Code deployment (fix service) + backfill script.
+   - **Rollback**: Code revert (but backfill is one-way cleanup).
+   - **Priority**: **PHASE 1 (URGENT)**.
+
+2. **Message.roomId → ChatRoom**
+   - **Schema**: `Message.room` relation has `onDelete: Cascade` ✅.
+   - **Correct**: Deleting chat room cascades to all messages in that room.
+   - **No action needed**.
+
+3. **Message.senderId → User**
+   - **Schema**: No cascade rule.
+   - **Bug**: Deleting user orphans all messages from that user.
+   - **Impact**: MEDIUM — cannot resolve sender in GraphQL queries.
+   - **Fix options**:
+     - **Option A**: Add `onDelete: SetNull` (preserve message content, mark sender as deleted).
+     - **Option B**: Soft-delete user instead.
+   - **Recommendation**: Option A (preserve chat history).
+   - **Schema change**:
+     ```prisma
+     model Message {
+       sender User? @relation(fields: [senderId], references: [id], onDelete: SetNull)
+     }
+     ```
+   - **Note**: Requires making `senderId` nullable.
+   - **Priority**: PHASE 2.
+
+4. **ChatParticipant.userId → User**
+   - **Schema**: No cascade rule.
+   - **Bug**: Deleting user orphans participant records.
+   - **Impact**: MEDIUM — chat room shows ghost participant.
+   - **Fix**: Add `onDelete: Cascade` (remove participant on user deletion).
+   - **Priority**: PHASE 2.
+
+5. **ChatParticipant.roomId → ChatRoom**
+   - **Schema**: No cascade rule specified (likely defaults to client-side handling).
+   - **Expected**: Deleting chat room should cascade to participants.
+   - **Recommendation**: Add `onDelete: Cascade` for clarity.
+   - **Priority**: PHASE 2.
+
+### Missing Indexes
+
+**All critical indexes confirmed present**:
+
+- ✅ `ChatRoom` has `@@unique([participantA, participantB])` (also functions as compound index).
+- ✅ `Message.roomId` has `@@index([roomId])`.
+- ✅ `ChatParticipant.userId` has `@@index([userId])`.
+
+**Potential optimization** (LOW priority):
+
+- `Message.createdAt` — add `@@index([createdAt])` for sorting messages by date.
+- **Impact**: Sorting large message lists (`orderBy: { createdAt: 'desc' }`) could be slow.
+- **Priority**: PHASE 3 (optimization, defer until performance issue observed).
+
+### Embed vs. Reference Decisions
+
+**ChatParticipant as separate collection** (current approach is correct):
+
+- **Decision**: Keep ChatParticipant as separate collection with references to User and ChatRoom.
+- **Justification**:
+  - Chat room can have multiple participants (1:N relation).
+  - Participants are queried independently (get all chats for user).
+  - Embedding would duplicate data.
+- **No schema change needed**.
+
+### Migration / Rollback Strategy
+
+**Phase 1 changes for Chat** (URGENT):
+
+1. **Fix deleteMessage dangling-reference bug** (code + backfill):
+   - Update `ChatService.deleteMessage` to update `ChatRoom.lastMessageId`.
+   - Run `scripts/fix-dangling-last-messages.ts` on production.
+   - Migration: Code deployment + manual backfill script run.
+   - Rollback: Code revert (but backfill is one-way cleanup).
+   - Risk: LOW (simple code change, idempotent backfill).
+
+**Phase 2 changes for Chat**:
+
+1. **Add cascade rules** (3 dangling-reference fixes):
+   - `Message.senderId` → `onDelete: SetNull` (requires making senderId nullable).
+   - `ChatParticipant.userId` → `onDelete: Cascade`.
+   - `ChatParticipant.roomId` → `onDelete: Cascade`.
+   - Migration: `npx prisma db push`.
+   - Rollback: Safe (remove cascade rules).
+   - Risk: LOW.
+
+2. **Extract ChatRoom aggregate** (code-only):
+   - Create `ChatRoom.sendMessage()`, `ChatRoom.addParticipant()` methods.
+   - Emit events: `MessageSent`, `ParticipantAdded`.
+   - Migration: Code deployment.
+   - Rollback: Code revert.
+   - Risk: MEDIUM (real-time subscriptions must continue working during migration).
+
+**Risk revised from MEDIUM to LOW-MEDIUM**: Schema changes are low-risk (1 urgent bug fix, 3 optional cascade rules). Main risk is aggregate extraction (real-time features).
+
+**Mitigation**: Fix lastMessageId bug immediately (Phase 1), defer aggregate extraction to Phase 2 after event infrastructure stable.
+
+---
+
+## 11. Migration Risk & Priority
 
 **Risk**: **MEDIUM**
 

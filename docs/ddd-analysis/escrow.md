@@ -213,7 +213,92 @@ src/escrow/
     # No resolver needed (internal domain)
 ```
 
-## 10. Migration Risk & Priority
+---
+
+## 10. Schema Findings
+
+**Context**: Analysis of `prisma/model/escrow.prisma` and cross-references from other schema files.
+
+### Aggregate Boundary Violations
+
+1. **EscrowService directly mutates Errand.status**
+   - **Evidence**: `src/errands/errands.service.ts` (lines 198, 1799, 1941) calls `prisma.errand.update({ data: { status } })` directly.
+   - **Schema gap**: `Escrow.errand` relation has no protection against direct updates from other modules.
+   - **Impact**: Errand status can change without Errand aggregate's validation (e.g., cannot complete if not assigned).
+   - **Fix priority**: PHASE 1 — replace with event: `EscrowReleased` → `ErrandEventHandler.updateStatus()`.
+   - **Migration notes**: No schema change needed (code-only refactoring). Risk: MEDIUM (need saga to coordinate Errand + Escrow state changes).
+
+2. **EscrowService directly mutates Application.status**
+   - **Evidence**: `EscrowService.acceptApplicationAndFundEscrow` (line ~90 in escrow.service.ts) updates application.status.
+   - **Schema gap**: No cascade or constraint preventing this.
+   - **Impact**: Application acceptance bypasses Application aggregate invariants.
+   - **Fix priority**: PHASE 1 — `ApplicationAcceptedEvent` → `EscrowEventHandler.fundEscrow()`.
+
+### Dangling Reference Risks
+
+1. **Escrow.errandId → Errand (Financial audit trail at risk)**
+   - **Schema**: No cascade rule (`Escrow.errand` relation missing `onDelete`).
+   - **Bug**: If errand deleted (admin cleanup or future soft-delete), escrow record becomes orphaned — cannot trace payment back to job.
+   - **Impact**: **HIGH** — audit compliance violation (financial records must be traceable).
+   - **Current cleanup**: None (errand deletion not implemented yet, but will be needed for admin tools).
+   - **Fix**: Add `onDelete: Restrict` to prevent errand deletion if escrow exists:
+     ```prisma
+     model Escrow {
+       errand Errand @relation(fields: [errandId], references: [id], onDelete: Restrict)
+     }
+     ```
+   - **Migration**: `npx prisma db push` (additive, no backfill needed).
+   - **Rollback**: Safe (can remove constraint if breaks admin features).
+   - **Priority**: PHASE 1 (before errand deletion feature is built).
+
+2. **Escrow.clientId → Client**
+   - **Schema**: No cascade rule.
+   - **Bug**: Deleting client orphans all their escrows.
+   - **Impact**: MEDIUM (client deletion unlikely, but user account deletion might be needed for GDPR).
+   - **Fix**: Add `onDelete: Restrict` (prevent client deletion if escrows exist).
+
+3. **Escrow.workerId → Provider**
+   - **Schema**: No cascade rule.
+   - **Bug**: Deleting provider orphans all their escrows.
+   - **Impact**: MEDIUM (same as client).
+   - **Fix**: Add `onDelete: Restrict`.
+
+### Missing Indexes
+
+**All critical indexes already present** (analysis confirmed):
+
+- `@@index([clientId])` ✅
+- `@@index([workerId])` ✅
+- `@@index([status])` ✅
+- `@@unique([errandId])` ✅ (also functions as index)
+
+**No additional indexes needed** — Escrow is queried by these 4 fields only.
+
+### Embed vs. Reference Decisions
+
+**Not applicable** — Escrow has no denormalization proposals. All fields are normalized (amounts, status, timestamps).
+
+### Migration / Rollback Strategy
+
+**Phase 1 changes for Escrow**:
+
+1. **Add cascade constraints** (errandId, clientId, workerId):
+   - Migration: `npx prisma db push`
+   - Rollback: Safe (remove constraints)
+   - Risk: LOW
+
+2. **Extract Escrow aggregate + events** (code-only):
+   - Migration: Code deployment
+   - Rollback: Code revert
+   - Risk: MEDIUM (need dual-write during transition if using feature flags)
+
+3. **No backfill scripts needed** (no data migration).
+
+**Risk revised from MEDIUM-HIGH to MEDIUM**: Schema analysis shows no complex migrations needed (only additive constraints). Main risk is event-driven refactoring coordination with Errands/Application modules.
+
+---
+
+## 11. Migration Risk & Priority
 
 **Risk**: **MEDIUM-HIGH**
 

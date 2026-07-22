@@ -229,7 +229,188 @@ src/errands/
       ErrandType.ts                 # GraphQL type, mapped from domain Errand
 ```
 
-## 10. Migration Risk & Priority
+---
+
+## 10. Schema Findings
+
+**Context**: Analysis of `prisma/model/errand.prisma` and cross-module references.
+
+### Aggregate Boundary Violations
+
+1. **EscrowService directly mutates Errand.status**
+   - **Evidence**: `src/errands/errands.service.ts` (lines 198, 1799, 1941) calls `prisma.errand.update({ data: { status: 'COMPLETED' } })` from within Escrow module.
+   - **Schema gap**: No protection preventing other modules from bypassing Errand aggregate.
+   - **Impact**: Errand status can change without triggering Errand domain logic (state transition validation, event emission).
+   - **Fix priority**: PHASE 1 — Escrow emits `EscrowReleased` event → `ErrandEventHandler.handleEscrowReleased()` calls `Errand.complete()`.
+   - **Migration notes**: Code-only refactoring (no schema change). Risk: MEDIUM (need to coordinate Errand + Escrow event flow).
+
+### Dangling Reference Risks
+
+1. **Application.errandId → Errand**
+   - **Schema**: `Application.errandId` has no cascade rule.
+   - **Bug**: Deleting errand orphans all applications for that errand.
+   - **Impact**: MEDIUM — provider's application history incomplete.
+   - **Current cleanup**: None (errand deletion not implemented yet).
+   - **Fix**: Add `onDelete: Cascade` to `Application.errand` relation (deleting errand cascades to applications).
+   - **Migration**: `npx prisma db push` (additive).
+   - **Rollback**: Safe (remove cascade rule).
+   - **Priority**: PHASE 1 (before errand deletion feature).
+
+2. **SavedErrand.errandId → Errand**
+   - **Schema**: No cascade rule.
+   - **Bug**: Deleting errand orphans all saved errand bookmarks.
+   - **Impact**: LOW — UI shows broken links in user's saved list.
+   - **Fix**: Add `onDelete: Cascade`.
+   - **Priority**: PHASE 1.
+
+3. **Rating.errandId → Errand**
+   - **Schema**: No cascade rule.
+   - **Bug**: Deleting errand orphans all ratings for that errand.
+   - **Impact**: MEDIUM — cannot link rating to originating job.
+   - **Fix**: Add `onDelete: SetNull` (preserve rating for provider/client profile, but clear errand link).
+   - **Priority**: PHASE 2.
+
+4. **Transaction.errandId → Errand**
+   - **Schema**: No cascade rule.
+   - **Bug**: Deleting errand orphans wallet transactions.
+   - **Impact**: **CRITICAL** — financial audit trail broken.
+   - **Fix**: Add `onDelete: Restrict` (prevent errand deletion if transactions exist) OR coordinate with Wallet module.
+   - **Priority**: PHASE 1 (documented in Wallet module findings).
+
+5. **Escrow.errandId → Errand**
+   - **Schema**: No cascade rule.
+   - **Bug**: Deleting errand orphans escrow record.
+   - **Impact**: **HIGH** — financial audit trail broken.
+   - **Fix**: Add `onDelete: Restrict`.
+   - **Priority**: PHASE 1 (documented in Escrow module findings).
+
+6. **Errand.assignedTo → Provider** (field-level dangling reference)
+   - **Schema**: `Errand.assignedTo` is a nullable String field (not a formal Prisma relation), so no cascade rule possible.
+   - **Bug**: Deleting provider leaves `assignedTo` as dangling ID.
+   - **Impact**: MEDIUM — cannot resolve assigned provider in GraphQL queries.
+   - **Current cleanup**: None.
+   - **Fix**: Add event handler: `ProviderDeleted` → nullify all `Errand.assignedTo` matching deleted provider ID.
+   - **Migration**: Code deployment (event handler).
+   - **Rollback**: Code revert.
+   - **Priority**: PHASE 2.
+
+7. **Errand.serviceId → Service**
+   - **Schema**: No cascade rule.
+   - **Bug**: Deleting service category orphans errands.
+   - **Impact**: LOW (services are reference data, deletion unlikely).
+   - **Fix**: Add `onDelete: SetNull` OR restrict service deletion if errands exist.
+   - **Priority**: PHASE 3 (defer until service management implemented).
+
+### Missing Indexes
+
+**Critical index confirmed present**:
+
+- ✅ **Errand.location (2dsphere geospatial index)**: Verified via `prisma/create-geo-index.ts` script.
+  - **Query pattern**: `ErrandsService.getFeedErrands` uses `$geoNear` aggregation.
+  - **Migration**: Already handled by existing script (must verify it's run on production).
+
+**Missing indexes found**:
+
+1. **Errand.clientId** (CRITICAL for client dashboard)
+   - **Query pattern**: `ErrandsService.findAll` queries `where: { clientId }`.
+   - **Impact**: Full collection scan when fetching client's errands.
+   - **Fix**: Add `@@index([clientId])`.
+   - **Priority**: PHASE 2.
+
+2. **Errand.status** (HIGH for filtering open errands)
+   - **Query pattern**: `ErrandsService.getFeedErrands` queries `where: { status: ErrandStatus.OPEN }`.
+   - **Impact**: Full collection scan when filtering by status.
+   - **Fix**: Add `@@index([status])`.
+   - **Priority**: PHASE 2.
+
+3. **Errand.assignedTo** (MEDIUM for provider's assigned errands)
+   - **Query pattern**: Future feature (provider dashboard showing assigned errands).
+   - **Impact**: Full collection scan.
+   - **Fix**: Add `@@index([assignedTo])`.
+   - **Priority**: PHASE 2.
+
+4. **Errand.serviceId** (MEDIUM for service-based filtering)
+   - **Query pattern**: Filtering errands by service category.
+   - **Impact**: Full collection scan.
+   - **Fix**: Add `@@index([serviceId])`.
+   - **Priority**: PHASE 2.
+
+5. **ErrandAssignment.errandId** ✅ (already has `@@index([errandId])` — confirmed).
+
+**Schema changes needed**:
+
+```prisma
+model Errand {
+  // ... existing fields ...
+
+  @@index([clientId])
+  @@index([status])
+  @@index([assignedTo])
+  @@index([serviceId])
+  @@map("errands")
+}
+```
+
+**Migration**: `npx prisma db push` (additive, no backfill).
+**Rollback**: Safe (drop indexes).
+
+### Embed vs. Reference Decisions
+
+**Not applicable for Errand core fields** — all fields remain normalized (no denormalization proposed).
+
+**Note on Location value object**:
+
+- **Current**: `Errand.location` is `Json?` field (GeoJSON `{ type: "Point", coordinates: [lng, lat] }`).
+- **Proposal**: Extract `Location` value object in domain layer (code-level abstraction, NOT schema change).
+- **Justification**: Keep as JSON in schema for queryability (MongoDB geospatial queries require GeoJSON format).
+- **Domain layer**: `Location` value object wraps JSON, provides `distanceTo()` method using haversine.
+
+**Note on Pricing value object**:
+
+- **Current**: `Errand.price`, `Errand.hourlyRate`, `Errand.transportAllowance`, `Errand.materialsBudget` are separate columns.
+- **Proposal**: Extract `Pricing` value object in domain layer (code-level abstraction, NOT schema change).
+- **Justification**: Keep as separate columns for queryability (filter errands by `price < 5000`).
+
+### Migration / Rollback Strategy
+
+**Phase 2 changes for Errands** (deferred until after Escrow/Application refactored):
+
+1. **Add cascade rules** (5 dangling-reference fixes):
+   - `Application.errandId` → `onDelete: Cascade`
+   - `SavedErrand.errandId` → `onDelete: Cascade`
+   - `Rating.errandId` → `onDelete: SetNull`
+   - `Escrow.errandId` → `onDelete: Restrict`
+   - Transaction handled in Wallet module
+   - Migration: `npx prisma db push`
+   - Rollback: Safe (remove constraints)
+   - Risk: LOW
+
+2. **Add indexes** (4 missing indexes):
+   - Migration: `npx prisma db push`
+   - Rollback: Safe (drop indexes)
+   - Risk: LOW
+
+3. **Add event handler for Provider deletion** (Errand.assignedTo):
+   - Migration: Code deployment
+   - Rollback: Code revert
+   - Risk: LOW
+
+4. **Extract Errand aggregate + events** (code-only):
+   - Create `Errand.assignWorker()`, `Errand.complete()`, `Errand.cancel()` methods.
+   - Emit events: `ErrandCreated`, `ErrandAssigned`, `ErrandCompleted`.
+   - Migration: Code deployment.
+   - Rollback: Code revert.
+   - Risk: **MEDIUM-HIGH** (core domain, large codebase, 14 resolvers depend on ErrandsService).
+
+5. **No backfill scripts needed** (all schema changes are additive).
+
+**Risk revised from HIGH to MEDIUM-HIGH**: Schema analysis shows most changes are low-risk (indexes, cascade rules). Main risk is code refactoring due to large surface area (14 resolvers, 1100+ line service).
+
+**Mitigation**: Incremental refactoring (introduce repository pattern PARALLEL to existing service, migrate resolvers one-by-one, remove old service last).
+
+---
+
+## 11. Migration Risk & Priority
 
 **Risk**: **HIGH**
 

@@ -156,7 +156,7 @@ infrastructure/
 
 ### Phase 1: Decouple Money Flows (4-6 weeks)
 
-**Goal**: Fix critical financial bugs, introduce event-driven escrow/wallet coordination.
+**Goal**: Fix critical financial bugs, introduce event-driven escrow/wallet coordination, fix dangling-reference bugs.
 
 **Priority Modules**:
 
@@ -164,6 +164,28 @@ infrastructure/
 2. **Wallet**: Implement Wallet aggregate with `credit()`, `debit()`, `hold()`, `release()` methods. Create `IWalletRepository`.
 3. **Escrow**: Extract Escrow aggregate with `fund()`, `release()`, `refund()` methods. Create `IEscrowRepository`.
 4. **Application**: Extract Application aggregate with `accept()`, `reject()` methods. Create saga: `AcceptApplicationSaga` (orchestrates Application → Escrow → Errand via events).
+5. **Users**: **URGENT: Fix dangling activeAddressId bug** (deleteAddress → nullify activeAddressId if deleting active). Run backfill script to fix existing dangling references in production.
+6. **Chat**: **URGENT: Fix dangling lastMessageId bug** (deleteMessage → update ChatRoom.lastMessageId).
+
+**Schema Changes (all additive, low risk)**:
+
+1. **Add cascade rules**:
+   - `Application.errandId` → `onDelete: Cascade`
+   - `SavedErrand.errandId` → `onDelete: Cascade`
+   - `Rating.errandId` → `onDelete: SetNull`
+   - `Transaction.errandId` → `onDelete: Restrict` (prevent errand deletion if transactions exist)
+   - Migration: `npx prisma db push`
+   - Rollback: Safe (cascade rules don't affect existing data, only future deletes)
+
+2. **Add indexes** (performance-critical for money flows):
+   - `Application`: `@@index([errandId])`, `@@index([workerId])`
+   - Migration: `npx prisma db push`
+   - Rollback: Safe (drop indexes without data loss)
+
+3. **Fix dangling references** (code + backfill):
+   - Run `scripts/fix-dangling-active-addresses.ts` to clean production data
+   - Run `scripts/fix-dangling-last-messages.ts` (if Chat has deleted messages)
+   - Rollback: Cannot rollback backfill (one-way data cleanup), but code can be reverted
 
 **Events**:
 
@@ -176,20 +198,25 @@ infrastructure/
 - ✅ Wallet balance integrity enforced (domain invariants).
 - ✅ Escrow state transitions explicit (domain methods).
 - ✅ Acceptance flow decoupled (saga orchestration instead of direct calls).
+- ✅ **Dangling-reference bugs fixed** (Users.activeAddressId, ChatRoom.lastMessageId).
+- ✅ **Financial audit trail protected** (Transaction.errandId cascade prevents orphaning).
 
 **Risks**:
 
 - High (money flows). Extensive testing required (unit + integration + end-to-end).
+- **Schema migration risk**: LOW (all changes additive, rollback path exists).
+- **Backfill risk**: LOW (backfill scripts idempotent, can re-run if fails).
+- **Dual-write complexity**: MEDIUM (Wallet aggregate requires careful transition — emit events AND direct Prisma during rollout).
 
 ---
 
 ### Phase 2: Core Domain Refactoring (6-8 weeks)
 
-**Goal**: Extract rich aggregates, introduce repository pattern, fix critical bugs.
+**Goal**: Extract rich aggregates, introduce repository pattern, fix remaining schema gaps, optimize query performance.
 
 **Priority Modules**:
 
-1. **Users**: **URGENT: Fix dangling activeAddressId bug** (delete address → check if active → nullify activeAddressId). Extract `User` aggregate with `updateAddress()`, `deleteAddress()` methods. Create `IUserRepository`. Emit typed events (`UserCreated`, `AddressDeleted`) via EventEmitter2 (replace globalEventEmitter).
+1. **Users**: Extract `User` aggregate with `updateAddress()`, `deleteAddress()` methods (bug already fixed in Phase 1). Create `IUserRepository`. Emit typed events (`UserCreated`, `AddressDeleted`) via EventEmitter2 (replace globalEventEmitter).
 2. **Errands**: Extract `Errand` aggregate with `assignWorker()`, `complete()`, `cancel()` methods. Extract `Location` and `Pricing` value objects. Create `IErrandRepository`. Emit events (`ErrandAssigned`, `ErrandCompleted`). Replace MongoDB-specific queries with repository abstractions.
 3. **Provider**: Separate read model from write model (CQRS). Create `ProviderDiscoveryQueryService` (read: trusted/new/popular feeds). Create `IProviderRepository` (write: update profile/skills). Denormalize provider rating (cache in Provider table, updated via `RatingCreated` event listener).
 4. **Client**: Extract `Client` aggregate with `canPostErrand()` method (enforces posting requirements). Create `ClientDashboardQueryService` (read model). Create `IClientRepository`.
@@ -197,6 +224,34 @@ infrastructure/
 6. **Trusted-Circle**: Merge into Client module (or keep separate if social features grow). Extract `TrustedCircle` aggregate with `addMember()`, `removeMember()` methods.
 7. **Address**: Split into infrastructure (Google Places adapter) and domain (user addresses → merge into Users).
 8. **Utils**: Move haversine to Errands (`Location` value object), move OTP to Verification (`OtpCode` value object).
+
+**Schema Changes (performance optimization + denormalization)**:
+
+1. **Add remaining indexes** (critical for core domain queries):
+   - `Errand`: `@@index([clientId])`, `@@index([status])`, `@@index([assignedTo])`, `@@index([serviceId])`
+   - `Rating`: `@@index([errandId])`, `@@index([rateeId, rateeType])`, `@@index([raterId])`
+   - `SavedErrand`: `@@index([userId])`
+   - Verify geospatial index exists: `db.errands.getIndexes()` → should see `location_2dsphere`
+   - Migration: `npx prisma db push` + manual geo index check
+   - Rollback: Safe (drop indexes)
+
+2. **Add denormalized rating fields** (performance optimization for provider discovery):
+   - `Provider`: Add `averageRating Float?`, `ratingCount Int @default(0)`
+   - `Client`: Add `averageRating Float?`, `ratingCount Int @default(0)`
+   - Migration:
+     ```bash
+     npx prisma db push
+     npm run backfill:provider-ratings  # scripts/backfill-provider-ratings.ts
+     npm run backfill:client-ratings    # scripts/backfill-client-ratings.ts
+     ```
+   - Rollback: Safe (fields nullable, remove from schema + db push)
+   - Event listener: `RatingCreatedEvent` → update provider/client stats
+
+3. **Add cascade rules for remaining orphan risks**:
+   - `Application.workerId` → `onDelete: Cascade` (or SetNull to preserve history)
+   - `Errand.assignedTo` → handle via event (`ProviderDeleted` → nullify assignedTo field)
+   - Migration: `npx prisma db push`
+   - Rollback: Safe
 
 **Events**:
 
@@ -208,7 +263,9 @@ infrastructure/
 
 **Outcomes**:
 
-- ✅ Critical bug fixed (Users module).
+- ✅ **Dangling-reference bugs fully fixed** (all 9 cases handled via cascade rules or event handlers).
+- ✅ **Query performance optimized** (13 indexes added, geospatial verified).
+- ✅ **Provider discovery performance improved** (denormalized rating stats eliminate aggregation queries).
 - ✅ Rich aggregates with domain behavior (no more anemic models).
 - ✅ Repository pattern decouples persistence (can switch from Prisma to TypeORM).
 - ✅ CQRS improves performance for read-heavy modules (Provider, Client).
@@ -217,6 +274,9 @@ infrastructure/
 **Risks**:
 
 - Medium-High (core domain). Extensive testing required. Coordinate with frontend team (GraphQL schema changes).
+- **Schema migration risk**: LOW (all changes additive, rollback path exists).
+- **Backfill risk**: LOW (rating stats backfill idempotent, eventual consistency acceptable).
+- **Denormalization consistency risk**: MEDIUM (rating stats updated via event — if event fails, stats stale until next rating; mitigated by retry queue).
 
 ---
 
@@ -262,6 +322,7 @@ infrastructure/
 
 **File**: `users.service.ts` (deleteAddress method)
 **Issue**: Deleting address doesn't check if `activeAddressId === deletedAddressId`. Results in dangling foreign key.
+**Schema**: `User.activeAddress` relation has `onDelete: NoAction, onUpdate: NoAction` — MongoDB won't nullify.
 **Fix**:
 
 ```typescript
@@ -279,21 +340,63 @@ async deleteAddress(userId: string, addressId: string) {
 
 **Priority**: URGENT (data integrity violation).
 
-### 2. Payment-Gateway: Refund Failure (No Retry)
+### 2. ChatRoom.lastMessageId Dangling Reference (NEW)
+
+**File**: `chat.service.ts` (message deletion — if implemented)
+**Issue**: **Same bug class as activeAddressId**. Deleting a message that is the `ChatRoom.lastMessage` leaves `lastMessageId` pointing to non-existent message.
+**Schema**: `ChatRoom.lastMessage` relation has `onDelete: NoAction, onUpdate: NoAction`.
+**Impact**: GraphQL queries resolving `ChatRoom.lastMessage` fail or return null unexpectedly.
+**Fix**:
+
+```typescript
+async deleteMessage(messageId: string) {
+  const affectedRooms = await this.prisma.chatRoom.findMany({
+    where: { lastMessageId: messageId }
+  });
+
+  for (const room of affectedRooms) {
+    // Find previous message to set as new lastMessage
+    const previousMessage = await this.prisma.message.findFirst({
+      where: { roomId: room.id, id: { not: messageId } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    await this.prisma.chatRoom.update({
+      where: { id: room.id },
+      data: { lastMessageId: previousMessage?.id ?? null },
+    });
+  }
+
+  await this.prisma.message.delete({ where: { id: messageId } });
+}
+```
+
+**Priority**: URGENT (data integrity violation, same class as #1).
+
+### 3. Payment-Gateway: Refund Failure (No Retry)
 
 **File**: `payment-gateway.service.ts` (line 149+)
 **Issue**: `gateway.refundTransaction()` is called after saving payment method. If refund fails, user is charged 50 Naira without refund.
 **Fix**: Queue refund in BullMQ (retry 3x on failure, alert ops if fails).
 **Priority**: CRITICAL (financial loss risk).
 
-### 3. Escrow: God Method (110 lines)
+### 4. Transaction.errandId Orphaned on Errand Deletion (NEW)
+
+**File**: No deletion handler exists
+**Issue**: **Financial audit trail bug**. If errand deleted (admin cleanup or future soft-delete feature), all wallet transactions linked to that errand become orphaned (cannot trace payment back to job).
+**Schema**: `Transaction.errandId` has no cascade rule.
+**Impact**: Audit compliance violation (cannot prove which errand a payment was for).
+**Fix**: Add schema constraint `onDelete: Restrict` (prevent errand deletion if transactions exist) OR add `onDelete: SetNull` (preserve transaction but clear errand link).
+**Priority**: HIGH (audit/compliance risk).
+
+### 5. Escrow: God Method (110 lines)
 
 **File**: `escrow.service.ts` (acceptApplicationAndFundEscrow method)
 **Issue**: Orchestrates 6+ operations (application acceptance, errand update, escrow funding, wallet debit, payment charge) in one method. Violates SRP, hard to test.
 **Fix**: Extract saga: `AcceptApplicationSaga` (orchestrates via events).
 **Priority**: HIGH (core business flow, maintenance burden).
 
-### 4. Errands: God Service (1100+ lines)
+### 6. Errands: God Service (1100+ lines)
 
 **File**: `errands.service.ts`
 **Issue**: 1100+ lines, direct Prisma calls, MongoDB-specific queries, no repository abstraction.
@@ -565,6 +668,395 @@ DeleteAddressCommandHandler (fixes dangling activeAddressId bug)
 
 ---
 
+## Schema-Level Gaps
+
+This section documents critical schema-level issues found by analyzing `prisma/model/*.prisma` files directly, cross-referenced with service-layer code.
+
+### Aggregate Boundary Violations
+
+**Definition**: Other modules directly mutating a proposed aggregate's internal state via `prisma.<model>.update()` instead of calling the aggregate's domain methods.
+
+1. **Errand aggregate bypassed by EscrowService**
+   - **Violating code**: `src/escrow/escrow.service.ts` (lines 198, 1799, 1941) calls `prisma.errand.update({ data: { status: 'COMPLETED' } })` directly.
+   - **Schema evidence**: No cascade rules or referential constraints prevent this.
+   - **Impact**: Errand status can change without triggering Errand domain logic (state transition guards, events).
+   - **Fix**: EscrowService emits `EscrowReleased` event → ErrandEventHandler updates errand status via `Errand.complete()` method.
+
+2. **Wallet aggregate bypassed by EscrowService and PaymentGatewayService**
+   - **Violating code**:
+     - `src/escrow/escrow.service.ts` (~line 150) calls `prisma.transaction.create()` directly (creates `ESCROW_HOLD` transactions).
+     - `src/payment-gateway/payment-gateway.service.ts` (line 180) calls `prisma.wallet.update({ data: { available: { increment } } })` directly.
+   - **Schema evidence**: `Wallet` and `Transaction` models have no ownership constraints enforcing that only WalletService can mutate them.
+   - **Impact**: Wallet balance can become inconsistent (race conditions, no invariant enforcement, ledger immutability violated).
+   - **Fix**: Escrow and Payment-Gateway emit events (`FundsHeld`, `FundsRefunded`) → WalletEventHandler updates wallet via `Wallet.hold()`, `Wallet.credit()` methods.
+
+3. **Application aggregate bypassed by EscrowService**
+   - **Violating code**: `src/escrow/escrow.service.ts` (line ~90) updates `application.status` and cancels pending applications directly.
+   - **Schema evidence**: `Application` model has `@@unique([errandId, workerId])` but no cascade rules preventing direct updates.
+   - **Impact**: Application state transitions can bypass domain logic (e.g., cannot accept if errand no longer OPEN).
+   - **Fix**: EscrowService emits `EscrowFunded` event → ApplicationEventHandler updates application via `Application.accept()` method.
+
+4. **User aggregate: activeAddressId dangling reference**
+   - **Violating code**: No code currently checks if `User.activeAddressId` points to a deleted `UserAddress` before deletion.
+   - **Schema evidence**: `User.activeAddress` relation has `onDelete: NoAction, onUpdate: NoAction` — MongoDB won't cascade or nullify.
+   - **Impact**: **CRITICAL BUG** — deleting user's active address leaves dangling foreign key.
+   - **Fix**: Already documented in Critical Issues section below. `User.deleteAddress()` must nullify `activeAddressId` if deleting active address.
+
+5. **Rating aggregate: no cascade from Provider/Client deletions**
+   - **Violating code**: Deleting Provider or Client doesn't clean up orphaned ratings.
+   - **Schema evidence**: `Rating.rateeId` references `Provider.id` or `Client.id` via polymorphic relation (`rateeType` enum), but has no cascade rules.
+   - **Impact**: If provider deleted, their ratings remain orphaned (queries by `rateeId` return stale data).
+   - **Fix**: Add `onDelete: Cascade` to `Rating.provider` and `Rating.client` relations, OR add event handler (`ProviderDeleted` → delete all ratings).
+
+**Summary**: 5 aggregate roots have boundary violations. All require event-driven refactoring (modules emit events instead of directly mutating other aggregates).
+
+---
+
+### Dangling Reference Bugs (MongoDB No-Cascade Issue)
+
+**Context**: MongoDB + Prisma has no foreign key constraints by default. `onDelete`/`onUpdate` rules are emulated by Prisma client-side, but many relations have `NoAction` or missing cascade rules. Every parent-child reference without cleanup logic is a potential dangling-reference bug.
+
+**Critical bugs found** (same class as `User.activeAddressId` issue):
+
+1. **ChatRoom.lastMessageId → Message** (CRITICAL)
+   - **Schema**: `ChatRoom.lastMessage` relation has `onDelete: NoAction, onUpdate: NoAction`.
+   - **Bug**: Deleting the last message leaves `ChatRoom.lastMessageId` pointing to non-existent message.
+   - **Current cleanup**: None found in `src/chat/`.
+   - **Impact**: GraphQL queries resolving `ChatRoom.lastMessage` will fail or return null unexpectedly.
+   - **Fix**: On message deletion, if `message.id === room.lastMessageId`, set `room.lastMessageId = null` OR find previous message and update.
+
+2. **Escrow.errandId → Errand** (HIGH)
+   - **Schema**: No cascade rule on `Escrow.errand` relation.
+   - **Bug**: Deleting errand (unlikely but possible during development/admin cleanup) orphans escrow record.
+   - **Current cleanup**: None.
+   - **Impact**: Financial audit trail broken (cannot trace escrow back to errand).
+   - **Fix**: Add `onDelete: Restrict` (prevent errand deletion if escrow exists) OR add cascade (deleting errand deletes escrow — risky for money records).
+
+3. **Application.errandId → Errand** (MEDIUM)
+   - **Schema**: No cascade rule.
+   - **Bug**: Deleting errand orphans all applications for that errand.
+   - **Current cleanup**: None.
+   - **Impact**: Provider's application history incomplete.
+   - **Fix**: Add `onDelete: Cascade` (deleting errand cascades to applications).
+
+4. **Application.workerId → Provider** (MEDIUM)
+   - **Schema**: No cascade rule.
+   - **Bug**: Deleting provider orphans all their applications.
+   - **Current cleanup**: None.
+   - **Impact**: Errand application history incomplete (cannot show which provider applied).
+   - **Fix**: Add `onDelete: Cascade` OR `onDelete: SetNull` (preserve application record but clear `workerId`).
+
+5. **Rating.errandId → Errand** (MEDIUM)
+   - **Schema**: No cascade rule.
+   - **Bug**: Deleting errand orphans all ratings for that errand.
+   - **Current cleanup**: None.
+   - **Impact**: Provider/client reputation data incomplete (cannot link rating to originating errand).
+   - **Fix**: Add `onDelete: SetNull` (preserve rating but clear `errandId` — rating still shows for provider/client profile).
+
+6. **SavedErrand.errandId → Errand** (LOW)
+   - **Schema**: No cascade rule.
+   - **Bug**: Deleting errand orphans all `SavedErrand` bookmarks.
+   - **Current cleanup**: None.
+   - **Impact**: User's saved errands list contains deleted errands (UI shows broken links).
+   - **Fix**: Add `onDelete: Cascade` (deleting errand removes from all users' saved lists).
+
+7. **Transaction.errandId → Errand** (CRITICAL for audit)
+   - **Schema**: No cascade rule.
+   - **Bug**: Deleting errand orphans all wallet transactions linked to that errand.
+   - **Current cleanup**: None.
+   - **Impact**: Financial audit trail broken (cannot trace payment/escrow back to errand).
+   - **Fix**: Add `onDelete: Restrict` (prevent errand deletion if transactions exist) OR preserve transactions with `onDelete: SetNull`.
+
+8. **Errand.assignedTo → Provider** (MEDIUM)
+   - **Schema**: `Errand.assignedTo` is a nullable String field (not a formal relation), so no cascade rule possible.
+   - **Bug**: Deleting provider leaves `Errand.assignedTo` as a dangling ID.
+   - **Current cleanup**: None.
+   - **Impact**: Cannot resolve assigned provider (GraphQL query fails or returns null).
+   - **Fix**: Add event handler (`ProviderDeleted` → nullify all `Errand.assignedTo` matching deleted provider ID).
+
+9. **Errand.serviceId → Service** (LOW)
+   - **Schema**: No cascade rule.
+   - **Bug**: Deleting service category orphans all errands using that service.
+   - **Current cleanup**: None (deleting services is unlikely — reference data).
+   - **Impact**: Errand categorization broken.
+   - **Fix**: Add `onDelete: SetNull` OR restrict service deletion if errands exist.
+
+**Summary**: 9 dangling-reference bugs found (3 CRITICAL, 3 MEDIUM, 3 LOW). All require either schema cascade rules OR event-driven cleanup handlers.
+
+---
+
+### Missing Indexes
+
+**Context**: Indexes are critical for query performance, especially for MongoDB geospatial queries and foreign-key-style lookups. Missing indexes cause full collection scans.
+
+**Critical indexes missing**:
+
+1. **Errand.location (2dsphere geospatial index)**
+   - **Schema**: `Errand.location` is `Json?` field (GeoJSON `{ type: "Point", coordinates: [lng, lat] }`).
+   - **Current index**: NONE (no `@@index` in `errand.prisma`).
+   - **Query pattern**: `ErrandsService.getFeedErrands` (line 327+) uses `$geoNear` aggregation for "errands near user's location".
+   - **Impact**: `$geoNear` will fail or be extremely slow without 2dsphere index.
+   - **Fix**: Run `db.errands.createIndex({ location: "2dsphere" })` (cannot define in Prisma schema — requires manual migration script at `prisma/create-geo-index.ts`).
+   - **Migration**: Already exists at `prisma/create-geo-index.ts` (verify it's run on production).
+
+2. **User.activeAddressId**
+   - **Schema**: `User.activeAddressId` is `String? @db.ObjectId` field.
+   - **Current index**: NONE.
+   - **Query pattern**: Not explicitly queried alone, but relation lookup `User.activeAddress` resolves this.
+   - **Impact**: LOW (Prisma resolves relation via `User.id → UserAddress.id` lookup, not activeAddressId index).
+   - **Fix**: None needed (relation lookup uses UserAddress primary key).
+
+3. **Application.errandId**
+   - **Schema**: No `@@index([errandId])`.
+   - **Query pattern**: `ApplicationService.errandApplications` (line 75) queries `where: { errandId }`.
+   - **Impact**: Full collection scan when fetching applications for an errand (slow as application count grows).
+   - **Fix**: Add `@@index([errandId])` to `Application` model.
+
+4. **Application.workerId**
+   - **Schema**: No `@@index([workerId])`.
+   - **Query pattern**: `ApplicationService.myApplicationForErrand` (line 107) queries `where: { workerId, errandId }` (compound query).
+   - **Impact**: Full collection scan when fetching provider's applications.
+   - **Fix**: Add `@@index([workerId])` OR compound `@@index([workerId, errandId])`.
+
+5. **Rating.errandId**
+   - **Schema**: No `@@index([errandId])`.
+   - **Query pattern**: `RatingService.getErrandRatings` queries `where: { errandId }`.
+   - **Impact**: Full collection scan when fetching errand reviews.
+   - **Fix**: Add `@@index([errandId])`.
+
+6. **Rating.rateeId**
+   - **Schema**: No `@@index([rateeId])`.
+   - **Query pattern**: `RatingService.getProviderRating` (line 29) queries `where: { rateeId, rateeType }` (compound query).
+   - **Impact**: Full collection scan when fetching provider/client ratings (critical for provider discovery performance).
+   - **Fix**: Add compound `@@index([rateeId, rateeType])`.
+
+7. **Rating.raterId**
+   - **Schema**: No `@@index([raterId])`.
+   - **Query pattern**: Future query (user's rating history).
+   - **Impact**: LOW (not currently queried).
+   - **Fix**: Add `@@index([raterId])` when user rating history feature is implemented.
+
+8. **SavedErrand.errandId**
+   - **Schema**: No `@@index([errandId])`.
+   - **Query pattern**: Not queried by errandId alone (only by userId).
+   - **Impact**: LOW.
+   - **Fix**: None needed (userId is more common query path).
+
+9. **SavedErrand.userId**
+   - **Schema**: No `@@index([userId])`.
+   - **Query pattern**: Likely queried as `where: { userId }` for user's saved errands list.
+   - **Impact**: Full collection scan.
+   - **Fix**: Add `@@index([userId])`.
+
+10. **Errand.clientId**
+    - **Schema**: No `@@index([clientId])`.
+    - **Query pattern**: `ErrandsService.findAll` uses `where: { clientId }` when fetching client's errands.
+    - **Impact**: Full collection scan (critical for client dashboard).
+    - **Fix**: Add `@@index([clientId])`.
+
+11. **Errand.status**
+    - **Schema**: No `@@index([status])`.
+    - **Query pattern**: `ErrandsService.getFeedErrands` queries `where: { status: ErrandStatus.OPEN }`.
+    - **Impact**: Full collection scan when filtering by status.
+    - **Fix**: Add `@@index([status])`.
+
+12. **Errand.assignedTo**
+    - **Schema**: No `@@index([assignedTo])`.
+    - **Query pattern**: Likely queried for provider's assigned errands.
+    - **Impact**: Full collection scan.
+    - **Fix**: Add `@@index([assignedTo])`.
+
+13. **Errand.serviceId**
+    - **Schema**: No `@@index([serviceId])`.
+    - **Query pattern**: Filtering errands by service category.
+    - **Impact**: Full collection scan.
+    - **Fix**: Add `@@index([serviceId])`.
+
+**Summary**: 13 missing indexes (1 CRITICAL geospatial, 12 standard indexes). All are additive schema changes (safe to add without migration/backfill).
+
+---
+
+### Embed vs. Reference Decisions
+
+**Context**: MongoDB allows embedding documents OR referencing by ID. The docs propose denormalizing rating stats into Provider model for performance. This section specifies whether denormalization should be embedded or referenced, and handles partial failure.
+
+1. **Provider rating stats denormalization**
+   - **Current**: `RatingService.getProviderRating` (line 29) aggregates ratings on-demand: `_avg.rating`, `_count`.
+   - **Proposal**: Cache average rating + count in `Provider` model.
+   - **Decision**: **Embedded** — add fields `Provider.averageRating` (Float?), `Provider.ratingCount` (Int).
+   - **Justification**:
+     - Update frequency: LOW (only when new rating created, ~weekly per provider).
+     - Query frequency: HIGH (every provider discovery query).
+     - Consistency: Eventual (stale rating OK for discovery, user can click to see real-time).
+   - **Event listener implementation**:
+     ```typescript
+     // rating.events.ts
+     @OnEvent('rating.created')
+     async handleRatingCreated(event: RatingCreatedEvent) {
+       const stats = await this.ratingService.getProviderRating(event.rateeId);
+       await this.prisma.provider.update({
+         where: { id: event.rateeId },
+         data: { averageRating: stats.average, ratingCount: stats.count },
+       });
+     }
+     ```
+   - **Partial failure recovery**:
+     - If `RatingCreated` event fires but provider update fails (DB timeout):
+       - Event is retried (BullMQ queue, 3x retry).
+       - If all retries fail, log to dead-letter queue + alert ops.
+       - Provider stats will be stale until next rating triggers recalculation.
+     - **No rollback** needed (rating creation is committed independently).
+     - **Manual fix**: Admin script to recalculate all provider stats from ratings.
+
+2. **Client rating stats denormalization**
+   - **Current**: Same as provider (aggregated on-demand).
+   - **Proposal**: Cache in `Client` model.
+   - **Decision**: **Embedded** — add `Client.averageRating` (Float?), `Client.ratingCount` (Int).
+   - **Justification**: Same as provider.
+   - **Event listener**: Same pattern as provider.
+   - **Partial failure recovery**: Same as provider.
+
+3. **Errand pricing denormalization**
+   - **Current**: `Errand.price`, `Errand.hourlyRate`, `Errand.transportAllowance`, `Errand.materialsBudget` are separate fields.
+   - **Proposal**: Extract as `Pricing` value object in domain layer (NOT schema change).
+   - **Decision**: **NOT embedded in schema** — keep as separate columns for queryability (e.g., filter errands by `price < 5000`).
+   - **Justification**: Normalization is fine here (no performance issue, simple fields).
+
+4. **Provider skills/services denormalization**
+   - **Current**: `ServicesOnProviders` join table (many-to-many).
+   - **Proposal**: Denormalize into Provider for search performance.
+   - **Decision**: **Keep normalized** (no change).
+   - **Justification**: Services are reference data (low cardinality, ~100 services). Join table query is fast enough with index on `providerId`.
+
+**Summary**: 2 denormalizations (Provider/Client rating stats) as embedded fields. Both use event listeners with retry + dead-letter queue for partial failure recovery. No rollback needed (eventual consistency acceptable).
+
+---
+
+### Migration / Rollback Strategy
+
+**Context**: Prisma + MongoDB doesn't have traditional SQL migrations. Schema changes require `npx prisma db push` (applies schema to DB) or manual scripts. This section specifies migration strategy for Phase 1 and Phase 2 changes.
+
+**Phase 1 (Money Flows) — Migration Complexity**:
+
+1. **Add cascade rules to schema**
+   - **Changes**: Add `onDelete: Cascade` to relations (Application → Errand, SavedErrand → Errand, etc.).
+   - **Migration type**: Schema push (no data backfill needed).
+   - **Command**: `npx prisma db push`.
+   - **Rollback**: Safe — cascade rules are forward-only (won't delete existing data, only affect future deletes).
+   - **Risk**: LOW.
+
+2. **Add indexes**
+   - **Changes**: Add `@@index([errandId])`, `@@index([rateeId, rateeType])`, etc.
+   - **Migration type**: Schema push + manual index creation for geospatial.
+   - **Command**:
+     ```bash
+     npx prisma db push
+     npm run prisma:create-geo-index  # Runs prisma/create-geo-index.ts
+     ```
+   - **Rollback**: Safe — indexes can be dropped without data loss.
+   - **Risk**: LOW.
+
+3. **Add denormalized fields (Provider.averageRating, Provider.ratingCount)**
+   - **Changes**: Add nullable fields to `Provider` and `Client` models.
+   - **Migration type**: Schema push + backfill script.
+   - **Command**:
+     ```bash
+     npx prisma db push
+     npm run backfill:provider-ratings  # Script: scripts/backfill-provider-ratings.ts
+     ```
+   - **Backfill script**:
+     ```typescript
+     // scripts/backfill-provider-ratings.ts
+     async function backfillProviderRatings() {
+       const providers = await prisma.provider.findMany();
+       for (const provider of providers) {
+         const stats = await prisma.rating.aggregate({
+           where: { rateeId: provider.id, rateeType: 'PROVIDER' },
+           _avg: { rating: true },
+           _count: true,
+         });
+         await prisma.provider.update({
+           where: { id: provider.id },
+           data: {
+             averageRating: stats._avg.rating,
+             ratingCount: stats._count,
+           },
+         });
+       }
+     }
+     ```
+   - **Rollback**: Safe — fields are nullable, can be removed without breaking queries. Remove fields from schema + `db push`.
+   - **Risk**: LOW (backfill is idempotent, can re-run if fails).
+
+4. **Wallet aggregate enforcement (no schema change, code-only)**
+   - **Changes**: Escrow/Payment-Gateway emit events instead of direct Prisma calls.
+   - **Migration type**: Code deployment (no DB migration).
+   - **Rollback**: Code rollback (revert to direct Prisma calls).
+   - **Risk**: MEDIUM — need dual-write during transition (emit events AND direct Prisma call) for gradual rollout, then remove direct calls.
+
+5. **Fix User.activeAddressId dangling reference**
+   - **Changes**: Update `UsersService.deleteAddress` to nullify `activeAddressId` if deleting active address.
+   - **Migration type**: Code deployment (no DB migration).
+   - **Backfill**: Check production DB for existing dangling references:
+     ```typescript
+     // scripts/fix-dangling-active-addresses.ts
+     async function fixDanglingActiveAddresses() {
+       const users = await prisma.user.findMany({
+         where: { activeAddressId: { not: null } },
+       });
+       for (const user of users) {
+         const addressExists = await prisma.userAddress.findUnique({
+           where: { id: user.activeAddressId },
+         });
+         if (!addressExists) {
+           await prisma.user.update({
+             where: { id: user.id },
+             data: { activeAddressId: null },
+           });
+           console.log(`Fixed dangling activeAddressId for user ${user.id}`);
+         }
+       }
+     }
+     ```
+   - **Rollback**: Code rollback (but dangling references remain — backfill script is one-way cleanup).
+   - **Risk**: LOW (code change is simple, backfill is safe).
+
+**Phase 1 Migration Risks**:
+
+- **No schema changes require data loss or complex transformations**.
+- **All migrations are additive** (adding fields, indexes, cascade rules).
+- **Rollback path exists for all changes** (drop indexes, remove fields, revert code).
+- **Highest risk**: Dual-write for Wallet aggregate (requires careful testing to avoid race conditions).
+
+**Phase 2 (Core Domain Refactoring) — Migration Complexity**:
+
+1. **Extract Location value object from Errand.location**
+   - **Changes**: No schema change (location remains Json field). Value object is code-level abstraction.
+   - **Migration type**: Code deployment.
+   - **Rollback**: Code rollback.
+   - **Risk**: LOW.
+
+2. **Move haversine calculation to Errand domain**
+   - **Changes**: Code move from `utils/` to `errands/domain/`.
+   - **Migration type**: Code deployment.
+   - **Rollback**: Code rollback.
+   - **Risk**: LOW.
+
+3. **Merge Application into Errands (optional)**
+   - **Changes**: No schema change (Application model remains separate).
+   - **Migration type**: Code refactoring (move files from `application/` to `errands/application/commands/`).
+   - **Rollback**: Code rollback.
+   - **Risk**: LOW.
+
+**Phase 2 Migration Risks**:
+
+- **No DB migrations required** (all changes are code refactoring).
+- **Rollback is straightforward** (revert code commits).
+
+**Summary**: Phase 1 has 5 DB schema changes (all additive, low risk). Phase 2 has 0 DB schema changes (code-only refactoring). **No breaking changes** that would prevent rollback. **Highest risk** is dual-write for Wallet (requires feature flag + gradual rollout).
+
+---
+
 ## Success Metrics
 
 ### Technical Metrics
@@ -574,14 +1066,6 @@ DeleteAddressCommandHandler (fixes dangling activeAddressId bug)
 - **Module coupling**: < 5 dependencies per module (loose coupling via events).
 - **Repository abstraction**: 100% (no direct Prisma calls in domain/application layers).
 - **Event-driven**: 80%+ cross-module interactions via events (not direct calls).
-
-### Business Metrics
-
-- **Escrow reliability**: 99.9% (no failed refunds/releases).
-- **Payment success rate**: 95%+ (retry logic for transient failures).
-- **Notification delivery**: 95%+ (queued, retried on failure).
-- **Real-time latency**: < 500ms (GraphQL subscriptions).
-- **Errand search performance**: < 200ms (geospatial index + caching).
 
 ---
 

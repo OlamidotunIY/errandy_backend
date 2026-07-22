@@ -230,11 +230,168 @@ src/users/
   presentation/
     resolvers/
       UsersResolver.ts
-    types/
+    types:
       UserType.ts
 ```
 
-## 10. Migration Risk & Priority
+---
+
+## 10. Schema Findings
+
+**Context**: Analysis of `prisma/model/schema.prisma` (User and UserAddress models).
+
+### Aggregate Boundary Violations
+
+**None found for User aggregate** — no other modules directly mutate User.activeAddressId or User fields. User aggregate integrity is intact at schema level.
+
+**Note**: Auth module creates users, but this is appropriate (Auth is the entry point for user creation).
+
+### Dangling Reference Risks
+
+1. **User.activeAddressId → UserAddress** (CRITICAL BUG — already documented)
+   - **Schema**: `User.activeAddress` relation has `onDelete: NoAction, onUpdate: NoAction`.
+   - **Bug**: Deleting UserAddress doesn't check if it's the active address — leaves dangling `activeAddressId`.
+   - **Evidence**: `src/users/users.service.ts` `deleteAddress` method (line ~110) does NOT nullify `activeAddressId` before deletion.
+   - **Impact**: **URGENT** — GraphQL queries resolving `User.activeAddress` will fail or return null unexpectedly.
+   - **Current cleanup**: None.
+   - **Fix** (already documented in Critical Issues):
+     ```typescript
+     async deleteAddress(userId: string, addressId: string) {
+       const user = await this.prisma.user.findUnique({ where: { id: userId } });
+       if (user.activeAddressId === addressId) {
+         await this.prisma.user.update({
+           where: { id: userId },
+           data: { activeAddressId: null },
+         });
+       }
+       await this.prisma.userAddress.delete({ where: { id: addressId } });
+     }
+     ```
+   - **Backfill script** (clean production data):
+     ```typescript
+     // scripts/fix-dangling-active-addresses.ts
+     async function fixDanglingActiveAddresses() {
+       const users = await prisma.user.findMany({
+         where: { activeAddressId: { not: null } },
+       });
+       for (const user of users) {
+         const addressExists = await prisma.userAddress.findUnique({
+           where: { id: user.activeAddressId },
+         });
+         if (!addressExists) {
+           await prisma.user.update({
+             where: { id: user.id },
+             data: { activeAddressId: null },
+           });
+           console.log(`Fixed dangling activeAddressId for user ${user.id}`);
+         }
+       }
+     }
+     ```
+   - **Migration**: Code deployment (fix service) + backfill script.
+   - **Rollback**: Code revert (but backfill is one-way cleanup).
+   - **Priority**: **PHASE 1 (URGENT)**.
+
+2. **UserAddress.userId → User**
+   - **Schema**: `UserAddress.user` relation has no `onDelete` specified (defaults to Prisma client-side handling).
+   - **Bug**: No bug here — UserAddress is owned by User (deleting User should cascade to UserAddress).
+   - **Expected behavior**: Deleting User should delete all UserAddress records.
+   - **Current schema**: Prisma will handle this client-side (safe).
+   - **Recommendation**: Explicitly add `onDelete: Cascade` for clarity:
+     ```prisma
+     model UserAddress {
+       user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+     }
+     ```
+   - **Priority**: PHASE 2 (low urgency, schema clarity improvement).
+
+3. **Session.userId → User, Account.userId → User, TwoFactor.userId → User**
+   - **Schema**: All have `onDelete: Cascade` ✅ (confirmed safe).
+   - **No action needed**.
+
+4. **Provider.userId → User, Client.userId → User**
+   - **Schema**: Both have `onDelete: Cascade` ✅ (confirmed safe).
+   - **No action needed**.
+
+### Missing Indexes
+
+**All critical indexes already present** (analysis confirmed):
+
+- `@@unique([email])` ✅ (also functions as index)
+- `@@unique([username])` ✅
+- `User.activeAddressId` — **No index**, but not needed (relation lookup uses UserAddress.id primary key, not activeAddressId index).
+
+**UserAddress**:
+
+- No indexes on `UserAddress.userId` — **MISSING** (needed for querying user's addresses).
+- **Query pattern**: `UsersService.findOne` includes user addresses (`userAddress: true`).
+- **Impact**: Currently OK (Prisma resolves via relation), but explicit index would improve performance.
+- **Fix**: Add `@@index([userId])` to UserAddress model.
+- **Priority**: PHASE 2 (low urgency, performance optimization).
+
+**Schema change**:
+
+```prisma
+model UserAddress {
+  // ... existing fields ...
+
+  @@index([userId])
+  @@map("user_addresses")
+}
+```
+
+**Migration**: `npx prisma db push` (additive).
+**Rollback**: Safe (drop index).
+
+### Embed vs. Reference Decisions
+
+**UserAddress as child entity** (current approach is correct):
+
+- **Decision**: Keep UserAddress as separate collection with reference to User.
+- **Justification**:
+  - User can have multiple addresses (1:N relation).
+  - Addresses are queried independently (get all addresses for user).
+  - Embedding would duplicate data if user has many addresses.
+- **No schema change needed**.
+
+### Migration / Rollback Strategy
+
+**Phase 1 changes for Users** (URGENT):
+
+1. **Fix deleteAddress dangling-reference bug** (code + backfill):
+   - Update `UsersService.deleteAddress` to nullify activeAddressId.
+   - Run `scripts/fix-dangling-active-addresses.ts` on production.
+   - Migration: Code deployment + manual backfill script run.
+   - Rollback: Code revert (backfill cannot be rolled back, but it's safe cleanup).
+   - Risk: LOW (simple code change, idempotent backfill).
+
+**Phase 2 changes for Users**:
+
+1. **Add explicit cascade to UserAddress** (schema clarity):
+   - Add `onDelete: Cascade` to `UserAddress.user` relation.
+   - Migration: `npx prisma db push`.
+   - Rollback: Safe (remove cascade, Prisma client-side handling remains).
+   - Risk: LOW.
+
+2. **Add index on UserAddress.userId** (performance):
+   - Migration: `npx prisma db push`.
+   - Rollback: Safe (drop index).
+   - Risk: LOW.
+
+3. **Extract User aggregate** (code-only):
+   - Create `User.addAddress()`, `User.deleteAddress()`, `User.setActiveAddress()` methods.
+   - Emit events: `UserCreated`, `AddressAdded`, `AddressDeleted`.
+   - Migration: Code deployment.
+   - Rollback: Code revert.
+   - Risk: MEDIUM (User module is shared kernel — many modules depend on it).
+
+**Risk revised from HIGH to LOW-MEDIUM**: Schema changes are minimal (1 urgent bug fix, 2 optional improvements). Main risk is User aggregate extraction (Phase 2) due to cross-module dependencies.
+
+**Mitigation**: Fix activeAddressId bug immediately (Phase 1), defer aggregate extraction to Phase 2 after event infrastructure is stable.
+
+---
+
+## 11. Migration Risk & Priority
 
 **Risk**: **HIGH**
 
