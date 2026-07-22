@@ -1,3 +1,5 @@
+import { Escrow } from '../';
+
 class EscrowDisputedEvent implements DomainEvent {
   readonly eventId: string;
   readonly aggregateId: EntityId;

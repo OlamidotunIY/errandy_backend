@@ -1,3 +1,5 @@
+import { Escrow } from '../entities';
+
 class EscrowRefundedEvent implements DomainEvent {
   readonly eventId: string;
   readonly aggregateId: EntityId;

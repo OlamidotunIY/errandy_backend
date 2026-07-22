@@ -4,3 +4,5 @@ class InvalidAmountError extends Error {
     this.name = 'InvalidAmountError';
   }
 }
+
+export { InvalidAmountError };

@@ -8,3 +8,5 @@ enum EscrowStatus {
   REFUNDED = 'REFUNDED',
   DISPUTED = 'DISPUTED',
 }
+
+export { EscrowStatus };

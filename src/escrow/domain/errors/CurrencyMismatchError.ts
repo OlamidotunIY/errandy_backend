@@ -4,3 +4,5 @@ class CurrencyMismatchError extends Error {
     this.name = 'CurrencyMismatchError';
   }
 }
+
+export { CurrencyMismatchError };

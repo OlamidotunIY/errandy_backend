@@ -3,3 +3,5 @@ enum RefundReason {
   WORKER_NO_SHOW = 'WORKER_NO_SHOW',
   DISPUTE_RESOLVED = 'DISPUTE_RESOLVED',
 }
+
+export { RefundReason };

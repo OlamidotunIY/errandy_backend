@@ -4,3 +4,5 @@ class InvalidStatusTransitionError extends Error {
     this.name = 'InvalidStatusTransitionError';
   }
 }
+
+export { InvalidStatusTransitionError };

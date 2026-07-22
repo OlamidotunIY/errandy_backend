@@ -4,3 +4,4 @@ class InvalidFeeRateError extends Error {
     this.name = 'InvalidFeeRateError';
   }
 }
+export { InvalidFeeRateError };

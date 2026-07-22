@@ -1,3 +1,9 @@
+import {
+  InvalidAmountError,
+  CurrencyMismatchError,
+  NegativeAmountError,
+} from '../errors';
+
 type Currency = 'NGN';
 
 class Money {
@@ -64,3 +70,5 @@ class Money {
     );
   }
 }
+
+export { Money, Currency };

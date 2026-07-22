@@ -4,3 +4,5 @@ class NegativeAmountError extends Error {
     this.name = 'NegativeAmountError';
   }
 }
+
+export { NegativeAmountError };

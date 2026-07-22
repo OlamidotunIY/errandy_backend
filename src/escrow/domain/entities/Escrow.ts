@@ -1,3 +1,13 @@
+import {
+  EscrowId,
+  EscrowStatus,
+  InvalidAmountError,
+  InvalidFeeRateError,
+  InvalidStatusTransitionError,
+  Money,
+  RefundReason,
+} from '../';
+
 class Escrow extends AggregateRoot<EscrowId> {
   constructor(
     public readonly id: EscrowId,
@@ -217,3 +227,5 @@ class Escrow extends AggregateRoot<EscrowId> {
     return this._refundedAt;
   }
 }
+
+export { Escrow };
