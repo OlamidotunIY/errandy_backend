@@ -325,3 +325,1005 @@ src/escrow/
 6. **Create event listener in Errands module** to react to `EscrowReleased` (update errand status to `COMPLETED`).
 7. **Remove direct escrow calls from ErrandsResolver** — replace with `CompleteErrandCommandHandler` that emits `ErrandCompleted` event.
 8. **Test payment flows end-to-end** before deploying (staging environment with Paystack test keys).
+
+---
+
+## 12. Implementation Spec
+
+### Domain Layer
+
+```typescript
+/**
+ * Escrow aggregate root representing funds held in escrow for an errand.
+ * Invariants:
+ * - amountGross = platformFee + amountNetWorker (always enforced at construction)
+ * - status transitions: PENDING → FUNDED → HELD → (RELEASING → RELEASED | REFUNDING → REFUNDED | DISPUTED)
+ * - Cannot release/refund unless status is HELD
+ * - Cannot transition backward in status flow
+ * - One escrow per errand (errandId is unique)
+ */
+class Escrow {
+  /**
+   * Private constructor - use Escrow.create() factory method instead.
+   * @param id Unique escrow identifier (from schema: id String @id)
+   * @param errandId Unique errand identifier (from schema: errandId String @unique)
+   * @param clientId Client who posted the errand (from schema: clientId String)
+   * @param workerId Worker assigned to errand (from schema: workerId String)
+   * @param amountGross Total escrow amount in kobo (from schema: amountGross Int)
+   * @param platformFee Platform fee in kobo (from schema: platformFee Int)
+   * @param amountNetWorker Net amount worker receives in kobo (from schema: amountNetWorker Int)
+   * @param status Current escrow status (from schema: status EscrowStatus)
+   * @param holdUntil Date until funds are auto-released if not disputed (from schema: holdUntil DateTime)
+   * @param releasedAt Timestamp when released (from schema: releasedAt DateTime?)
+   * @param refundedAt Timestamp when refunded (from schema: refundedAt DateTime?)
+   * @param createdAt Creation timestamp
+   * @param updatedAt Last update timestamp
+   */
+  private constructor(
+    public readonly id: string,
+    public readonly errandId: string,
+    public readonly clientId: string,
+    public readonly workerId: string,
+    private amountGross: Money,
+    private platformFee: Money,
+    private amountNetWorker: Money,
+    private status: EscrowStatus,
+    private holdUntil: Date,
+    private releasedAt: Date | null,
+    private refundedAt: Date | null,
+    public readonly createdAt: Date,
+    public readonly updatedAt: Date,
+  );
+
+  /**
+   * Factory method to create new escrow with PENDING status.
+   * Splits gross amount into platform fee and net worker amount using provided fee rate.
+   * Default hold period is 7 days from creation.
+   * @param errandId Unique errand identifier (must not already have escrow)
+   * @param clientId Client posting errand
+   * @param workerId Worker assigned to errand
+   * @param amountGross Total amount in kobo (must be positive)
+   * @param platformFeeRate Fee as basis points 0-10000 (e.g., 500 = 5%)
+   * @param holdUntil Optional hold-until date (defaults to now + 7 days)
+   * @throws InvalidAmountError when amountGross <= 0
+   * @throws InvalidFeeRateError when platformFeeRate < 0 or > 10000 basis points
+   * @returns New Escrow instance with status = PENDING
+   */
+  static create(
+    errandId: string,
+    clientId: string,
+    workerId: string,
+    amountGross: Money,
+    platformFeeRate: number,
+    holdUntil?: Date,
+  ): Escrow;
+
+  /**
+   * Transitions escrow from PENDING → FUNDED after payment charge succeeds.
+   * Should be called by FundEscrowCommandHandler after Paystack charge confirmation.
+   * @throws InvalidStatusTransitionError when current status is not PENDING
+   * @emits EscrowFundedEvent
+   */
+  fund(): void;
+
+  /**
+   * Transitions escrow from FUNDED → HELD after wallet hold succeeds.
+   * Called after funds are successfully held in client's wallet.
+   * @throws InvalidStatusTransitionError when current status is not FUNDED
+   */
+  hold(): void;
+
+  /**
+   * Begins release process (HELD → RELEASING) when errand completes.
+   * Release is async (worker wallet credit happens in background), so intermediate
+   * RELEASING status is used until confirmation.
+   * @throws InvalidStatusTransitionError when current status is not HELD
+   * @emits EscrowReleasingEvent
+   */
+  beginRelease(): void;
+    this._status = EscrowStatus.RELEASING;
+    this.addDomainEvent(new EscrowReleasingEvent(this));
+  }
+
+  /**
+   * Completes release (RELEASING → RELEASED) after funds are credited to worker wallet.
+   * @param releasedAt Timestamp of successful wallet credit
+   * @throws InvalidStatusTransitionError when status is not RELEASING
+   * @emits EscrowReleasedEvent
+   */
+  completeRelease(releasedAt: Date): void {
+    if (this._status !== EscrowStatus.RELEASING) {
+      throw new InvalidStatusTransitionError(
+        this._status,
+        EscrowStatus.RELEASED,
+      );
+    }
+    this._status = EscrowStatus.RELEASED;
+    this._releasedAt = releasedAt;
+    this.addDomainEvent(new EscrowReleasedEvent(this));
+  }
+
+  /**
+   * Begins refund process (HELD → REFUNDING) when errand is cancelled or disputed.
+   * @param reason Reason for refund (ERRAND_CANCELLED | WORKER_NO_SHOW | DISPUTE_RESOLVED)
+   * @throws InvalidStatusTransitionError when status is not HELD
+   * @emits EscrowRefundingEvent
+   */
+  beginRefund(reason: RefundReason): void {
+    if (this._status !== EscrowStatus.HELD) {
+      throw new InvalidStatusTransitionError(
+        this._status,
+        EscrowStatus.REFUNDING,
+      );
+    }
+    this._status = EscrowStatus.REFUNDING;
+    this.addDomainEvent(new EscrowRefundingEvent(this, reason));
+  }
+
+  /**
+   * Completes refund (REFUNDING → REFUNDED) after funds are returned to client.
+   * @param refundedAt Timestamp of successful refund
+   * @throws InvalidStatusTransitionError when status is not REFUNDING
+   * @emits EscrowRefundedEvent
+   */
+  completeRefund(refundedAt: Date): void {
+    if (this._status !== EscrowStatus.REFUNDING) {
+      throw new InvalidStatusTransitionError(
+        this._status,
+        EscrowStatus.REFUNDED,
+      );
+    }
+    this._status = EscrowStatus.REFUNDED;
+    this._refundedAt = refundedAt;
+    this.addDomainEvent(new EscrowRefundedEvent(this));
+  }
+
+  /**
+   * Freezes escrow (HELD → DISPUTED) when a dispute is opened.
+   * @throws InvalidStatusTransitionError when status is not HELD
+   * @emits EscrowDisputedEvent
+   */
+  dispute(): void {
+    if (this._status !== EscrowStatus.HELD) {
+      throw new InvalidStatusTransitionError(
+        this._status,
+        EscrowStatus.DISPUTED,
+      );
+    }
+    this._status = EscrowStatus.DISPUTED;
+    this.addDomainEvent(new EscrowDisputedEvent(this));
+  }
+
+  /**
+   * Checks if escrow hold period has expired (current time > holdUntil).
+   * Used by scheduled job to auto-release funds to worker after hold period.
+   * @returns true if funds can be auto-released to worker
+   */
+  isHoldExpired(): boolean {
+    return this._status === EscrowStatus.HELD && new Date() > this._holdUntil;
+  }
+
+  // Getters
+  get amountGross(): Money {
+    return this._amountGross;
+  }
+  get platformFee(): Money {
+    return this._platformFee;
+  }
+  get amountNetWorker(): Money {
+    return this._amountNetWorker;
+  }
+  get status(): EscrowStatus {
+    return this._status;
+  }
+  get holdUntil(): Date {
+    return this._holdUntil;
+  }
+  get releasedAt(): Date | null {
+    return this._releasedAt;
+  }
+  get refundedAt(): Date | null {
+    return this._refundedAt;
+  }
+
+  // Domain event support (mixin pattern)
+  private domainEvents: any[] = [];
+  private addDomainEvent(event: any): void {
+    this.domainEvents.push(event);
+  }
+  getDomainEvents(): any[] {
+    return this.domainEvents;
+  }
+  clearDomainEvents(): void {
+    this.domainEvents = [];
+  }
+}
+
+/**
+ * Money value object representing an amount in a specific currency.
+ * Immutable. Validates amount is non-negative.
+ * Replaces raw integer kobo amounts to enforce type safety and prevent currency mixing.
+ */
+class Money {
+  private constructor(
+    public readonly amountKobo: number,
+    public readonly currency: Currency,
+  ) {
+    if (amountKobo < 0) {
+      throw new InvalidAmountError('Money amount cannot be negative');
+    }
+  }
+
+  /**
+   * Creates Money from kobo (smallest unit). 1 Naira = 100 kobo.
+   * @param amountKobo Amount in kobo (must be >= 0)
+   * @param currency Currency code (default: NGN)
+   * @throws InvalidAmountError when amountKobo < 0
+   */
+  static fromKobo(amountKobo: number, currency: Currency = 'NGN'): Money {
+    return new Money(amountKobo, currency);
+  }
+
+  /**
+   * Creates Money from major unit (Naira). Converts to kobo internally.
+   * @param amountNaira Amount in Naira (e.g., 100.50 → 10050 kobo)
+   * @param currency Currency code (default: NGN)
+   */
+  static fromNaira(amountNaira: number, currency: Currency = 'NGN'): Money {
+    return new Money(Math.round(amountNaira * 100), currency);
+  }
+
+  /**
+   * Adds two Money values. Must have same currency.
+   * @throws CurrencyMismatchError when currencies differ
+   */
+  add(other: Money): Money {
+    if (this.currency !== other.currency) {
+      throw new CurrencyMismatchError(this.currency, other.currency);
+    }
+    return Money.fromKobo(this.amountKobo + other.amountKobo, this.currency);
+  }
+
+  /**
+   * Subtracts two Money values. Must have same currency.
+   * @throws CurrencyMismatchError when currencies differ
+   * @throws NegativeAmountError when result would be negative
+   */
+  subtract(other: Money): Money {
+    if (this.currency !== other.currency) {
+      throw new CurrencyMismatchError(this.currency, other.currency);
+    }
+    if (this.amountKobo < other.amountKobo) {
+      throw new NegativeAmountError(
+        'Subtraction would result in negative amount',
+      );
+    }
+    return Money.fromKobo(this.amountKobo - other.amountKobo, this.currency);
+  }
+
+  /**
+   * Multiplies amount by a rate (for calculating fees).
+   * @param rate Multiplier (e.g., 0.05 for 5%)
+   */
+  multiplyBy(rate: number): Money {
+    return Money.fromKobo(Math.round(this.amountKobo * rate), this.currency);
+  }
+
+  /**
+   * Divides amount into platformFee and netAmount using basis points.
+   * Used by Escrow.create to split gross amount into fee + worker amount.
+   * @param basisPoints Platform fee as basis points (e.g., 500 = 5%)
+   * @returns [platformFee, netAmount] where platformFee + netAmount = this
+   */
+  splitFee(basisPoints: number): [Money, Money] {
+    const feeAmount = Math.round((this.amountKobo * basisPoints) / 10000);
+    const platformFee = Money.fromKobo(feeAmount, this.currency);
+    const netAmount = Money.fromKobo(
+      this.amountKobo - feeAmount,
+      this.currency,
+    );
+    return [platformFee, netAmount];
+  }
+
+  toKobo(): number {
+    return this.amountKobo;
+  }
+  toNaira(): number {
+    return this.amountKobo / 100;
+  }
+  toString(): string {
+    return `₦${this.toNaira().toFixed(2)}`;
+  }
+
+  equals(other: Money): boolean {
+    return (
+      this.amountKobo === other.amountKobo && this.currency === other.currency
+    );
+  }
+}
+
+/** Domain errors for Escrow aggregate. */
+class InvalidStatusTransitionError extends Error {
+  constructor(from: EscrowStatus, to: EscrowStatus) {
+    super(`Cannot transition escrow from ${from} to ${to}`);
+    this.name = 'InvalidStatusTransitionError';
+  }
+}
+
+class InvalidAmountError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidAmountError';
+  }
+}
+
+class InvalidFeeRateError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidFeeRateError';
+  }
+}
+
+class CurrencyMismatchError extends Error {
+  constructor(currency1: Currency, currency2: Currency) {
+    super(`Cannot mix currencies: ${currency1} and ${currency2}`);
+    this.name = 'CurrencyMismatchError';
+  }
+}
+
+class NegativeAmountError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'NegativeAmountError';
+  }
+}
+
+enum EscrowStatus {
+  PENDING = 'PENDING',
+  FUNDED = 'FUNDED',
+  HELD = 'HELD',
+  RELEASING = 'RELEASING',
+  RELEASED = 'RELEASED',
+  REFUNDING = 'REFUNDING',
+  REFUNDED = 'REFUNDED',
+  DISPUTED = 'DISPUTED',
+}
+
+enum RefundReason {
+  ERRAND_CANCELLED = 'ERRAND_CANCELLED',
+  WORKER_NO_SHOW = 'WORKER_NO_SHOW',
+  DISPUTE_RESOLVED = 'DISPUTE_RESOLVED',
+}
+
+type Currency = 'NGN'; // Extend later for multi-currency support
+```
+
+### Repository Interface
+
+```typescript
+/**
+ * Persistence-ignorant contract for Escrow aggregate.
+ * Implemented by infrastructure layer (PrismaEscrowRepository).
+ * Domain and application layers depend only on this interface.
+ */
+interface IEscrowRepository {
+  /**
+   * Finds escrow by ID.
+   * @returns Escrow aggregate or null if not found
+   */
+  findById(id: string): Promise<Escrow | null>;
+
+  /**
+   * Finds escrow by errand ID (1:1 relationship enforced by unique constraint).
+   * Used by FundEscrowCommandHandler to check if escrow already exists (idempotency).
+   * @returns Escrow aggregate or null if not found
+   */
+  findByErrandId(errandId: string): Promise<Escrow | null>;
+
+  /**
+   * Finds all escrows for a client (for admin dashboard).
+   * @param clientId Client's user ID
+   * @param status Optional status filter
+   * @returns Array of Escrow aggregates ordered by createdAt desc
+   */
+  findByClientId(clientId: string, status?: EscrowStatus): Promise<Escrow[]>;
+
+  /**
+   * Finds all escrows for a worker (for provider dashboard).
+   * @param workerId Worker's provider ID
+   * @param status Optional status filter
+   * @returns Array of Escrow aggregates ordered by createdAt desc
+   */
+  findByWorkerId(workerId: string, status?: EscrowStatus): Promise<Escrow[]>;
+
+  /**
+   * Finds all escrows with expired hold periods (for auto-release scheduled job).
+   * Query: status = HELD AND holdUntil < NOW()
+   * @returns Array of Escrow aggregates ready for auto-release
+   */
+  findExpiredHolds(): Promise<Escrow[]>;
+
+  /**
+   * Persists escrow (insert if new, update if exists).
+   * Maps Money value objects to integer kobo in Prisma schema.
+   * Publishes domain events to event bus after save.
+   * @param escrow Escrow aggregate to save
+   */
+  save(escrow: Escrow): Promise<void>;
+}
+```
+
+### Application Layer
+
+```typescript
+/**
+ * Funds escrow for an errand after application is accepted.
+ * Part of AcceptApplicationSaga - this is step 2 (after ApplicationAccepted event).
+ * Orchestrates: Create escrow → charge payment → hold client wallet funds.
+ */
+class FundEscrowCommandHandler {
+  constructor(
+    private readonly escrowRepository: IEscrowRepository,
+    private readonly walletRepository: IWalletRepository,
+    private readonly paymentGatewayService: IPaymentGatewayService,
+    private readonly platformFeeRate: number, // Injected from config
+    private readonly logger: ILogger,
+  ) {}
+
+  /**
+   * @param command Contains errandId, clientId, workerId, amountGross, paymentMethodId
+   * @throws EscrowAlreadyExistsError when errand already has escrow (idempotency check)
+   * @throws PaymentMethodNotFoundError when paymentMethodId invalid
+   * @throws InsufficientFundsError when payment charge fails
+   * @throws WalletNotFoundError when client wallet doesn't exist
+   * @emits EscrowFunded when escrow created and payment charged successfully
+   */
+  async execute(command: FundEscrowCommand): Promise<FundEscrowResult> {
+    // 1. Idempotency check
+    const existing = await this.escrowRepository.findByErrandId(
+      command.errandId,
+    );
+    if (existing) {
+      throw new EscrowAlreadyExistsError(command.errandId);
+    }
+
+    // 2. Create escrow aggregate (PENDING status)
+    const escrow = Escrow.create(
+      command.errandId,
+      command.clientId,
+      command.workerId,
+      command.amountGross,
+      this.platformFeeRate,
+    );
+
+    // 3. Charge payment via payment gateway
+    const chargeResult = await this.paymentGatewayService.chargePaymentMethod(
+      command.paymentMethodId,
+      escrow.amountGross,
+      `Escrow for errand ${command.errandId}`,
+    );
+
+    if (!chargeResult.success) {
+      this.logger.error('Payment charge failed', chargeResult.error);
+      throw new InsufficientFundsError(chargeResult.error);
+    }
+
+    // 4. Transition escrow to FUNDED
+    escrow.fund();
+
+    // 5. Hold funds in client wallet
+    const clientWallet = await this.walletRepository.findByUserId(
+      command.clientId,
+    );
+    if (!clientWallet) {
+      throw new WalletNotFoundError(command.clientId);
+    }
+    clientWallet.hold(escrow.amountGross, `Escrow ${escrow.id}`);
+
+    // 6. Transition escrow to HELD
+    escrow.hold();
+
+    // 7. Persist escrow + wallet (publishes EscrowFunded event)
+    await this.escrowRepository.save(escrow);
+    await this.walletRepository.save(clientWallet);
+
+    return {
+      escrowId: escrow.id,
+      amountGross: escrow.amountGross,
+      platformFee: escrow.platformFee,
+      amountNetWorker: escrow.amountNetWorker,
+    };
+  }
+}
+
+interface FundEscrowCommand {
+  errandId: string;
+  clientId: string;
+  workerId: string;
+  amountGross: Money;
+  paymentMethodId: string;
+}
+
+interface FundEscrowResult {
+  escrowId: string;
+  amountGross: Money;
+  platformFee: Money;
+  amountNetWorker: Money;
+}
+
+/**
+ * Releases escrow funds to worker wallet when errand is completed.
+ * Triggered by ErrandCompleted event (event handler calls this).
+ * Orchestrates: Begin release → credit worker wallet → complete release.
+ */
+class ReleaseEscrowCommandHandler {
+  constructor(
+    private readonly escrowRepository: IEscrowRepository,
+    private readonly walletRepository: IWalletRepository,
+    private readonly logger: ILogger,
+  ) {}
+
+  /**
+   * @param command Contains escrowId
+   * @throws EscrowNotFoundError when escrowId invalid
+   * @throws InvalidStatusTransitionError when escrow not in HELD status
+   * @throws WalletNotFoundError when worker wallet doesn't exist
+   * @throws WalletCreditFailedError when worker wallet credit fails (queued for retry)
+   * @emits EscrowReleasing when release begins
+   * @emits EscrowReleased when funds credited to worker wallet
+   */
+  async execute(command: ReleaseEscrowCommand): Promise<void> {
+    // 1. Load escrow
+    const escrow = await this.escrowRepository.findById(command.escrowId);
+    if (!escrow) {
+      throw new EscrowNotFoundError(command.escrowId);
+    }
+
+    // 2. Begin release (HELD → RELEASING)
+    escrow.beginRelease();
+    await this.escrowRepository.save(escrow); // Emits EscrowReleasingEvent
+
+    // 3. Credit worker wallet
+    const workerWallet = await this.walletRepository.findByUserId(
+      escrow.workerId,
+    );
+    if (!workerWallet) {
+      throw new WalletNotFoundError(escrow.workerId);
+    }
+
+    try {
+      workerWallet.credit(
+        escrow.amountNetWorker,
+        `Escrow release ${escrow.id}`,
+      );
+      await this.walletRepository.save(workerWallet);
+    } catch (error) {
+      this.logger.error('Worker wallet credit failed', error);
+      throw new WalletCreditFailedError(error);
+    }
+
+    // 4. Complete release (RELEASING → RELEASED)
+    escrow.completeRelease(new Date());
+    await this.escrowRepository.save(escrow); // Emits EscrowReleasedEvent
+  }
+}
+
+interface ReleaseEscrowCommand {
+  escrowId: string;
+}
+
+/**
+ * Refunds escrow funds to client when errand is cancelled.
+ * Triggered by ErrandCancelled event.
+ * Orchestrates: Begin refund → Paystack refund → complete refund.
+ */
+class RefundEscrowCommandHandler {
+  constructor(
+    private readonly escrowRepository: IEscrowRepository,
+    private readonly walletRepository: IWalletRepository,
+    private readonly paymentGatewayService: IPaymentGatewayService,
+    private readonly logger: ILogger,
+  ) {}
+
+  /**
+   * @param command Contains escrowId and reason
+   * @throws EscrowNotFoundError when escrowId invalid
+   * @throws InvalidStatusTransitionError when escrow not in HELD status
+   * @throws RefundFailedError when Paystack refund fails (queued for retry in BullMQ)
+   * @emits EscrowRefunding when refund begins
+   * @emits EscrowRefunded when refund confirmed by payment gateway
+   */
+  async execute(command: RefundEscrowCommand): Promise<void> {
+    // 1. Load escrow
+    const escrow = await this.escrowRepository.findById(command.escrowId);
+    if (!escrow) {
+      throw new EscrowNotFoundError(command.escrowId);
+    }
+
+    // 2. Release held funds in client wallet first
+    const clientWallet = await this.walletRepository.findByUserId(
+      escrow.clientId,
+    );
+    if (clientWallet) {
+      clientWallet.release(escrow.amountGross, `Escrow refund ${escrow.id}`);
+      await this.walletRepository.save(clientWallet);
+    }
+
+    // 3. Begin refund (HELD → REFUNDING)
+    escrow.beginRefund(command.reason);
+    await this.escrowRepository.save(escrow); // Emits EscrowRefundingEvent
+
+    // 4. Refund via payment gateway
+    try {
+      const refundResult = await this.paymentGatewayService.refund(
+        escrow.amountGross,
+        `Escrow refund ${escrow.id}`,
+      );
+
+      if (!refundResult.success) {
+        throw new RefundFailedError(refundResult.error);
+      }
+    } catch (error) {
+      this.logger.error('Paystack refund failed - queuing for retry', error);
+      throw new RefundFailedError(error);
+    }
+
+    // 5. Complete refund (REFUNDING → REFUNDED)
+    escrow.completeRefund(new Date());
+    await this.escrowRepository.save(escrow); // Emits EscrowRefundedEvent
+  }
+}
+
+interface RefundEscrowCommand {
+  escrowId: string;
+  reason: RefundReason;
+}
+
+/**
+ * Query handler for fetching escrow details (read model).
+ * Used by GraphQL resolvers to display escrow info in client/provider dashboards.
+ */
+class GetEscrowByErrandQueryHandler {
+  constructor(private readonly escrowRepository: IEscrowRepository) {}
+
+  /**
+   * @param query Contains errandId
+   * @returns Escrow DTO or null if not found
+   */
+  async execute(query: GetEscrowByErrandQuery): Promise<EscrowDTO | null> {
+    const escrow = await this.escrowRepository.findByErrandId(query.errandId);
+    if (!escrow) {
+      return null;
+    }
+
+    return {
+      id: escrow.id,
+      errandId: escrow.errandId,
+      clientId: escrow.clientId,
+      workerId: escrow.workerId,
+      amountGross: escrow.amountGross.toKobo(),
+      platformFee: escrow.platformFee.toKobo(),
+      amountNetWorker: escrow.amountNetWorker.toKobo(),
+      status: escrow.status,
+      holdUntil: escrow.holdUntil,
+      releasedAt: escrow.releasedAt,
+      refundedAt: escrow.refundedAt,
+    };
+  }
+}
+
+interface GetEscrowByErrandQuery {
+  errandId: string;
+}
+
+interface EscrowDTO {
+  id: string;
+  errandId: string;
+  clientId: string;
+  workerId: string;
+  amountGross: number; // In kobo
+  platformFee: number;
+  amountNetWorker: number;
+  status: EscrowStatus;
+  holdUntil: Date;
+  releasedAt: Date | null;
+  refundedAt: Date | null;
+}
+
+/** Application errors */
+class EscrowAlreadyExistsError extends Error {}
+class EscrowNotFoundError extends Error {}
+class PaymentMethodNotFoundError extends Error {}
+class InsufficientFundsError extends Error {}
+class WalletNotFoundError extends Error {}
+class WalletCreditFailedError extends Error {}
+class RefundFailedError extends Error {}
+```
+
+### Domain Events
+
+```typescript
+/**
+ * Emitted when escrow is funded (payment charged successfully).
+ * Consumed by:
+ * - WalletEventHandler (holds funds in client wallet) — already handled in command
+ * - NotificationEventHandler (notifies client "Payment successful")
+ * - AcceptApplicationSaga (proceeds to step 3: assign errand)
+ */
+class EscrowFundedEvent {
+  constructor(
+    public readonly escrowId: string,
+    public readonly errandId: string,
+    public readonly clientId: string,
+    public readonly workerId: string,
+    public readonly amountGross: Money,
+    public readonly platformFee: Money,
+    public readonly amountNetWorker: Money,
+    public readonly fundedAt: Date,
+  ) {}
+
+  static fromAggregate(escrow: Escrow): EscrowFundedEvent {
+    return new EscrowFundedEvent(
+      escrow.id,
+      escrow.errandId,
+      escrow.clientId,
+      escrow.workerId,
+      escrow.amountGross,
+      escrow.platformFee,
+      escrow.amountNetWorker,
+      new Date(),
+    );
+  }
+}
+
+/**
+ * Emitted when escrow release begins (errand completed).
+ * Consumed by:
+ * - WalletEventHandler (prepares to credit worker — already handled in ReleaseEscrowCommandHandler)
+ */
+class EscrowReleasingEvent {
+  constructor(
+    public readonly escrowId: string,
+    public readonly errandId: string,
+    public readonly workerId: string,
+    public readonly amount: Money,
+    public readonly releasingAt: Date,
+  ) {}
+
+  static fromAggregate(escrow: Escrow): EscrowReleasingEvent {
+    return new EscrowReleasingEvent(
+      escrow.id,
+      escrow.errandId,
+      escrow.workerId,
+      escrow.amountNetWorker,
+      new Date(),
+    );
+  }
+}
+
+/**
+ * Emitted when escrow is fully released (worker wallet credited).
+ * Consumed by:
+ * - NotificationEventHandler (notifies worker "Payment received")
+ * - RatingEventHandler (sends rating request to both client and worker)
+ */
+class EscrowReleasedEvent {
+  constructor(
+    public readonly escrowId: string,
+    public readonly errandId: string,
+    public readonly workerId: string,
+    public readonly amount: Money,
+    public readonly releasedAt: Date,
+  ) {}
+
+  static fromAggregate(escrow: Escrow): EscrowReleasedEvent {
+    return new EscrowReleasedEvent(
+      escrow.id,
+      escrow.errandId,
+      escrow.workerId,
+      escrow.amountNetWorker,
+      escrow.releasedAt!,
+    );
+  }
+}
+
+/**
+ * Emitted when escrow refund begins (errand cancelled).
+ * Consumed by:
+ * - PaymentGatewayEventHandler (initiates Paystack refund — already handled in command)
+ */
+class EscrowRefundingEvent {
+  constructor(
+    public readonly escrowId: string,
+    public readonly errandId: string,
+    public readonly clientId: string,
+    public readonly amount: Money,
+    public readonly reason: RefundReason,
+    public readonly refundingAt: Date,
+  ) {}
+
+  static fromAggregate(
+    escrow: Escrow,
+    reason: RefundReason,
+  ): EscrowRefundingEvent {
+    return new EscrowRefundingEvent(
+      escrow.id,
+      escrow.errandId,
+      escrow.clientId,
+      escrow.amountGross,
+      reason,
+      new Date(),
+    );
+  }
+}
+
+/**
+ * Emitted when escrow is fully refunded (client received refund).
+ * Consumed by:
+ * - NotificationEventHandler (notifies client "Refund processed")
+ */
+class EscrowRefundedEvent {
+  constructor(
+    public readonly escrowId: string,
+    public readonly errandId: string,
+    public readonly clientId: string,
+    public readonly amount: Money,
+    public readonly refundedAt: Date,
+  ) {}
+
+  static fromAggregate(escrow: Escrow): EscrowRefundedEvent {
+    return new EscrowRefundedEvent(
+      escrow.id,
+      escrow.errandId,
+      escrow.clientId,
+      escrow.amountGross,
+      escrow.refundedAt!,
+    );
+  }
+}
+
+/**
+ * Emitted when escrow is disputed (dispute opened).
+ * Consumed by:
+ * - DisputeEventHandler (creates Dispute aggregate)
+ * - NotificationEventHandler (notifies admin team)
+ */
+class EscrowDisputedEvent {
+  constructor(
+    public readonly escrowId: string,
+    public readonly errandId: string,
+    public readonly disputedAt: Date,
+  ) {}
+
+  static fromAggregate(escrow: Escrow): EscrowDisputedEvent {
+    return new EscrowDisputedEvent(escrow.id, escrow.errandId, new Date());
+  }
+}
+```
+
+### Saga
+
+```typescript
+/**
+ * Orchestrates errand assignment + escrow funding across Application, Escrow, Errand, Wallet aggregates.
+ * Replaces the god method EscrowService.acceptApplicationAndFundEscrow (110 lines).
+ *
+ * Flow:
+ * 1. Application accepted → funds escrow (charges payment)
+ * 2. Escrow funded → holds client wallet funds
+ * 3. Wallet funds held → assigns errand to worker
+ * 4. Errand assigned → cancels other pending applications
+ * 5. Applications cancelled → notifies workers
+ *
+ * Compensation (if any step fails):
+ * - If escrow funding fails (payment declined) → rejects application, notifies client
+ * - If wallet hold fails → refunds escrow, rejects application
+ * - If errand assignment fails → refunds escrow, releases wallet hold, rejects application
+ */
+class AcceptApplicationSaga {
+  constructor(
+    private readonly fundEscrowHandler: FundEscrowCommandHandler,
+    private readonly assignErrandHandler: AssignErrandCommandHandler,
+    private readonly rejectApplicationHandler: RejectApplicationCommandHandler,
+    private readonly cancelApplicationsHandler: CancelOtherApplicationsCommandHandler,
+    private readonly eventBus: IEventBus,
+    private readonly logger: ILogger,
+  ) {}
+
+  /**
+   * Step 1: Listen to ApplicationAccepted event, fund escrow.
+   * @listens ApplicationAcceptedEvent (emitted by Application.accept())
+   * @emits EscrowFunded (success) or compensates by rejecting application (failure)
+   */
+  async onApplicationAccepted(event: ApplicationAcceptedEvent): Promise<void> {
+    try {
+      await this.fundEscrowHandler.execute({
+        errandId: event.errandId,
+        clientId: event.clientId,
+        workerId: event.workerId,
+        amountGross: event.agreedAmount,
+        paymentMethodId: event.paymentMethodId,
+      });
+      // EscrowFunded event emitted automatically by repository
+    } catch (error) {
+      this.logger.error('Escrow funding failed - compensating', error);
+      await this.compensateApplicationAccepted(event, error);
+    }
+  }
+
+  /**
+   * Step 2: Listen to EscrowFunded event, assign errand to worker.
+   * @listens EscrowFundedEvent
+   * @emits ErrandAssigned (success) or compensates by refunding escrow (failure)
+   */
+  async onEscrowFunded(event: EscrowFundedEvent): Promise<void> {
+    try {
+      await this.assignErrandHandler.execute({
+        errandId: event.errandId,
+        workerId: event.workerId,
+      });
+      // ErrandAssigned event emitted automatically by Errand aggregate
+    } catch (error) {
+      this.logger.error('Errand assignment failed - compensating', error);
+      await this.compensateEscrowFunded(event, error);
+    }
+  }
+
+  /**
+   * Step 3: Listen to ErrandAssigned event, cancel other pending applications.
+   * @listens ErrandAssignedEvent
+   * @emits ApplicationsCancelled (success)
+   */
+  async onErrandAssigned(event: ErrandAssignedEvent): Promise<void> {
+    await this.cancelApplicationsHandler.execute({
+      errandId: event.errandId,
+      excludeApplicationId: event.applicationId,
+    });
+    // ApplicationsCancelled event emitted automatically
+  }
+
+  /**
+   * Compensation for failed escrow funding.
+   * Rejects the application and notifies client of payment failure.
+   */
+  private async compensateApplicationAccepted(
+    event: ApplicationAcceptedEvent,
+    error: Error,
+  ): Promise<void> {
+    await this.rejectApplicationHandler.execute({
+      applicationId: event.applicationId,
+      reason: `Payment failed: ${error.message}`,
+    });
+    this.eventBus.publish(
+      new ApplicationRejectedEvent(
+        event.applicationId,
+        event.errandId,
+        event.workerId,
+        `Payment declined`,
+      ),
+    );
+  }
+
+  /**
+   * Compensation for failed errand assignment.
+   * Refunds escrow and rejects application.
+   */
+  private async compensateEscrowFunded(
+    event: EscrowFundedEvent,
+    error: Error,
+  ): Promise<void> {
+    // Refund escrow
+    const refundHandler = new RefundEscrowCommandHandler(/* deps */);
+    await refundHandler.execute({
+      escrowId: event.escrowId,
+      reason: RefundReason.ERRAND_CANCELLED,
+    });
+
+    // Reject application
+    await this.rejectApplicationHandler.execute({
+      applicationId: event.applicationId,
+      reason: `Assignment failed: ${error.message}`,
+    });
+  }
+}
+```

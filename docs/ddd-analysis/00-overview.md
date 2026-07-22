@@ -1082,6 +1082,148 @@ This section documents critical schema-level issues found by analyzing `prisma/m
 
 ---
 
+## Cross-Module Interface Summary
+
+This section provides a comprehensive reference of all key domain interfaces, commands, events, and sagas defined in the Implementation Spec sections (Section 12) of each module document. Use this table to understand cross-module dependencies and event flows.
+
+### Repository Interfaces
+
+| Module          | Repository Interface     | Key Methods                                                                                  | Purpose                                            |
+| --------------- | ------------------------ | -------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| **Escrow**      | `IEscrowRepository`      | `findById`, `findByErrand`, `save`                                                           | Persistence contract for Escrow aggregate          |
+| **Wallet**      | `IWalletRepository`      | `findById`, `findByOwner`, `save`, `findWalletsWithDiscrepancies`                            | Wallet aggregate persistence + integrity audit     |
+| **Application** | `IApplicationRepository` | `findById`, `findByErrandAndWorker`, `findByErrand`, `save`, `countByStatus`                 | Application aggregate persistence + queries        |
+| **Errands**     | `IErrandRepository`      | `findById`, `findNearby`, `findFeedErrands`, `save`                                          | Errand aggregate persistence + geospatial queries  |
+| **Users**       | `IUserRepository`        | `findById`, `findByEmail`, `findByPhoneNumber`, `save`, `findAddresses`                      | Shared kernel user aggregate persistence           |
+| **Rating**      | `IRatingRepository`      | `findById`, `findByRater`, `findByRatee`, `save`, `calculateAverageRating`, `getRatingStats` | Rating aggregate persistence + stats aggregation   |
+| **Chat**        | `IChatRoomRepository`    | `findById`, `findByErrandAndParticipants`, `findByUser`, `save`, `findMessages`              | Chat room aggregate persistence + messaging        |
+| **Provider**    | `IProviderRepository`    | `findById`, `findByUserId`, `findBySkills`, `save`                                           | Provider aggregate persistence + discovery queries |
+| **Client**      | `IClientRepository`      | `findById`, `findByUserId`, `save`                                                           | Client aggregate persistence                       |
+
+### Command Handlers (Write Operations)
+
+| Module          | Command Handler                       | Trigger                          | Purpose                                     | Emits Event                   |
+| --------------- | ------------------------------------- | -------------------------------- | ------------------------------------------- | ----------------------------- |
+| **Escrow**      | `CreateEscrowCommandHandler`          | Application accepted             | Creates escrow for errand                   | `EscrowCreatedEvent`          |
+| **Escrow**      | `FundEscrowCommandHandler`            | Payment charged                  | Funds escrow via payment gateway            | `EscrowFundedEvent`           |
+| **Escrow**      | `ReleaseEscrowCommandHandler`         | Errand completed                 | Releases escrow funds to worker             | `EscrowReleasedEvent`         |
+| **Escrow**      | `RefundEscrowCommandHandler`          | Errand cancelled                 | Refunds escrow to client                    | `EscrowRefundedEvent`         |
+| **Wallet**      | `CreateWalletCommandHandler`          | User registration                | Creates wallet for user                     | `WalletCreatedEvent`          |
+| **Wallet**      | `CreditWalletCommandHandler`          | Top-up, refund, payout           | Credits wallet balance                      | `WalletCreditedEvent`         |
+| **Wallet**      | `DebitWalletCommandHandler`           | Withdrawal, payment              | Debits wallet balance                       | `WalletDebitedEvent`          |
+| **Wallet**      | `HoldFundsCommandHandler`             | Escrow funded                    | Holds funds in wallet (available → held)    | `FundsHeldEvent`              |
+| **Wallet**      | `ReleaseHoldCommandHandler`           | Escrow cancelled                 | Releases held funds (held → available)      | `FundsReleasedEvent`          |
+| **Wallet**      | `TransferHeldFundsCommandHandler`     | Escrow released                  | Transfers held funds to worker wallet       | `FundsTransferredEvent`       |
+| **Application** | `SubmitApplicationCommandHandler`     | Worker applies to errand         | Creates application                         | `ApplicationSubmittedEvent`   |
+| **Application** | `AcceptApplicationCommandHandler`     | Client accepts worker            | Accepts application (triggers saga)         | `ApplicationAcceptedEvent`    |
+| **Application** | `RejectApplicationCommandHandler`     | Client rejects worker            | Rejects application                         | `ApplicationRejectedEvent`    |
+| **Application** | `CancelApplicationCommandHandler`     | Worker cancels                   | Cancels application                         | `ApplicationCancelledEvent`   |
+| **Errands**     | `CreateErrandCommandHandler`          | Client creates errand            | Creates errand in DRAFT status              | `ErrandCreatedEvent`          |
+| **Errands**     | `PublishErrandCommandHandler`         | Client publishes draft           | Publishes errand (DRAFT → OPEN)             | `ErrandPublishedEvent`        |
+| **Errands**     | `AssignWorkerCommandHandler`          | Application accepted             | Assigns worker (OPEN → ASSIGNED)            | `ErrandAssignedEvent`         |
+| **Errands**     | `StartErrandCommandHandler`           | Worker starts                    | Starts errand (ASSIGNED → IN_PROGRESS)      | `ErrandStartedEvent`          |
+| **Errands**     | `CompleteErrandCommandHandler`        | Client/worker completes          | Completes errand (triggers escrow release)  | `ErrandCompletedEvent`        |
+| **Errands**     | `CancelErrandCommandHandler`          | Client cancels                   | Cancels errand (triggers escrow refund)     | `ErrandCancelledEvent`        |
+| **Users**       | `UpdateUserProfileCommandHandler`     | User updates profile             | Updates user profile                        | `UserProfileUpdatedEvent`     |
+| **Users**       | `AddAddressCommandHandler`            | User adds address                | Adds address to user                        | `AddressAddedEvent`           |
+| **Users**       | `DeleteAddressCommandHandler`         | User deletes address             | Deletes address (cleans up activeAddressId) | `AddressDeletedEvent`         |
+| **Users**       | `SetActiveAddressCommandHandler`      | User sets active address         | Sets active address                         | `ActiveAddressChangedEvent`   |
+| **Users**       | `AddRoleCommandHandler`               | Provider/Client created          | Adds role to user                           | `RoleAddedEvent`              |
+| **Users**       | `SwitchRoleCommandHandler`            | User toggles role                | Switches active role                        | `ActiveRoleChangedEvent`      |
+| **Rating**      | `CreateRatingCommandHandler`          | Errand completed (rating prompt) | Creates rating                              | `RatingCreatedEvent`          |
+| **Rating**      | `AddRatingReactionCommandHandler`     | User reacts to rating            | Adds emoji reaction                         | `RatingReactionAddedEvent`    |
+| **Rating**      | `AddRatingReplyCommandHandler`        | Ratee replies                    | Adds reply to rating                        | `RatingRepliedEvent`          |
+| **Chat**        | `CreateChatRoomCommandHandler`        | Application submitted            | Creates chat room                           | `ChatRoomCreatedEvent`        |
+| **Chat**        | `SendMessageCommandHandler`           | User sends message               | Sends message in chat                       | `MessageSentEvent`            |
+| **Chat**        | `MarkMessageAsReadCommandHandler`     | User reads message               | Marks message as read                       | `MessageReadEvent`            |
+| **Provider**    | `CreateProviderCommandHandler`        | User registers as provider       | Creates provider profile                    | `ProviderCreatedEvent`        |
+| **Provider**    | `UpdateProviderProfileCommandHandler` | Provider updates profile         | Updates bio/skills                          | `ProviderProfileUpdatedEvent` |
+| **Provider**    | `VerifyProviderCommandHandler`        | Admin verifies                   | Verifies provider                           | `ProviderVerifiedEvent`       |
+| **Client**      | `CreateClientCommandHandler`          | User registers as client         | Creates client profile                      | `ClientCreatedEvent`          |
+| **Client**      | `VerifyClientCommandHandler`          | Admin verifies                   | Verifies client                             | `ClientVerifiedEvent`         |
+
+### Domain Events (Critical Event Flows)
+
+| Event                      | Module      | Consumer Modules                                          | Purpose                                             | Saga Trigger?                   |
+| -------------------------- | ----------- | --------------------------------------------------------- | --------------------------------------------------- | ------------------------------- |
+| `ApplicationAcceptedEvent` | Application | Errands, Escrow, Notification                             | **CRITICAL: Triggers AcceptApplicationSaga**        | ✅ Yes (AcceptApplicationSaga)  |
+| `ErrandAssignedEvent`      | Errands     | Escrow, Application, Notification                         | Worker assigned to errand                           | No                              |
+| `ErrandCompletedEvent`     | Errands     | **Escrow** (release funds), Rating (prompt), Notification | **CRITICAL: Triggers escrow release**               | No (CompleteErrandSaga listens) |
+| `ErrandCancelledEvent`     | Errands     | **Escrow** (refund), Application (cancel), Notification   | **CRITICAL: Triggers escrow refund if IN_PROGRESS** | No (RefundErrandSaga listens)   |
+| `EscrowFundedEvent`        | Escrow      | **Wallet** (hold funds), Application saga                 | Escrow payment successful                           | No                              |
+| `EscrowReleasedEvent`      | Escrow      | **Wallet** (transfer to worker), Notification             | Escrow funds released to worker                     | No                              |
+| `EscrowRefundedEvent`      | Escrow      | **Wallet** (release to client), Notification              | Escrow funds refunded to client                     | No                              |
+| `WalletCreditedEvent`      | Wallet      | Notification                                              | Wallet balance credited                             | No                              |
+| `WalletDebitedEvent`       | Wallet      | Notification                                              | Wallet balance debited                              | No                              |
+| `FundsHeldEvent`           | Wallet      | AcceptApplicationSaga (next step)                         | Funds held in client wallet                         | No                              |
+| `FundsTransferredEvent`    | Wallet      | Notification                                              | Funds transferred between wallets                   | No                              |
+| `RatingCreatedEvent`       | Rating      | **Provider/Client** (update averageRating), Notification  | **CRITICAL: Triggers denormalization**              | No                              |
+| `MessageSentEvent`         | Chat        | **PubSub** (broadcast), Notification                      | **CRITICAL: Triggers real-time broadcast**          | No                              |
+| `ProviderCreatedEvent`     | Provider    | **Users** (add PROVIDER role)                             | Provider profile created                            | No                              |
+| `ClientCreatedEvent`       | Client      | **Users** (add CLIENT role)                               | Client profile created                              | No                              |
+| `UserProfileUpdatedEvent`  | Users       | Payment-Gateway (update Paystack), Notification           | User profile updated                                | No                              |
+| `AddressDeletedEvent`      | Users       | Errands (cleanup references)                              | Address deleted (may affect errands)                | No                              |
+
+### Sagas (Multi-Step Workflows)
+
+| Saga                          | Trigger Event                                        | Module      | Steps                                                                                                                                                                      | Rollback Strategy                             | Risk Level                              |
+| ----------------------------- | ---------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- | --------------------------------------- |
+| **AcceptApplicationSaga**     | `ApplicationAcceptedEvent`                           | Application | 1. Reject other applications<br>2. Update errand status to ASSIGNED<br>3. Create escrow<br>4. Charge payment<br>5. Hold funds in wallet<br>6. Update errand to IN_PROGRESS | Revert application to PENDING, errand to OPEN | **HIGH** (money flow)                   |
+| **CompleteErrandSaga**        | `ErrandCompletedEvent`                               | Errands     | 1. Release escrow<br>2. Transfer held funds to worker<br>3. Prompt rating<br>4. Send notifications                                                                         | N/A (completion is terminal)                  | **MEDIUM** (money flow, but idempotent) |
+| **RefundErrandSaga**          | `ErrandCancelledEvent` (when status was IN_PROGRESS) | Errands     | 1. Refund escrow<br>2. Release held funds to client<br>3. Cancel applications<br>4. Send notifications                                                                     | N/A (refund is terminal)                      | **MEDIUM** (money flow, but idempotent) |
+| **CreateErrandSaga** (future) | `ErrandPublishedEvent`                               | Errands     | 1. Notify nearby providers<br>2. Index in search<br>3. Update recommendation engine                                                                                        | N/A (informational only)                      | **LOW**                                 |
+
+### Value Objects (Shared Domain Concepts)
+
+| Value Object    | Module                  | Properties                                                                                                     | Validation                                | Purpose                                                 |
+| --------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------- |
+| **Money**       | Wallet, Escrow, Errands | `amountKobo: number`                                                                                           | Must be non-negative                      | Represents monetary amount in kobo (1 Naira = 100 kobo) |
+| **Location**    | Errands, Users          | `geoPoint: GeoPoint`, `address: string`, `placeId?: string`                                                    | Valid coordinates                         | Geospatial location with address                        |
+| **Pricing**     | Errands                 | `price: number \| null`, `hourlyRate: number \| null`, `transportAllowance: number`, `materialsBudget: number` | At least one of price/hourlyRate required | Errand pricing structure                                |
+| **Score**       | Rating                  | `value: number`                                                                                                | 1-5 range                                 | Rating score                                            |
+| **Emoji**       | Rating                  | `value: string`                                                                                                | Allowed emoji set only                    | Validated emoji reaction                                |
+| **Email**       | Users                   | `value: string`                                                                                                | Valid email format                        | Validated email address                                 |
+| **PhoneNumber** | Users                   | `value: string`                                                                                                | Valid phone format (E.164 recommended)    | Validated phone number                                  |
+
+### Cross-Module Event Flow Examples
+
+#### Errand Acceptance Flow (AcceptApplicationSaga)
+
+```
+1. Client calls AcceptApplicationCommandHandler
+2. Application.accept() → emits ApplicationAcceptedEvent
+3. AcceptApplicationSaga handles ApplicationAcceptedEvent:
+   a. Calls RejectApplicationCommand for other applications
+   b. Calls AssignWorkerCommand → emits ErrandAssignedEvent
+   c. Calls CreateEscrowCommand → emits EscrowCreatedEvent
+   d. Calls FundEscrowCommand → emits EscrowFundedEvent
+   e. OnEscrowFundedHoldFundsHandler calls HoldFundsCommand → emits FundsHeldEvent
+   f. Calls UpdateErrandStatusCommand (IN_PROGRESS)
+4. Notifications sent to worker (accepted) and client (charged)
+```
+
+#### Errand Completion Flow
+
+```
+1. Client/Worker calls CompleteErrandCommandHandler
+2. Errand.complete() → emits ErrandCompletedEvent
+3. OnErrandCompletedReleaseEscrowHandler calls ReleaseEscrowCommand → emits EscrowReleasedEvent
+4. OnEscrowReleasedTransferFundsHandler calls TransferHeldFundsCommand → emits FundsTransferredEvent + WalletCreditedEvent
+5. OnErrandCompletedPromptRatingHandler sends rating prompts to client and worker
+6. Notifications sent to worker (payment received) and client (errand complete)
+```
+
+#### Chat Message Flow
+
+```
+1. User calls SendMessageCommandHandler
+2. ChatRoom.sendMessage() → emits MessageSentEvent
+3. OnMessageSentBroadcastHandler publishes to PubSub topic (real-time delivery to connected users)
+4. Notification module sends push notification to offline participants
+```
+
+---
+
 ## Conclusion
 
 The Errandy Backend codebase has a solid foundation (NestJS, GraphQL, Prisma, MongoDB) but suffers from **anemic domain models, tight coupling, and missing bounded contexts**. The proposed refactoring toward **DDD and EIP** will improve maintainability, scalability, and domain clarity.

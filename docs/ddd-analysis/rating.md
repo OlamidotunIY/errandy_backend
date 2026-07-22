@@ -461,3 +461,553 @@ model Rating {
 7. **Denormalize average rating** in Provider/Client tables (update via event listener).
 8. **Add DataLoader** for rating queries (prevent N+1 for rater profiles).
 9. **Add rating moderation** (scan for spam/abuse before publishing).
+
+---
+
+## 12. Implementation Spec
+
+### Domain Layer
+
+```typescript
+/**
+ * Rating aggregate root representing a rating given after errand completion.
+ * Core invariants:
+ * - Score must be 1-5 stars
+ * - Rating can only be created for COMPLETED errands
+ * - Each user can rate each errand only once (raterId + errandId is unique)
+ * - Reactions can only use allowed emoji set
+ * - Replies can only be added by the rating target (rateeId)
+ * - Ratings are immutable after creation (except reactions/replies)
+ */
+class Rating {
+  /**
+   * Private constructor - use Rating.create() factory or load from repository.
+   * @param id Unique rating identifier (from schema: id String @id)
+   * @param raterId User who gave rating (from schema: raterId String)
+   * @param rateeId User being rated (from schema: rateeId String)
+   * @param errandId Errand this rating is for (from schema: errandId String @unique)
+   * @param raterRole Role of rater (from schema: raterRole RaterRole)
+   * @param score Rating score 1-5 (from schema: score Int)
+   * @param comment Optional text review (from schema: comment String?)
+   * @param reactions Emoji reactions to rating (from schema: RatingReaction[])
+   * @param reply Optional reply from ratee (from schema: reply String?)
+   * @param createdAt Creation timestamp
+   * @param updatedAt Last update timestamp
+   */
+  private constructor(
+    public readonly id: string,
+    public readonly raterId: string,
+    public readonly rateeId: string,
+    public readonly errandId: string,
+    public readonly raterRole: RaterRole,
+    private score: Score,
+    private comment: string | null,
+    private readonly reactions: RatingReaction[],
+    private reply: string | null,
+    public readonly createdAt: Date,
+    public readonly updatedAt: Date,
+  );
+
+  /**
+   * Factory method to create new rating.
+   * Rating can only be created for completed errands.
+   * @param raterId User giving rating
+   * @param rateeId User being rated
+   * @param errandId Completed errand ID
+   * @param raterRole Role of rater (CLIENT or PROVIDER)
+   * @param score Rating score 1-5
+   * @param comment Optional text review
+   * @throws InvalidScoreError when score < 1 or > 5
+   * @throws DuplicateRatingError when user already rated this errand (DB constraint violation)
+   * @returns New Rating instance
+   */
+  static create(
+    raterId: string,
+    rateeId: string,
+    errandId: string,
+    raterRole: RaterRole,
+    score: number,
+    comment?: string,
+  ): Rating;
+
+  /**
+   * Adds emoji reaction to rating.
+   * Users can react to ratings (like, love, etc.).
+   * @param userId User adding reaction
+   * @param emoji Emoji type
+   * @throws InvalidEmojiError when emoji not in allowed set
+   * @throws DuplicateReactionError when user already reacted with this emoji
+   * @emits RatingReactionAddedEvent
+   */
+  addReaction(userId: string, emoji: string): void;
+
+  /**
+   * Removes emoji reaction.
+   * @param userId User removing reaction
+   * @param emoji Emoji type
+   * @throws ReactionNotFoundError when reaction doesn't exist
+   * @emits RatingReactionRemovedEvent
+   */
+  removeReaction(userId: string, emoji: string): void;
+
+  /**
+   * Adds reply to rating (only ratee can reply).
+   * @param reply Reply text
+   * @throws ReplyAlreadyExistsError when rating already has reply
+   * @emits RatingRepliedEvent
+   */
+  addReply(reply: string): void;
+
+  /**
+   * Updates reply text.
+   * @param newReply Updated reply text
+   * @throws NoReplyExistsError when rating has no reply
+   * @emits RatingReplyUpdatedEvent
+   */
+  updateReply(newReply: string): void;
+
+  /**
+   * Returns score value (1-5).
+   */
+  getScore(): number;
+
+  /**
+   * Returns comment text or null.
+   */
+  getComment(): string | null;
+}
+
+/**
+ * RatingReaction child entity (owned by Rating aggregate).
+ * Immutable once created.
+ */
+class RatingReaction {
+  constructor(
+    public readonly id: string,
+    public readonly ratingId: string,
+    public readonly userId: string,
+    public readonly emoji: Emoji,
+    public readonly createdAt: Date,
+  );
+}
+
+/**
+ * Score value object (validates 1-5 range).
+ * Immutable.
+ */
+class Score {
+  /**
+   * @param value Score 1-5
+   * @throws InvalidScoreError when value < 1 or > 5
+   */
+  constructor(public readonly value: number);
+
+  /**
+   * Returns score as integer.
+   */
+  toNumber(): number;
+}
+
+/**
+ * Emoji value object (validates allowed emoji set).
+ * Immutable.
+ */
+class Emoji {
+  private static readonly ALLOWED_EMOJIS = [
+    '👍', '❤️', '😊', '😮', '😢', '😡'
+  ];
+
+  /**
+   * @param value Emoji string
+   * @throws InvalidEmojiError when emoji not in allowed set
+   */
+  constructor(public readonly value: string);
+
+  /**
+   * Returns emoji string.
+   */
+  toString(): string;
+}
+
+/** Thrown when score outside 1-5 range. */
+class InvalidScoreError extends Error {}
+
+/** Thrown when user tries to rate same errand twice. */
+class DuplicateRatingError extends Error {}
+
+/** Thrown when emoji not in allowed set. */
+class InvalidEmojiError extends Error {}
+
+/** Thrown when user tries to react twice with same emoji. */
+class DuplicateReactionError extends Error {}
+
+/** Thrown when reaction doesn't exist. */
+class ReactionNotFoundError extends Error {}
+
+/** Thrown when rating already has reply. */
+class ReplyAlreadyExistsError extends Error {}
+
+/** Thrown when trying to update non-existent reply. */
+class NoReplyExistsError extends Error {}
+```
+
+### Repository Interface
+
+```typescript
+/**
+ * Persistence contract for Rating aggregate.
+ */
+interface IRatingRepository {
+  /**
+   * Finds rating by unique ID.
+   * @param id Rating ID
+   * @returns Rating aggregate or null if not found
+   */
+  findById(id: string): Promise<Rating | null>;
+
+  /**
+   * Finds rating for specific errand.
+   * Each errand has exactly one rating per user.
+   * @param errandId Errand ID
+   * @param raterId Rater user ID
+   * @returns Rating aggregate or null if not found
+   */
+  findByErrandAndRater(
+    errandId: string,
+    raterId: string,
+  ): Promise<Rating | null>;
+
+  /**
+   * Finds all ratings given by user.
+   * @param raterId Rater user ID
+   * @returns Array of Rating aggregates
+   */
+  findByRater(raterId: string): Promise<Rating[]>;
+
+  /**
+   * Finds all ratings received by user.
+   * @param rateeId Ratee user ID
+   * @returns Array of Rating aggregates
+   */
+  findByRatee(rateeId: string): Promise<Rating[]>;
+
+  /**
+   * Persists rating aggregate.
+   * @param rating Rating to save
+   */
+  save(rating: Rating): Promise<void>;
+
+  /**
+   * Calculates average rating score for user.
+   * Used to denormalize Provider.averageRating and Client.averageRating.
+   * @param rateeId User being rated
+   * @returns Average score (1.0-5.0) or null if no ratings
+   */
+  calculateAverageRating(rateeId: string): Promise<number | null>;
+
+  /**
+   * Gets rating statistics for user.
+   * @param rateeId User being rated
+   * @returns Stats object with counts per star level
+   */
+  getRatingStats(rateeId: string): Promise<RatingStats>;
+}
+
+interface RatingStats {
+  totalRatings: number;
+  averageScore: number | null;
+  oneStar: number;
+  twoStar: number;
+  threeStar: number;
+  fourStar: number;
+  fiveStar: number;
+}
+```
+
+### Application Layer
+
+```typescript
+/**
+ * Creates new rating for completed errand.
+ */
+class CreateRatingCommandHandler {
+  /**
+   * @param command Rating details
+   * @throws ErrandNotFoundException when errand doesn't exist
+   * @throws ErrandNotCompletedException when errand status is not COMPLETED
+   * @throws DuplicateRatingError when user already rated this errand
+   * @throws InvalidScoreError when score < 1 or > 5
+   * @throws UnauthorizedException when raterId is not errand participant
+   * @emits RatingCreatedEvent
+   * @returns Rating ID
+   */
+  execute(command: CreateRatingCommand): Promise<string>;
+}
+
+interface CreateRatingCommand {
+  raterId: string;
+  rateeId: string;
+  errandId: string;
+  raterRole: RaterRole; // CLIENT or PROVIDER
+  score: number; // 1-5
+  comment?: string;
+}
+
+/**
+ * Adds emoji reaction to rating.
+ */
+class AddRatingReactionCommandHandler {
+  /**
+   * @param command Reaction details
+   * @throws RatingNotFoundException when rating doesn't exist
+   * @throws InvalidEmojiError when emoji not allowed
+   * @throws DuplicateReactionError when user already reacted with this emoji
+   * @emits RatingReactionAddedEvent
+   */
+  execute(command: AddRatingReactionCommand): Promise<void>;
+}
+
+interface AddRatingReactionCommand {
+  ratingId: string;
+  userId: string;
+  emoji: string;
+}
+
+/**
+ * Removes emoji reaction.
+ */
+class RemoveRatingReactionCommandHandler {
+  /**
+   * @param command Reaction to remove
+   * @throws RatingNotFoundException when rating doesn't exist
+   * @throws ReactionNotFoundError when reaction doesn't exist
+   * @emits RatingReactionRemovedEvent
+   */
+  execute(command: RemoveRatingReactionCommand): Promise<void>;
+}
+
+interface RemoveRatingReactionCommand {
+  ratingId: string;
+  userId: string;
+  emoji: string;
+}
+
+/**
+ * Adds reply to rating (ratee responds to rating).
+ */
+class AddRatingReplyCommandHandler {
+  /**
+   * @param command Reply details
+   * @throws RatingNotFoundException when rating doesn't exist
+   * @throws UnauthorizedException when repliedBy is not rateeId
+   * @throws ReplyAlreadyExistsError when rating already has reply
+   * @emits RatingRepliedEvent
+   */
+  execute(command: AddRatingReplyCommand): Promise<void>;
+}
+
+interface AddRatingReplyCommand {
+  ratingId: string;
+  repliedBy: string; // must match rateeId
+  reply: string;
+}
+
+/**
+ * Updates existing reply.
+ */
+class UpdateRatingReplyCommandHandler {
+  /**
+   * @param command Updated reply
+   * @throws RatingNotFoundException when rating doesn't exist
+   * @throws UnauthorizedException when updatedBy is not rateeId
+   * @throws NoReplyExistsError when rating has no reply
+   * @emits RatingReplyUpdatedEvent
+   */
+  execute(command: UpdateRatingReplyCommand): Promise<void>;
+}
+
+interface UpdateRatingReplyCommand {
+  ratingId: string;
+  updatedBy: string; // must match rateeId
+  reply: string;
+}
+
+/**
+ * Query handler: Get rating by ID.
+ */
+class GetRatingQueryHandler {
+  /**
+   * @param query Rating ID
+   * @returns Rating details with rater/ratee profiles
+   * @throws RatingNotFoundException when not found
+   */
+  execute(query: GetRatingQuery): Promise<RatingDTO>;
+}
+
+interface GetRatingQuery {
+  ratingId: string;
+}
+
+/**
+ * Query handler: Get ratings received by user.
+ */
+class GetUserRatingsQueryHandler {
+  /**
+   * @param query User ID
+   * @returns Array of ratings with rater profiles
+   */
+  execute(query: GetUserRatingsQuery): Promise<RatingDTO[]>;
+}
+
+interface GetUserRatingsQuery {
+  rateeId: string;
+}
+
+/**
+ * Query handler: Get rating statistics for user.
+ */
+class GetRatingStatsQueryHandler {
+  /**
+   * @param query User ID
+   * @returns Rating stats with breakdown per star level
+   */
+  execute(query: GetRatingStatsQuery): Promise<RatingStatsDTO>;
+}
+
+interface GetRatingStatsQuery {
+  rateeId: string;
+}
+
+interface RatingDTO {
+  id: string;
+  raterId: string;
+  rateeId: string;
+  errandId: string;
+  raterRole: RaterRole;
+  score: number;
+  comment: string | null;
+  reactions: { emoji: string; userId: string; createdAt: Date }[];
+  reply: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  rater?: { id: string; name: string; image: string | null };
+  ratee?: { id: string; name: string; image: string | null };
+}
+
+interface RatingStatsDTO {
+  totalRatings: number;
+  averageScore: number | null;
+  distribution: {
+    oneStar: number;
+    twoStar: number;
+    threeStar: number;
+    fourStar: number;
+    fiveStar: number;
+  };
+}
+```
+
+### Domain Events
+
+```typescript
+/**
+ * Emitted when new rating created.
+ * CRITICAL: Triggers denormalization of Provider.averageRating or Client.averageRating.
+ * Consumed by: Provider module, Client module, Notification module
+ */
+class RatingCreatedEvent {
+  constructor(
+    public readonly ratingId: string,
+    public readonly raterId: string,
+    public readonly rateeId: string,
+    public readonly errandId: string,
+    public readonly raterRole: RaterRole,
+    public readonly score: number,
+  ) {}
+}
+
+/**
+ * Emitted when reaction added to rating.
+ * Consumed by: Notification (notify rating author of reaction)
+ */
+class RatingReactionAddedEvent {
+  constructor(
+    public readonly ratingId: string,
+    public readonly userId: string,
+    public readonly emoji: string,
+  ) {}
+}
+
+/**
+ * Emitted when reaction removed.
+ */
+class RatingReactionRemovedEvent {
+  constructor(
+    public readonly ratingId: string,
+    public readonly userId: string,
+    public readonly emoji: string,
+  ) {}
+}
+
+/**
+ * Emitted when ratee replies to rating.
+ * Consumed by: Notification (notify rater of reply)
+ */
+class RatingRepliedEvent {
+  constructor(
+    public readonly ratingId: string,
+    public readonly rateeId: string,
+    public readonly reply: string,
+  ) {}
+}
+
+/**
+ * Emitted when reply updated.
+ */
+class RatingReplyUpdatedEvent {
+  constructor(
+    public readonly ratingId: string,
+    public readonly reply: string,
+  ) {}
+}
+```
+
+### Event Handlers (React to other module events)
+
+```typescript
+/**
+ * Listens to ErrandCompletedEvent and prompts client/worker to rate each other.
+ * Sends notification reminder.
+ */
+class OnErrandCompletedPromptRatingHandler {
+  /**
+   * @listens ErrandCompletedEvent
+   * Sends notifications to client and worker to rate each other
+   */
+  handle(event: ErrandCompletedEvent): Promise<void>;
+}
+
+/**
+ * Listens to RatingCreatedEvent and updates Provider.averageRating.
+ * Denormalization for performance.
+ */
+class OnRatingCreatedUpdateProviderRatingHandler {
+  /**
+   * @listens RatingCreatedEvent
+   * Recalculates Provider.averageRating and updates Provider table
+   */
+  handle(event: RatingCreatedEvent): Promise<void>;
+}
+
+/**
+ * Listens to RatingCreatedEvent and updates Client.averageRating.
+ * Denormalization for performance.
+ */
+class OnRatingCreatedUpdateClientRatingHandler {
+  /**
+   * @listens RatingCreatedEvent
+   * Recalculates Client.averageRating and updates Client table
+   */
+  handle(event: RatingCreatedEvent): Promise<void>;
+}
+```

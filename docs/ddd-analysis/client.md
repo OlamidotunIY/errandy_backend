@@ -219,3 +219,237 @@ src/client/
 5. **Emit events**: `ClientRegistered`, `ClientRequirementCompleted`.
 6. **Validate posting requirements in Errands module** (before creating errand, check `client.canPostErrand()`).
 7. **Add graceful degradation to dashboard** (if one sub-query fails, show partial data instead of error).
+
+---
+
+## 12. Implementation Spec
+
+### Domain Layer
+
+```typescript
+/**
+ * Client aggregate root representing a client profile (errand poster).
+ * Core invariants:
+ * - Client must have associated User (userId must be valid)
+ * - Must have payment method before posting paid errands
+ * - averageRating is denormalized from Rating table (updated via events)
+ * - One client per user (userId is unique)
+ */
+class Client {
+  /**
+   * Private constructor - use Client.create() factory or load from repository.
+   * @param id Unique client identifier (from schema: id String @id)
+   * @param userId Associated user ID (from schema: userId String @unique)
+   * @param verified Verification status (from schema: verified Boolean)
+   * @param averageRating Denormalized average rating (from schema: averageRating Float?)
+   * @param createdAt Creation timestamp
+   * @param updatedAt Last update timestamp
+   */
+  private constructor(
+    public readonly id: string,
+    public readonly userId: string,
+    private verified: boolean,
+    private averageRating: number | null,
+    public readonly createdAt: Date,
+    public readonly updatedAt: Date,
+  );
+
+  /**
+   * Factory method to create new client profile.
+   * Client starts unverified.
+   * @param userId User ID
+   * @throws UserNotFoundException when user doesn't exist
+   * @throws ClientAlreadyExistsError when user already has client profile
+   * @returns New Client instance
+   */
+  static create(userId: string): Client;
+
+  /**
+   * Marks client as verified.
+   * @emits ClientVerifiedEvent
+   */
+  verify(): void;
+
+  /**
+   * Updates denormalized average rating.
+   * Called by event handler when new rating received.
+   * @param averageRating New average (1.0-5.0)
+   */
+  updateAverageRating(averageRating: number): void;
+
+  /**
+   * Checks if client can post errands.
+   * Currently always true (no strict requirements), but can add payment method check.
+   */
+  canPostErrand(): boolean;
+}
+
+/** Thrown when user already has client profile. */
+class ClientAlreadyExistsError extends Error {}
+```
+
+### Repository Interface
+
+```typescript
+/**
+ * Persistence contract for Client aggregate.
+ */
+interface IClientRepository {
+  /**
+   * Finds client by unique ID.
+   * @param id Client ID
+   * @returns Client aggregate or null if not found
+   */
+  findById(id: string): Promise<Client | null>;
+
+  /**
+   * Finds client by user ID.
+   * @param userId User ID
+   * @returns Client aggregate or null if not found
+   */
+  findByUserId(userId: string): Promise<Client | null>;
+
+  /**
+   * Persists client aggregate.
+   * @param client Client to save
+   */
+  save(client: Client): Promise<void>;
+}
+```
+
+### Application Layer
+
+```typescript
+/**
+ * Creates new client profile.
+ */
+class CreateClientCommandHandler {
+  /**
+   * @param command Client creation details
+   * @throws UserNotFoundException when user doesn't exist
+   * @throws ClientAlreadyExistsError when user already has client profile
+   * @emits ClientCreatedEvent
+   * @returns Client ID
+   */
+  execute(command: CreateClientCommand): Promise<string>;
+}
+
+interface CreateClientCommand {
+  userId: string;
+}
+
+/**
+ * Verifies client.
+ */
+class VerifyClientCommandHandler {
+  /**
+   * @param command Verification details
+   * @throws ClientNotFoundException when client doesn't exist
+   * @emits ClientVerifiedEvent
+   */
+  execute(command: VerifyClientCommand): Promise<void>;
+}
+
+interface VerifyClientCommand {
+  clientId: string;
+  verifiedBy: string; // admin user ID
+}
+
+/**
+ * Query handler: Get client by ID.
+ */
+class GetClientQueryHandler {
+  /**
+   * @param query Client ID
+   * @returns Client details with user profile
+   * @throws ClientNotFoundException when not found
+   */
+  execute(query: GetClientQuery): Promise<ClientDTO>;
+}
+
+interface GetClientQuery {
+  clientId: string;
+}
+
+/**
+ * Query handler: Get client dashboard.
+ * Aggregates errands, applications, ratings.
+ */
+class GetClientDashboardQueryHandler {
+  /**
+   * @param query Client ID
+   * @returns Dashboard with errand stats, recent errands, etc.
+   */
+  execute(query: GetClientDashboardQuery): Promise<ClientDashboardDTO>;
+}
+
+interface GetClientDashboardQuery {
+  clientId: string;
+}
+
+interface ClientDTO {
+  id: string;
+  userId: string;
+  verified: boolean;
+  averageRating: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+  user?: { id: string; name: string; image: string | null };
+}
+
+interface ClientDashboardDTO {
+  client: ClientDTO;
+  errandStats: {
+    totalErrands: number;
+    openErrands: number;
+    inProgressErrands: number;
+    completedErrands: number;
+  };
+  recentErrands: Array<{
+    id: string;
+    title: string;
+    status: ErrandStatus;
+    createdAt: Date;
+  }>;
+  totalSpent: number; // kobo
+}
+```
+
+### Domain Events
+
+```typescript
+/**
+ * Emitted when new client profile created.
+ * Consumed by: Users module (add CLIENT role), Notification
+ */
+class ClientCreatedEvent {
+  constructor(
+    public readonly clientId: string,
+    public readonly userId: string,
+  ) {}
+}
+
+/**
+ * Emitted when client verified.
+ * Consumed by: Notification (notify client)
+ */
+class ClientVerifiedEvent {
+  constructor(public readonly clientId: string) {}
+}
+```
+
+### Event Handlers (React to other module events)
+
+```typescript
+/**
+ * Listens to RatingCreatedEvent and updates Client.averageRating.
+ * Denormalization for performance.
+ */
+class OnRatingCreatedUpdateClientRatingHandler {
+  /**
+   * @listens RatingCreatedEvent (when rateeId is client's userId)
+   * Recalculates average rating and updates Client aggregate
+   */
+  handle(event: RatingCreatedEvent): Promise<void>;
+}
+```

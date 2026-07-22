@@ -234,3 +234,309 @@ src/provider/
 5. **Emit events**: `ProviderProfileUpdated`, `ProviderSkillsChanged`.
 6. **Denormalize provider rating** (cache average rating in Provider table, updated via event listener).
 7. **Add DataLoader** for provider queries (prevent N+1 if needed).
+
+---
+
+## 12. Implementation Spec
+
+### Domain Layer
+
+```typescript
+/**
+ * Provider aggregate root representing a service provider profile.
+ * Core invariants:
+ * - Provider must have associated User (userId must be valid)
+ * - Skills array must not be empty for verified providers
+ * - Bio must be set before provider can be discoverable
+ * - averageRating is denormalized from Rating table (updated via events)
+ * - One provider per user (userId is unique)
+ */
+class Provider {
+  /**
+   * Private constructor - use Provider.create() factory or load from repository.
+   * @param id Unique provider identifier (from schema: id String @id)
+   * @param userId Associated user ID (from schema: userId String @unique)
+   * @param bio Provider bio/description (from schema: bio String?)
+   * @param skills Service skills (from schema: skills String[])
+   * @param verified Verification status (from schema: verified Boolean)
+   * @param averageRating Denormalized average rating (from schema: averageRating Float?)
+   * @param createdAt Creation timestamp
+   * @param updatedAt Last update timestamp
+   */
+  private constructor(
+    public readonly id: string,
+    public readonly userId: string,
+    private bio: string | null,
+    private skills: string[],
+    private verified: boolean,
+    private averageRating: number | null,
+    public readonly createdAt: Date,
+    public readonly updatedAt: Date,
+  );
+
+  /**
+   * Factory method to create new provider profile.
+   * Provider starts unverified with empty bio and skills.
+   * @param userId User ID
+   * @throws UserNotFoundException when user doesn't exist
+   * @throws ProviderAlreadyExistsError when user already has provider profile
+   * @returns New Provider instance
+   */
+  static create(userId: string): Provider;
+
+  /**
+   * Updates provider bio.
+   * @param bio Bio text (min 50 characters recommended)
+   * @emits ProviderProfileUpdatedEvent
+   */
+  updateBio(bio: string): void;
+
+  /**
+   * Updates provider skills.
+   * Skills must match predefined skill taxonomy.
+   * @param skills Array of skill names
+   * @throws InvalidSkillsError when skills array empty or contains unknown skills
+   * @emits ProviderSkillsChangedEvent
+   */
+  updateSkills(skills: string[]): void;
+
+  /**
+   * Marks provider as verified.
+   * Requires bio and skills to be set.
+   * @throws IncompleteProfileError when bio or skills missing
+   * @emits ProviderVerifiedEvent
+   */
+  verify(): void;
+
+  /**
+   * Updates denormalized average rating.
+   * Called by event handler when new rating received.
+   * @param averageRating New average (1.0-5.0)
+   */
+  updateAverageRating(averageRating: number): void;
+
+  /**
+   * Checks if provider profile is complete (has bio and skills).
+   */
+  isProfileComplete(): boolean;
+
+  /**
+   * Checks if provider is discoverable (verified + complete profile).
+   */
+  isDiscoverable(): boolean;
+}
+
+/** Thrown when user already has provider profile. */
+class ProviderAlreadyExistsError extends Error {}
+
+/** Thrown when skills array invalid. */
+class InvalidSkillsError extends Error {}
+
+/** Thrown when trying to verify incomplete profile. */
+class IncompleteProfileError extends Error {}
+```
+
+### Repository Interface
+
+```typescript
+/**
+ * Persistence contract for Provider aggregate.
+ */
+interface IProviderRepository {
+  /**
+   * Finds provider by unique ID.
+   * @param id Provider ID
+   * @returns Provider aggregate or null if not found
+   */
+  findById(id: string): Promise<Provider | null>;
+
+  /**
+   * Finds provider by user ID.
+   * @param userId User ID
+   * @returns Provider aggregate or null if not found
+   */
+  findByUserId(userId: string): Promise<Provider | null>;
+
+  /**
+   * Finds providers by skills (discovery query).
+   * Used for matching providers to errands.
+   * @param skills Array of required skills
+   * @param verified Only return verified providers
+   * @returns Array of Provider aggregates
+   */
+  findBySkills(skills: string[], verified?: boolean): Promise<Provider[]>;
+
+  /**
+   * Persists provider aggregate.
+   * @param provider Provider to save
+   */
+  save(provider: Provider): Promise<void>;
+}
+```
+
+### Application Layer
+
+```typescript
+/**
+ * Creates new provider profile.
+ */
+class CreateProviderCommandHandler {
+  /**
+   * @param command Provider creation details
+   * @throws UserNotFoundException when user doesn't exist
+   * @throws ProviderAlreadyExistsError when user already has provider profile
+   * @emits ProviderCreatedEvent
+   * @returns Provider ID
+   */
+  execute(command: CreateProviderCommand): Promise<string>;
+}
+
+interface CreateProviderCommand {
+  userId: string;
+}
+
+/**
+ * Updates provider profile.
+ */
+class UpdateProviderProfileCommandHandler {
+  /**
+   * @param command Profile updates
+   * @throws ProviderNotFoundException when provider doesn't exist
+   * @throws UnauthorizedException when updatedBy is not provider's user
+   * @throws InvalidSkillsError when skills invalid
+   * @emits ProviderProfileUpdatedEvent
+   */
+  execute(command: UpdateProviderProfileCommand): Promise<void>;
+}
+
+interface UpdateProviderProfileCommand {
+  providerId: string;
+  updatedBy: string; // user ID (must match provider.userId)
+  bio?: string;
+  skills?: string[];
+}
+
+/**
+ * Verifies provider.
+ */
+class VerifyProviderCommandHandler {
+  /**
+   * @param command Verification details
+   * @throws ProviderNotFoundException when provider doesn't exist
+   * @throws IncompleteProfileError when bio or skills missing
+   * @emits ProviderVerifiedEvent
+   */
+  execute(command: VerifyProviderCommand): Promise<void>;
+}
+
+interface VerifyProviderCommand {
+  providerId: string;
+  verifiedBy: string; // admin user ID
+}
+
+/**
+ * Query handler: Get provider by ID.
+ */
+class GetProviderQueryHandler {
+  /**
+   * @param query Provider ID
+   * @returns Provider details with user profile
+   * @throws ProviderNotFoundException when not found
+   */
+  execute(query: GetProviderQuery): Promise<ProviderDTO>;
+}
+
+interface GetProviderQuery {
+  providerId: string;
+}
+
+/**
+ * Query handler: Discover providers by skills.
+ */
+class DiscoverProvidersQueryHandler {
+  /**
+   * @param query Skills and filters
+   * @returns Array of providers sorted by relevance/rating
+   */
+  execute(query: DiscoverProvidersQuery): Promise<ProviderDTO[]>;
+}
+
+interface DiscoverProvidersQuery {
+  skills: string[];
+  verifiedOnly: boolean;
+  limit: number;
+}
+
+interface ProviderDTO {
+  id: string;
+  userId: string;
+  bio: string | null;
+  skills: string[];
+  verified: boolean;
+  averageRating: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+  user?: { id: string; name: string; image: string | null };
+}
+```
+
+### Domain Events
+
+```typescript
+/**
+ * Emitted when new provider profile created.
+ * Consumed by: Users module (add PROVIDER role), Notification
+ */
+class ProviderCreatedEvent {
+  constructor(
+    public readonly providerId: string,
+    public readonly userId: string,
+  ) {}
+}
+
+/**
+ * Emitted when provider profile updated.
+ * Consumed by: Search indexer, Notification
+ */
+class ProviderProfileUpdatedEvent {
+  constructor(
+    public readonly providerId: string,
+    public readonly updates: { bio?: string; skills?: string[] },
+  ) {}
+}
+
+/**
+ * Emitted when provider skills changed.
+ * Consumed by: Recommendation engine (re-match to errands)
+ */
+class ProviderSkillsChangedEvent {
+  constructor(
+    public readonly providerId: string,
+    public readonly skills: string[],
+  ) {}
+}
+
+/**
+ * Emitted when provider verified.
+ * Consumed by: Notification (notify provider)
+ */
+class ProviderVerifiedEvent {
+  constructor(public readonly providerId: string) {}
+}
+```
+
+### Event Handlers (React to other module events)
+
+```typescript
+/**
+ * Listens to RatingCreatedEvent and updates Provider.averageRating.
+ * Denormalization for performance.
+ */
+class OnRatingCreatedUpdateProviderRatingHandler {
+  /**
+   * @listens RatingCreatedEvent (when rateeId is provider's userId)
+   * Recalculates average rating and updates Provider aggregate
+   */
+  handle(event: RatingCreatedEvent): Promise<void>;
+}
+```

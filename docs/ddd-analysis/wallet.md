@@ -349,3 +349,568 @@ src/wallet/
 5. **Add GraphQL resolver** for wallet queries (balance, transaction history).
 6. **Queue wallet operations** in BullMQ for retry on failure.
 7. **Audit existing wallet transactions** in DB for consistency (sum of transactions should match wallet balances).
+
+---
+
+## 12. Implementation Spec
+
+### Domain Layer
+
+```typescript
+/**
+ * Wallet aggregate root managing user balances and fund movements.
+ * Core invariants:
+ * - available + held must always equal the sum of all ledger entries
+ * - available and held balances must never go negative
+ * - All balance changes must be recorded as immutable Transaction entities
+ * - One wallet per user (ownerId + ownerType composite is unique)
+ */
+class Wallet {
+  /**
+   * Private constructor - use Wallet.create() factory or load from repository.
+   * @param id Unique wallet identifier (from schema: id String @id)
+   * @param ownerId User ID who owns wallet (from schema: ownerId String)
+   * @param ownerType Owner type enum (from schema: ownerType OwnerType)
+   * @param available Available balance in kobo (from schema: available Int)
+   * @param held Held balance in kobo (from schema: held Int)
+   * @param transactions Immutable ledger of all balance changes (from schema: Transaction[])
+   * @param createdAt Creation timestamp
+   * @param updatedAt Last update timestamp
+   */
+  private constructor(
+    public readonly id: string,
+    public readonly ownerId: string,
+    public readonly ownerType: OwnerType,
+    private available: number,
+    private held: number,
+    private readonly transactions: Transaction[],
+    public readonly createdAt: Date,
+    public readonly updatedAt: Date,
+  );
+
+  /**
+   * Factory method to create new wallet with zero balances.
+   * @param ownerId User ID
+   * @param ownerType USER | PROVIDER | CLIENT
+   * @returns New Wallet instance with available=0, held=0
+   */
+  static create(ownerId: string, ownerType: OwnerType): Wallet;
+
+  /**
+   * Increases available balance and creates CREDIT transaction.
+   * Must enforce non-negative balance invariant.
+   * @param amount Amount to credit in kobo (must be > 0)
+   * @param source Transaction source (e.g., "escrow_release", "refund", "topup")
+   * @param reference External reference (e.g., escrow ID, payment reference)
+   * @param errandId Optional errand ID if credit is errand-related
+   * @throws InvalidAmountError when amount <= 0
+   * @throws InsufficientFundsError if this would cause available < 0 (defensive check)
+   * @emits WalletCreditedEvent
+   */
+  credit(
+    amount: Money,
+    source: string,
+    reference: string,
+    errandId?: string,
+  ): void;
+
+  /**
+   * Decreases available balance and creates DEBIT transaction.
+   * Must enforce non-negative balance invariant.
+   * @param amount Amount to debit in kobo (must be > 0)
+   * @param destination Transaction destination (e.g., "withdrawal", "escrow_hold")
+   * @param reference External reference
+   * @param errandId Optional errand ID if debit is errand-related
+   * @throws InvalidAmountError when amount <= 0
+   * @throws InsufficientFundsError when available balance < amount
+   * @emits WalletDebitedEvent
+   */
+  debit(
+    amount: Money,
+    destination: string,
+    reference: string,
+    errandId?: string,
+  ): void;
+
+  /**
+   * Moves funds from available to held (for escrow).
+   * Creates ESCROW_HOLD transaction. Held funds cannot be withdrawn.
+   * @param amount Amount to hold in kobo (must be > 0)
+   * @param reference External reference (typically escrow ID)
+   * @param errandId Errand ID this hold is for
+   * @throws InvalidAmountError when amount <= 0
+   * @throws InsufficientFundsError when available balance < amount
+   * @emits FundsHeldEvent
+   */
+  hold(amount: Money, reference: string, errandId: string): void;
+
+  /**
+   * Moves funds from held back to available (escrow cancelled/refunded).
+   * Creates ESCROW_RELEASE transaction.
+   * @param amount Amount to release in kobo (must be > 0)
+   * @param reference External reference (typically escrow ID)
+   * @param errandId Errand ID this release is for
+   * @throws InvalidAmountError when amount <= 0
+   * @throws InsufficientFundsError when held balance < amount
+   * @emits FundsReleasedEvent
+   */
+  releaseHold(amount: Money, reference: string, errandId: string): void;
+
+  /**
+   * Transfers held funds to another wallet (escrow payout to worker).
+   * Decreases this wallet's held balance and creates ESCROW_PAYOUT transaction.
+   * The recipient wallet.credit() must be called separately.
+   * @param amount Amount to transfer in kobo (must be > 0)
+   * @param reference External reference (typically escrow ID)
+   * @param errandId Errand ID this payout is for
+   * @throws InvalidAmountError when amount <= 0
+   * @throws InsufficientFundsError when held balance < amount
+   * @emits FundsTransferredEvent
+   */
+  transferHeld(amount: Money, reference: string, errandId: string): void;
+
+  /**
+   * Returns current available balance (queryable).
+   */
+  getAvailableBalance(): Money;
+
+  /**
+   * Returns current held balance (queryable).
+   */
+  getHeldBalance(): Money;
+
+  /**
+   * Returns total balance (available + held).
+   */
+  getTotalBalance(): Money;
+
+  /**
+   * Validates wallet integrity by ensuring available + held equals sum of all transactions.
+   * Should be called periodically by background audit job.
+   * @throws WalletIntegrityError when balance doesn't match ledger
+   */
+  validateIntegrity(): void;
+}
+
+/**
+ * Immutable ledger entry recording a balance change.
+ * Child entity of Wallet aggregate. Cannot be modified after creation.
+ */
+class Transaction {
+  /**
+   * @param id Unique transaction identifier (from schema: id String @id)
+   * @param walletId Parent wallet ID (from schema: walletId String)
+   * @param type Transaction type enum (from schema: type TransactionType)
+   * @param amount Amount in kobo (from schema: amount Int)
+   * @param reference External reference (from schema: reference String @unique)
+   * @param status Transaction status (from schema: status TransactionStatus)
+   * @param errandId Optional errand ID (from schema: errandId String?)
+   * @param ownerId Owner ID (from schema: ownerId String)
+   * @param ownerType Owner type (from schema: ownerType OwnerType)
+   * @param createdAt Creation timestamp
+   */
+  constructor(
+    public readonly id: string,
+    public readonly walletId: string,
+    public readonly type: TransactionType,
+    public readonly amount: number,
+    public readonly reference: string,
+    public readonly status: TransactionStatus,
+    public readonly errandId: string | null,
+    public readonly ownerId: string,
+    public readonly ownerType: OwnerType,
+    public readonly createdAt: Date,
+  );
+}
+
+/**
+ * Value object representing monetary amount in kobo.
+ * Immutable - all operations return new Money instances.
+ */
+class Money {
+  /**
+   * @param amountKobo Amount in kobo (1 Naira = 100 kobo)
+   * @throws InvalidAmountError when amountKobo < 0
+   */
+  constructor(public readonly amountKobo: number);
+
+  /**
+   * Adds two money values.
+   * @param other Money to add
+   * @returns New Money instance with sum
+   */
+  add(other: Money): Money;
+
+  /**
+   * Subtracts another money value.
+   * @param other Money to subtract
+   * @returns New Money instance with difference
+   * @throws InvalidAmountError when result would be negative
+   */
+  subtract(other: Money): Money;
+
+  /**
+   * Splits amount into platform fee and net amount.
+   * @param feeRateBasisPoints Fee rate as basis points (500 = 5%)
+   * @returns Tuple [platformFee, netAmount] where gross = fee + net
+   */
+  splitFee(feeRateBasisPoints: number): [Money, Money];
+
+  /**
+   * Formats as Naira with 2 decimal places (e.g., "₦1,234.56").
+   */
+  toNairaString(): string;
+}
+
+/** Thrown when amount is negative or zero in contexts requiring positive amount. */
+class InvalidAmountError extends Error {}
+
+/** Thrown when wallet balance is insufficient for debit/hold/transfer operation. */
+class InsufficientFundsError extends Error {}
+
+/** Thrown when wallet integrity check fails (balance doesn't match ledger). */
+class WalletIntegrityError extends Error {}
+```
+
+### Repository Interface
+
+```typescript
+/**
+ * Persistence contract for Wallet aggregate.
+ * Domain and application layers depend on this interface, not Prisma.
+ */
+interface IWalletRepository {
+  /**
+   * Finds wallet by unique ID.
+   * @param id Wallet ID
+   * @returns Wallet aggregate or null if not found
+   */
+  findById(id: string): Promise<Wallet | null>;
+
+  /**
+   * Finds wallet by owner (user, provider, or client).
+   * Each user has exactly one wallet.
+   * @param ownerId User/Provider/Client ID
+   * @param ownerType Owner type enum
+   * @returns Wallet aggregate or null if not found
+   */
+  findByOwner(ownerId: string, ownerType: OwnerType): Promise<Wallet | null>;
+
+  /**
+   * Persists wallet aggregate (insert if new, update if exists).
+   * Transactions are append-only - existing transactions are never modified.
+   * @param wallet Wallet aggregate with uncommitted transactions
+   */
+  save(wallet: Wallet): Promise<void>;
+
+  /**
+   * Finds all wallets with balance discrepancies (for audit).
+   * Used by background integrity check job.
+   * @returns Wallets where available + held != sum of transactions
+   */
+  findWalletsWithDiscrepancies(): Promise<Wallet[]>;
+}
+```
+
+### Application Layer
+
+```typescript
+/**
+ * Creates new wallet for user during registration.
+ * Wallets are created automatically when Provider or Client profiles are created.
+ */
+class CreateWalletCommandHandler {
+  /**
+   * @param command Contains ownerId and ownerType
+   * @throws WalletAlreadyExistsError when user already has a wallet
+   * @emits WalletCreatedEvent
+   */
+  execute(command: CreateWalletCommand): Promise<void>;
+}
+
+interface CreateWalletCommand {
+  ownerId: string;
+  ownerType: OwnerType;
+}
+
+/**
+ * Credits wallet (top-up, refund, escrow release to worker).
+ * Handles both manual top-ups and automatic credits from escrow releases.
+ */
+class CreditWalletCommandHandler {
+  /**
+   * @param command Credit details
+   * @throws WalletNotFoundError when wallet doesn't exist
+   * @throws InvalidAmountError when amount <= 0
+   * @emits WalletCreditedEvent
+   */
+  execute(command: CreditWalletCommand): Promise<void>;
+}
+
+interface CreditWalletCommand {
+  ownerId: string;
+  ownerType: OwnerType;
+  amount: number; // kobo
+  source: string;
+  reference: string;
+  errandId?: string;
+}
+
+/**
+ * Debits wallet (withdrawal, escrow hold).
+ * Used when client pays for errand or user requests withdrawal.
+ */
+class DebitWalletCommandHandler {
+  /**
+   * @param command Debit details
+   * @throws WalletNotFoundError when wallet doesn't exist
+   * @throws InsufficientFundsError when balance too low
+   * @throws InvalidAmountError when amount <= 0
+   * @emits WalletDebitedEvent
+   */
+  execute(command: DebitWalletCommand): Promise<void>;
+}
+
+interface DebitWalletCommand {
+  ownerId: string;
+  ownerType: OwnerType;
+  amount: number; // kobo
+  destination: string;
+  reference: string;
+  errandId?: string;
+}
+
+/**
+ * Holds funds in wallet for escrow (moves available → held).
+ * Called by AcceptApplicationSaga after escrow is funded.
+ */
+class HoldFundsCommandHandler {
+  /**
+   * @param command Hold details
+   * @throws WalletNotFoundError when wallet doesn't exist
+   * @throws InsufficientFundsError when available balance < amount
+   * @emits FundsHeldEvent
+   */
+  execute(command: HoldFundsCommand): Promise<void>;
+}
+
+interface HoldFundsCommand {
+  ownerId: string;
+  ownerType: OwnerType;
+  amount: number; // kobo
+  reference: string; // escrow ID
+  errandId: string;
+}
+
+/**
+ * Releases held funds back to available (escrow cancelled/refunded).
+ * Called when errand is cancelled before completion.
+ */
+class ReleaseHoldCommandHandler {
+  /**
+   * @param command Release details
+   * @throws WalletNotFoundError when wallet doesn't exist
+   * @throws InsufficientFundsError when held balance < amount
+   * @emits FundsReleasedEvent
+   */
+  execute(command: ReleaseHoldCommand): Promise<void>;
+}
+
+interface ReleaseHoldCommand {
+  ownerId: string;
+  ownerType: OwnerType;
+  amount: number; // kobo
+  reference: string; // escrow ID
+  errandId: string;
+}
+
+/**
+ * Transfers held funds from client to worker (escrow payout).
+ * Called when errand completes and escrow is released.
+ * This is a coordinated operation: debit client held + credit worker available.
+ */
+class TransferHeldFundsCommandHandler {
+  /**
+   * @param command Transfer details
+   * @throws WalletNotFoundError when either wallet doesn't exist
+   * @throws InsufficientFundsError when sender held balance < amount
+   * @emits FundsTransferredEvent (from sender), WalletCreditedEvent (to recipient)
+   */
+  execute(command: TransferHeldFundsCommand): Promise<void>;
+}
+
+interface TransferHeldFundsCommand {
+  fromOwnerId: string; // client ID
+  fromOwnerType: OwnerType; // CLIENT
+  toOwnerId: string; // worker ID
+  toOwnerType: OwnerType; // PROVIDER
+  amount: number; // kobo
+  reference: string; // escrow ID
+  errandId: string;
+}
+
+/**
+ * Query handler: Get wallet balance and transaction history.
+ */
+class GetWalletQueryHandler {
+  /**
+   * @param query Owner identification
+   * @returns Wallet details with balance and recent transactions
+   * @throws WalletNotFoundError when wallet doesn't exist
+   */
+  execute(query: GetWalletQuery): Promise<WalletDTO>;
+}
+
+interface GetWalletQuery {
+  ownerId: string;
+  ownerType: OwnerType;
+}
+
+interface WalletDTO {
+  id: string;
+  ownerId: string;
+  ownerType: OwnerType;
+  availableBalance: number; // kobo
+  heldBalance: number; // kobo
+  totalBalance: number; // kobo
+  recentTransactions: TransactionDTO[];
+}
+
+interface TransactionDTO {
+  id: string;
+  type: TransactionType;
+  amount: number; // kobo
+  reference: string;
+  status: TransactionStatus;
+  errandId: string | null;
+  createdAt: Date;
+}
+```
+
+### Domain Events
+
+```typescript
+/**
+ * Emitted when new wallet is created (during user registration).
+ * Consumed by: Notification module (welcome message)
+ */
+class WalletCreatedEvent {
+  constructor(
+    public readonly walletId: string,
+    public readonly ownerId: string,
+    public readonly ownerType: OwnerType,
+  ) {}
+}
+
+/**
+ * Emitted when wallet is credited.
+ * Consumed by: Notification module (balance update notification)
+ */
+class WalletCreditedEvent {
+  constructor(
+    public readonly walletId: string,
+    public readonly ownerId: string,
+    public readonly amount: number, // kobo
+    public readonly source: string,
+    public readonly reference: string,
+    public readonly errandId: string | null,
+  ) {}
+}
+
+/**
+ * Emitted when wallet is debited.
+ * Consumed by: Notification module (balance update notification)
+ */
+class WalletDebitedEvent {
+  constructor(
+    public readonly walletId: string,
+    public readonly ownerId: string,
+    public readonly amount: number, // kobo
+    public readonly destination: string,
+    public readonly reference: string,
+    public readonly errandId: string | null,
+  ) {}
+}
+
+/**
+ * Emitted when funds are held for escrow.
+ * Consumed by: AcceptApplicationSaga (next step after funding)
+ */
+class FundsHeldEvent {
+  constructor(
+    public readonly walletId: string,
+    public readonly ownerId: string,
+    public readonly amount: number, // kobo
+    public readonly reference: string, // escrow ID
+    public readonly errandId: string,
+  ) {}
+}
+
+/**
+ * Emitted when held funds are released back to available.
+ * Consumed by: Notification module (refund notification)
+ */
+class FundsReleasedEvent {
+  constructor(
+    public readonly walletId: string,
+    public readonly ownerId: string,
+    public readonly amount: number, // kobo
+    public readonly reference: string, // escrow ID
+    public readonly errandId: string,
+  ) {}
+}
+
+/**
+ * Emitted when held funds are transferred from one wallet to another.
+ * Consumed by: Notification module (payment received notification)
+ */
+class FundsTransferredEvent {
+  constructor(
+    public readonly fromWalletId: string,
+    public readonly toWalletId: string,
+    public readonly amount: number, // kobo
+    public readonly reference: string, // escrow ID
+    public readonly errandId: string,
+  ) {}
+}
+```
+
+### Event Handlers (React to other module events)
+
+```typescript
+/**
+ * Listens to EscrowFundedEvent and holds funds in client wallet.
+ * Part of AcceptApplicationSaga workflow.
+ */
+class OnEscrowFundedHoldFundsHandler {
+  /**
+   * @listens EscrowFundedEvent
+   * Calls HoldFundsCommandHandler to move client's available → held
+   */
+  handle(event: EscrowFundedEvent): Promise<void>;
+}
+
+/**
+ * Listens to EscrowReleasedEvent and transfers held funds to worker.
+ * Part of CompleteErrandSaga workflow.
+ */
+class OnEscrowReleasedTransferFundsHandler {
+  /**
+   * @listens EscrowReleasedEvent
+   * Calls TransferHeldFundsCommandHandler to pay worker
+   */
+  handle(event: EscrowReleasedEvent): Promise<void>;
+}
+
+/**
+ * Listens to EscrowRefundedEvent and releases held funds back to client.
+ * Part of RefundErrandSaga workflow.
+ */
+class OnEscrowRefundedReleaseFundsHandler {
+  /**
+   * @listens EscrowRefundedEvent
+   * Calls ReleaseHoldCommandHandler to return funds to client
+   */
+  handle(event: EscrowRefundedEvent): Promise<void>;
+}
+```

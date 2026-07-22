@@ -411,3 +411,465 @@ model Application {
 6. **Update Escrow module** to listen to `ApplicationAccepted` instead of being called directly.
 7. **Remove ApplicationService dependency on EscrowService** (if still exists).
 8. **Test acceptance flow end-to-end** (staging environment).
+
+---
+
+## 12. Implementation Spec
+
+### Domain Layer
+
+```typescript
+/**
+ * Application aggregate root representing a provider's application to work on an errand.
+ * Core invariants:
+ * - Worker can only apply once per errand (errandId + workerId is unique)
+ * - Can only apply to errands with status OPEN
+ * - Can only apply to non-LISTING_HIRE and non-RECURRING_CONTRACT errands
+ * - Status transitions: PENDING → (ACCEPTED | REJECTED | CANCELLED)
+ * - Only PENDING applications can be accepted/rejected
+ */
+class Application {
+  /**
+   * Private constructor - use Application.submit() factory or load from repository.
+   * @param id Unique application identifier (from schema: id String @id)
+   * @param errandId Errand being applied for (from schema: errandId String)
+   * @param workerId Provider applying (from schema: workerId String)
+   * @param status Application status (from schema: status ApplicationStatus)
+   * @param coverLetter Optional cover letter from worker (from schema: coverLetter String?)
+   * @param proposedRate Optional counter-offer rate if worker proposes different rate (from schema: proposedRate Int?)
+   * @param acceptedAt Timestamp when accepted (from schema: acceptedAt DateTime?)
+   * @param rejectedAt Timestamp when rejected (from schema: rejectedAt DateTime?)
+   * @param cancelledAt Timestamp when cancelled (from schema: cancelledAt DateTime?)
+   * @param createdAt Creation timestamp
+   */
+  private constructor(
+    public readonly id: string,
+    public readonly errandId: string,
+    public readonly workerId: string,
+    private status: ApplicationStatus,
+    public readonly coverLetter: string | null,
+    public readonly proposedRate: number | null,
+    private acceptedAt: Date | null,
+    private rejectedAt: Date | null,
+    private cancelledAt: Date | null,
+    public readonly createdAt: Date,
+  );
+
+  /**
+   * Factory method to submit new application (status = PENDING).
+   * Caller must ensure errand is OPEN and sourceType is valid before calling.
+   * @param errandId Errand ID being applied for
+   * @param workerId Provider ID applying
+   * @param coverLetter Optional cover letter
+   * @param proposedRate Optional counter-offer rate in kobo
+   * @throws WorkerAlreadyAppliedException when worker already applied to this errand (DB constraint violation)
+   * @returns New Application instance with status = PENDING
+   */
+  static submit(
+    errandId: string,
+    workerId: string,
+    coverLetter?: string,
+    proposedRate?: number,
+  ): Application;
+
+  /**
+   * Accepts application (PENDING → ACCEPTED).
+   * Should be called by client. Triggers AcceptApplicationSaga.
+   * @param acceptedBy Client ID who accepted
+   * @throws InvalidStatusTransitionError when status is not PENDING
+   * @emits ApplicationAcceptedEvent
+   */
+  accept(acceptedBy: string): void;
+
+  /**
+   * Rejects application (PENDING → REJECTED).
+   * @param rejectedBy Client ID who rejected
+   * @throws InvalidStatusTransitionError when status is not PENDING
+   * @emits ApplicationRejectedEvent
+   */
+  reject(rejectedBy: string): void;
+
+  /**
+   * Cancels application (PENDING → CANCELLED).
+   * Worker can cancel their own application before it's processed.
+   * @throws InvalidStatusTransitionError when status is not PENDING
+   * @emits ApplicationCancelledEvent
+   */
+  cancel(): void;
+
+  /**
+   * Checks if application can be accepted (must be PENDING).
+   */
+  canAccept(): boolean;
+
+  /**
+   * Returns current status.
+   */
+  getStatus(): ApplicationStatus;
+}
+
+/** Thrown when worker tries to apply to same errand twice. */
+class WorkerAlreadyAppliedException extends Error {}
+
+/** Thrown when trying to transition from invalid status. */
+class InvalidStatusTransitionError extends Error {}
+```
+
+### Repository Interface
+
+```typescript
+/**
+ * Persistence contract for Application aggregate.
+ */
+interface IApplicationRepository {
+  /**
+   * Finds application by unique ID.
+   * @param id Application ID
+   * @returns Application aggregate or null if not found
+   */
+  findById(id: string): Promise<Application | null>;
+
+  /**
+   * Finds worker's application for a specific errand.
+   * Used to check if worker already applied.
+   * @param errandId Errand ID
+   * @param workerId Worker ID
+   * @returns Application aggregate or null if not found
+   */
+  findByErrandAndWorker(
+    errandId: string,
+    workerId: string,
+  ): Promise<Application | null>;
+
+  /**
+   * Finds all applications for an errand (client view).
+   * @param errandId Errand ID
+   * @param status Optional filter by status
+   * @returns Array of Application aggregates
+   */
+  findByErrand(
+    errandId: string,
+    status?: ApplicationStatus,
+  ): Promise<Application[]>;
+
+  /**
+   * Finds all applications submitted by a worker.
+   * @param workerId Worker ID
+   * @param status Optional filter by status
+   * @returns Array of Application aggregates
+   */
+  findByWorker(
+    workerId: string,
+    status?: ApplicationStatus,
+  ): Promise<Application[]>;
+
+  /**
+   * Persists application aggregate.
+   * @param application Application to save
+   */
+  save(application: Application): Promise<void>;
+
+  /**
+   * Counts applications by status for an errand.
+   * Used for errand application summary.
+   * @param errandId Errand ID
+   * @returns Map of status → count
+   */
+  countByStatus(errandId: string): Promise<Map<ApplicationStatus, number>>;
+}
+```
+
+### Application Layer
+
+```typescript
+/**
+ * Submits new application for errand.
+ * Validates that errand is OPEN and sourceType allows applications.
+ */
+class SubmitApplicationCommandHandler {
+  /**
+   * @param command Application details
+   * @throws ErrandNotFoundException when errand doesn't exist
+   * @throws ErrandNotOpenException when errand status is not OPEN
+   * @throws InvalidErrandSourceTypeException when errand sourceType is LISTING_HIRE or RECURRING_CONTRACT
+   * @throws WorkerAlreadyAppliedException when worker already applied
+   * @emits ApplicationSubmittedEvent
+   */
+  execute(command: SubmitApplicationCommand): Promise<string>; // returns application ID
+}
+
+interface SubmitApplicationCommand {
+  errandId: string;
+  workerId: string;
+  coverLetter?: string;
+  proposedRate?: number; // kobo
+}
+
+/**
+ * Accepts application and initiates AcceptApplicationSaga.
+ * Client accepts one worker's application.
+ */
+class AcceptApplicationCommandHandler {
+  /**
+   * @param command Acceptance details
+   * @throws ApplicationNotFoundException when application doesn't exist
+   * @throws InvalidStatusTransitionError when application status is not PENDING
+   * @throws UnauthorizedException when acceptedBy is not the errand client
+   * @emits ApplicationAcceptedEvent (triggers AcceptApplicationSaga)
+   */
+  execute(command: AcceptApplicationCommand): Promise<void>;
+}
+
+interface AcceptApplicationCommand {
+  applicationId: string;
+  acceptedBy: string; // client ID (must match errand.clientId)
+}
+
+/**
+ * Rejects application.
+ */
+class RejectApplicationCommandHandler {
+  /**
+   * @param command Rejection details
+   * @throws ApplicationNotFoundException when application doesn't exist
+   * @throws InvalidStatusTransitionError when application status is not PENDING
+   * @throws UnauthorizedException when rejectedBy is not the errand client
+   * @emits ApplicationRejectedEvent
+   */
+  execute(command: RejectApplicationCommand): Promise<void>;
+}
+
+interface RejectApplicationCommand {
+  applicationId: string;
+  rejectedBy: string; // client ID
+}
+
+/**
+ * Cancels application (worker-initiated).
+ */
+class CancelApplicationCommandHandler {
+  /**
+   * @param command Cancellation details
+   * @throws ApplicationNotFoundException when application doesn't exist
+   * @throws InvalidStatusTransitionError when application status is not PENDING
+   * @throws UnauthorizedException when cancelledBy is not the application workerId
+   * @emits ApplicationCancelledEvent
+   */
+  execute(command: CancelApplicationCommand): Promise<void>;
+}
+
+interface CancelApplicationCommand {
+  applicationId: string;
+  cancelledBy: string; // worker ID (must match application.workerId)
+}
+
+/**
+ * Query handler: Get application by ID.
+ */
+class GetApplicationQueryHandler {
+  /**
+   * @param query Application ID
+   * @returns Application details
+   * @throws ApplicationNotFoundException when not found
+   */
+  execute(query: GetApplicationQuery): Promise<ApplicationDTO>;
+}
+
+interface GetApplicationQuery {
+  applicationId: string;
+}
+
+/**
+ * Query handler: List applications for errand (client view).
+ */
+class ListErrandApplicationsQueryHandler {
+  /**
+   * @param query Errand ID and optional status filter
+   * @returns Array of applications with worker details
+   */
+  execute(query: ListErrandApplicationsQuery): Promise<ApplicationDTO[]>;
+}
+
+interface ListErrandApplicationsQuery {
+  errandId: string;
+  status?: ApplicationStatus;
+}
+
+/**
+ * Query handler: Get worker's own application for errand.
+ */
+class GetMyApplicationQueryHandler {
+  /**
+   * @param query Errand and worker IDs
+   * @returns Application details or null if not applied
+   */
+  execute(query: GetMyApplicationQuery): Promise<ApplicationDTO | null>;
+}
+
+interface GetMyApplicationQuery {
+  errandId: string;
+  workerId: string;
+}
+
+/**
+ * Query handler: Get application summary for errand (counts by status).
+ */
+class GetApplicationSummaryQueryHandler {
+  /**
+   * @param query Errand ID
+   * @returns Summary with counts by status and chatting applicants
+   */
+  execute(query: GetApplicationSummaryQuery): Promise<ApplicationSummaryDTO>;
+}
+
+interface GetApplicationSummaryQuery {
+  errandId: string;
+}
+
+interface ApplicationDTO {
+  id: string;
+  errandId: string;
+  workerId: string;
+  status: ApplicationStatus;
+  coverLetter: string | null;
+  proposedRate: number | null;
+  acceptedAt: Date | null;
+  rejectedAt: Date | null;
+  cancelledAt: Date | null;
+  createdAt: Date;
+  worker?: {
+    // joined from Provider
+    id: string;
+    userId: string;
+    bio: string | null;
+    skills: string[];
+  };
+}
+
+interface ApplicationSummaryDTO {
+  errandId: string;
+  totalApplications: number;
+  pendingCount: number;
+  acceptedCount: number;
+  rejectedCount: number;
+  cancelledCount: number;
+  chattingApplicantsCount: number; // workers with active chat rooms
+}
+```
+
+### Domain Events
+
+```typescript
+/**
+ * Emitted when worker submits application.
+ * Consumed by: Notification module (notify client of new applicant)
+ */
+class ApplicationSubmittedEvent {
+  constructor(
+    public readonly applicationId: string,
+    public readonly errandId: string,
+    public readonly workerId: string,
+    public readonly clientId: string,
+  ) {}
+}
+
+/**
+ * Emitted when client accepts application.
+ * CRITICAL: Triggers AcceptApplicationSaga (escrow funding flow).
+ * Consumed by: AcceptApplicationSaga, Notification module, Errands module
+ */
+class ApplicationAcceptedEvent {
+  constructor(
+    public readonly applicationId: string,
+    public readonly errandId: string,
+    public readonly workerId: string,
+    public readonly clientId: string,
+    public readonly acceptedBy: string,
+  ) {}
+}
+
+/**
+ * Emitted when client rejects application.
+ * Consumed by: Notification module (notify worker of rejection)
+ */
+class ApplicationRejectedEvent {
+  constructor(
+    public readonly applicationId: string,
+    public readonly errandId: string,
+    public readonly workerId: string,
+    public readonly rejectedBy: string,
+  ) {}
+}
+
+/**
+ * Emitted when worker cancels own application.
+ * Consumed by: Notification module (notify client)
+ */
+class ApplicationCancelledEvent {
+  constructor(
+    public readonly applicationId: string,
+    public readonly errandId: string,
+    public readonly workerId: string,
+  ) {}
+}
+```
+
+### Saga
+
+```typescript
+/**
+ * AcceptApplicationSaga orchestrates errand assignment, escrow creation, and funding.
+ * Multi-step workflow with rollback on failure.
+ *
+ * Flow:
+ * 1. ApplicationAcceptedEvent triggers saga
+ * 2. Reject all other pending applications
+ * 3. Update Errand status to ASSIGNED (call UpdateErrandStatusCommand)
+ * 4. Create Escrow (call CreateEscrowCommand)
+ * 5. Charge payment (call FundEscrowCommand)
+ * 6. Hold funds in wallet (call HoldFundsCommand)
+ * 7. Update Errand status to IN_PROGRESS
+ *
+ * On failure at any step: Rollback previous steps and emit ApplicationAcceptanceFailed event.
+ */
+class AcceptApplicationSaga {
+  /**
+   * @listens ApplicationAcceptedEvent
+   * Orchestrates multi-step acceptance flow with transaction rollback on failure.
+   * Each step is idempotent (saga can be retried on crash).
+   */
+  handle(event: ApplicationAcceptedEvent): Promise<void>;
+
+  /**
+   * Rejects all other PENDING applications for the errand.
+   * Called after application is accepted.
+   * @param errandId Errand ID
+   * @param acceptedApplicationId Application ID that was accepted (skip this one)
+   */
+  private rejectOtherApplications(
+    errandId: string,
+    acceptedApplicationId: string,
+  ): Promise<void>;
+
+  /**
+   * Rollback handler if escrow creation or funding fails.
+   * Reverts application status back to PENDING and errand status back to OPEN.
+   * @param applicationId Application ID to rollback
+   * @param errandId Errand ID to rollback
+   * @emits ApplicationAcceptanceFailedEvent
+   */
+  private rollback(applicationId: string, errandId: string): Promise<void>;
+}
+
+/**
+ * Emitted when AcceptApplicationSaga fails and rolls back.
+ * Consumed by: Notification module (alert client of failure)
+ */
+class ApplicationAcceptanceFailedEvent {
+  constructor(
+    public readonly applicationId: string,
+    public readonly errandId: string,
+    public readonly reason: string,
+  ) {}
+}
+```

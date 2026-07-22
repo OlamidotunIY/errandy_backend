@@ -434,3 +434,490 @@ src/chat/
 7. **Queue file uploads** in BullMQ (retry on failure).
 8. **Add DataLoader** for message sender profile (prevent N+1).
 9. **Add message moderation** (scan for spam/abuse before broadcasting).
+
+---
+
+## 12. Implementation Spec
+
+### Domain Layer
+
+```typescript
+/**
+ * ChatRoom aggregate root representing conversation between users.
+ * Core invariants:
+ * - ChatRoom must have at least 2 participants
+ * - errandId is optional (chat can exist without errand for direct messaging)
+ * - lastMessageId must reference valid message in room
+ * - Participants can only read messages if they're in the room
+ * - Messages are append-only (cannot edit/delete after send)
+ */
+class ChatRoom {
+  /**
+   * Private constructor - use ChatRoom.create() factory or load from repository.
+   * @param id Unique chat room identifier (from schema: id String @id)
+   * @param errandId Optional errand this chat is for (from schema: errandId String?)
+   * @param participantIds Array of user IDs in room (from schema: ChatRoomParticipant[])
+   * @param messages Message entities (from schema: Message[])
+   * @param lastMessageId Last message ID (from schema: lastMessageId String?)
+   * @param createdAt Creation timestamp
+   * @param updatedAt Last activity timestamp
+   */
+  private constructor(
+    public readonly id: string,
+    public readonly errandId: string | null,
+    private readonly participantIds: string[],
+    private readonly messages: Message[],
+    private lastMessageId: string | null,
+    public readonly createdAt: Date,
+    public readonly updatedAt: Date,
+  );
+
+  /**
+   * Factory method to create new chat room.
+   * Requires at least 2 participants.
+   * @param participantIds User IDs (minimum 2)
+   * @param errandId Optional errand ID this chat is for
+   * @throws InsufficientParticipantsError when < 2 participants
+   * @returns New ChatRoom instance
+   */
+  static create(
+    participantIds: string[],
+    errandId?: string,
+  ): ChatRoom;
+
+  /**
+   * Sends message in chat room.
+   * Message is validated based on type (text/image/audio/location).
+   * @param senderId User sending message (must be participant)
+   * @param messageType Message type enum
+   * @param content Message content (text, URL, coordinates, etc.)
+   * @throws UnauthorizedSenderError when sender not in participant list
+   * @throws InvalidMessageContentError when content doesn't match type
+   * @emits MessageSentEvent (triggers PubSub broadcast)
+   * @returns New Message ID
+   */
+  sendMessage(
+    senderId: string,
+    messageType: MessageType,
+    content: string,
+  ): string;
+
+  /**
+   * Marks message as read by user.
+   * Updates MessageRead record.
+   * @param messageId Message ID
+   * @param userId User marking as read (must be participant)
+   * @throws UnauthorizedReaderError when user not in participant list
+   * @throws MessageNotFoundException when message not in this room
+   * @emits MessageReadEvent
+   */
+  markMessageAsRead(messageId: string, userId: string): void;
+
+  /**
+   * Adds participant to chat room.
+   * Used when new applicant joins errand chat.
+   * @param userId User to add
+   * @throws ParticipantAlreadyExistsError when user already in room
+   * @emits ParticipantAddedEvent
+   */
+  addParticipant(userId: string): void;
+
+  /**
+   * Removes participant from chat room.
+   * Used when user leaves chat.
+   * @param userId User to remove
+   * @throws CannotRemoveLastParticipantError when trying to remove last participant
+   * @emits ParticipantRemovedEvent
+   */
+  removeParticipant(userId: string): void;
+
+  /**
+   * Checks if user is participant.
+   * @param userId User ID
+   */
+  isParticipant(userId: string): boolean;
+
+  /**
+   * Returns unread message count for user.
+   * @param userId User ID
+   * @returns Number of unread messages
+   */
+  getUnreadCount(userId: string): number;
+}
+
+/**
+ * Message entity (child of ChatRoom aggregate).
+ * Immutable once created.
+ */
+class Message {
+  constructor(
+    public readonly id: string,
+    public readonly chatRoomId: string,
+    public readonly senderId: string,
+    public readonly type: MessageType,
+    public readonly content: string,
+    public readonly createdAt: Date,
+  );
+
+  /**
+   * Validates message content based on type.
+   * TEXT: Any non-empty string
+   * IMAGE/AUDIO: Valid URL
+   * LOCATION: JSON with lat/lng coordinates
+   * @throws InvalidMessageContentError when content invalid for type
+   */
+  validate(): void;
+}
+
+/**
+ * ChatRoomParticipant entity (child of ChatRoom).
+ */
+class ChatRoomParticipant {
+  constructor(
+    public readonly chatRoomId: string,
+    public readonly userId: string,
+    public readonly joinedAt: Date,
+  );
+}
+
+/** Thrown when chat room created with < 2 participants. */
+class InsufficientParticipantsError extends Error {}
+
+/** Thrown when non-participant tries to send message. */
+class UnauthorizedSenderError extends Error {}
+
+/** Thrown when message content doesn't match type. */
+class InvalidMessageContentError extends Error {}
+
+/** Thrown when non-participant tries to read message. */
+class UnauthorizedReaderError extends Error {}
+
+/** Thrown when message not in chat room. */
+class MessageNotFoundException extends Error {}
+
+/** Thrown when participant already in room. */
+class ParticipantAlreadyExistsError extends Error {}
+
+/** Thrown when trying to remove last participant. */
+class CannotRemoveLastParticipantError extends Error {}
+```
+
+### Repository Interface
+
+```typescript
+/**
+ * Persistence contract for ChatRoom aggregate.
+ */
+interface IChatRoomRepository {
+  /**
+   * Finds chat room by unique ID.
+   * @param id Chat room ID
+   * @returns ChatRoom aggregate or null if not found
+   */
+  findById(id: string): Promise<ChatRoom | null>;
+
+  /**
+   * Finds chat room for specific errand and participants.
+   * Each errand + participant pair has one chat room.
+   * @param errandId Errand ID
+   * @param participantIds Participant user IDs
+   * @returns ChatRoom aggregate or null if not found
+   */
+  findByErrandAndParticipants(
+    errandId: string,
+    participantIds: string[],
+  ): Promise<ChatRoom | null>;
+
+  /**
+   * Finds all chat rooms for user.
+   * @param userId User ID
+   * @returns Array of ChatRoom aggregates sorted by last activity
+   */
+  findByUser(userId: string): Promise<ChatRoom[]>;
+
+  /**
+   * Persists chat room aggregate.
+   * Messages are append-only - new messages are added, never updated.
+   * @param chatRoom ChatRoom to save
+   */
+  save(chatRoom: ChatRoom): Promise<void>;
+
+  /**
+   * Finds messages in chat room with pagination.
+   * @param chatRoomId Chat room ID
+   * @param limit Max messages to return
+   * @param beforeMessageId Optional cursor for pagination (messages before this ID)
+   * @returns Array of Message entities sorted by createdAt DESC
+   */
+  findMessages(
+    chatRoomId: string,
+    limit: number,
+    beforeMessageId?: string,
+  ): Promise<Message[]>;
+}
+```
+
+### Application Layer
+
+```typescript
+/**
+ * Creates new chat room.
+ */
+class CreateChatRoomCommandHandler {
+  /**
+   * @param command Chat room details
+   * @throws InsufficientParticipantsError when < 2 participants
+   * @throws ErrandNotFoundException when errand doesn't exist (if errandId provided)
+   * @emits ChatRoomCreatedEvent
+   * @returns Chat room ID
+   */
+  execute(command: CreateChatRoomCommand): Promise<string>;
+}
+
+interface CreateChatRoomCommand {
+  participantIds: string[];
+  errandId?: string;
+}
+
+/**
+ * Sends message in chat room.
+ * Handles file upload for IMAGE/AUDIO types.
+ */
+class SendMessageCommandHandler {
+  /**
+   * @param command Message details
+   * @throws ChatRoomNotFoundException when room doesn't exist
+   * @throws UnauthorizedSenderError when sender not participant
+   * @throws InvalidMessageContentError when content invalid for type
+   * @emits MessageSentEvent (triggers PubSub broadcast)
+   * @returns Message ID
+   */
+  execute(command: SendMessageCommand): Promise<string>;
+}
+
+interface SendMessageCommand {
+  chatRoomId: string;
+  senderId: string;
+  type: MessageType;
+  content: string; // text, URL, or JSON coordinates
+  file?: Buffer; // for IMAGE/AUDIO uploads (converted to URL by handler)
+}
+
+/**
+ * Marks message as read.
+ */
+class MarkMessageAsReadCommandHandler {
+  /**
+   * @param command Read details
+   * @throws ChatRoomNotFoundException when room doesn't exist
+   * @throws UnauthorizedReaderError when user not participant
+   * @throws MessageNotFoundException when message not in room
+   * @emits MessageReadEvent
+   */
+  execute(command: MarkMessageAsReadCommand): Promise<void>;
+}
+
+interface MarkMessageAsReadCommand {
+  chatRoomId: string;
+  messageId: string;
+  userId: string;
+}
+
+/**
+ * Adds participant to chat room.
+ */
+class AddParticipantCommandHandler {
+  /**
+   * @param command Participant details
+   * @throws ChatRoomNotFoundException when room doesn't exist
+   * @throws ParticipantAlreadyExistsError when user already in room
+   * @emits ParticipantAddedEvent
+   */
+  execute(command: AddParticipantCommand): Promise<void>;
+}
+
+interface AddParticipantCommand {
+  chatRoomId: string;
+  userId: string;
+}
+
+/**
+ * Removes participant from chat room.
+ */
+class RemoveParticipantCommandHandler {
+  /**
+   * @param command Participant to remove
+   * @throws ChatRoomNotFoundException when room doesn't exist
+   * @throws CannotRemoveLastParticipantError when removing last participant
+   * @emits ParticipantRemovedEvent
+   */
+  execute(command: RemoveParticipantCommand): Promise<void>;
+}
+
+interface RemoveParticipantCommand {
+  chatRoomId: string;
+  userId: string;
+}
+
+/**
+ * Query handler: Get chat room by ID.
+ */
+class GetChatRoomQueryHandler {
+  /**
+   * @param query Chat room ID
+   * @returns Chat room details with participants
+   * @throws ChatRoomNotFoundException when not found
+   */
+  execute(query: GetChatRoomQuery): Promise<ChatRoomDTO>;
+}
+
+interface GetChatRoomQuery {
+  chatRoomId: string;
+}
+
+/**
+ * Query handler: List user's chat rooms.
+ */
+class ListUserChatRoomsQueryHandler {
+  /**
+   * @param query User ID
+   * @returns Array of chat rooms sorted by last activity
+   */
+  execute(query: ListUserChatRoomsQuery): Promise<ChatRoomDTO[]>;
+}
+
+interface ListUserChatRoomsQuery {
+  userId: string;
+}
+
+/**
+ * Query handler: Get messages in chat room.
+ */
+class GetMessagesQueryHandler {
+  /**
+   * @param query Chat room ID with pagination
+   * @returns Array of messages with sender details
+   */
+  execute(query: GetMessagesQuery): Promise<MessageDTO[]>;
+}
+
+interface GetMessagesQuery {
+  chatRoomId: string;
+  limit: number;
+  beforeMessageId?: string; // cursor for pagination
+}
+
+interface ChatRoomDTO {
+  id: string;
+  errandId: string | null;
+  participants: { userId: string; name: string; image: string | null }[];
+  lastMessage: MessageDTO | null;
+  unreadCount: number; // for current user
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface MessageDTO {
+  id: string;
+  chatRoomId: string;
+  senderId: string;
+  type: MessageType;
+  content: string;
+  createdAt: Date;
+  sender?: { id: string; name: string; image: string | null };
+}
+```
+
+### Domain Events
+
+```typescript
+/**
+ * Emitted when new chat room created.
+ * Consumed by: Notification (notify participants)
+ */
+class ChatRoomCreatedEvent {
+  constructor(
+    public readonly chatRoomId: string,
+    public readonly participantIds: string[],
+    public readonly errandId: string | null,
+  ) {}
+}
+
+/**
+ * Emitted when message sent.
+ * CRITICAL: Triggers PubSub broadcast to all room participants.
+ * Consumed by: PubSub broadcaster, Notification module
+ */
+class MessageSentEvent {
+  constructor(
+    public readonly messageId: string,
+    public readonly chatRoomId: string,
+    public readonly senderId: string,
+    public readonly type: MessageType,
+    public readonly content: string,
+    public readonly recipientIds: string[], // all participants except sender
+  ) {}
+}
+
+/**
+ * Emitted when message marked as read.
+ * Consumed by: Notification (update unread count badge), PubSub (notify sender)
+ */
+class MessageReadEvent {
+  constructor(
+    public readonly messageId: string,
+    public readonly chatRoomId: string,
+    public readonly userId: string,
+  ) {}
+}
+
+/**
+ * Emitted when participant added to chat room.
+ * Consumed by: Notification (notify new participant)
+ */
+class ParticipantAddedEvent {
+  constructor(
+    public readonly chatRoomId: string,
+    public readonly userId: string,
+  ) {}
+}
+
+/**
+ * Emitted when participant removed from chat room.
+ * Consumed by: Notification
+ */
+class ParticipantRemovedEvent {
+  constructor(
+    public readonly chatRoomId: string,
+    public readonly userId: string,
+  ) {}
+}
+```
+
+### Event Handlers (React to other module events)
+
+```typescript
+/**
+ * Listens to MessageSentEvent and broadcasts to room participants via PubSub.
+ * Decouples message sending from broadcasting.
+ */
+class OnMessageSentBroadcastHandler {
+  /**
+   * @listens MessageSentEvent
+   * Publishes message to PubSub topic for real-time delivery
+   */
+  handle(event: MessageSentEvent): Promise<void>;
+}
+
+/**
+ * Listens to ApplicationSubmittedEvent and creates chat room for errand.
+ * Workers can chat with client after applying.
+ */
+class OnApplicationSubmittedCreateChatRoomHandler {
+  /**
+   * @listens ApplicationSubmittedEvent
+   * Creates chat room with client and worker as participants
+   */
+  handle(event: ApplicationSubmittedEvent): Promise<void>;
+}
+```
