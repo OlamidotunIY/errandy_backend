@@ -30,7 +30,11 @@
       "@payments": ["src/payment-gateway"],
       "@payments/*": ["src/payment-gateway/*"],
       "@shared": ["src/common"],
-      "@shared/*": ["src/common/*"]
+      "@shared/*": ["src/common/*"],
+      "@wallet": ["src/wallet"],
+      "@wallet/*": ["src/wallet/*"],
+      "@user": ["src/users"],
+      "@user/*": ["src/users/*"]
     }
   }
 }
