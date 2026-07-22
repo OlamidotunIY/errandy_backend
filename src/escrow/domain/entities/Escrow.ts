@@ -144,7 +144,7 @@ class Escrow extends AggregateRoot<EscrowId> {
     }
     this._status = EscrowStatus.RELEASED;
     this._releasedAt = releasedAt;
-    // this.addDomainEvent(new EscrowReleasedEvent(this));
+    // this.addDomainEvent(new EscrowReleasedEvent());
   }
 
   /**
