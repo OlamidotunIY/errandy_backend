@@ -64,6 +64,7 @@ Manages payment escrow for errand completion: funds are held when a client accep
 **Business logic in service**:
 
 - `acceptApplicationAndFundEscrow` (line 58-168) is a 110-line god method orchestrating:
+
   1. Fetch application + errand + client + payment method (data access)
   2. Validate business rules (errand status, application status, payment method verified)
   3. Calculate amounts (domain logic)
@@ -106,10 +107,11 @@ infrastructure/
 **Command/Event patterns** (critical for decoupling):
 
 1. **Replace direct method calls with events**:
+
    - Current: `ErrandsResolver.markErrandCompleted` → `EscrowService.markErrandCompleted` (direct call).
    - Proposed: `ErrandsResolver` → `CompleteErrandCommandHandler` → emits `ErrandCompleted` event → `EscrowEventHandler` listens and releases escrow.
-
 2. **Accept application as a Saga**:
+
    - Current: `acceptApplicationAndFundEscrow` orchestrates 7 steps inline (lines 58-168).
    - Proposed: Use NestJS CQRS Saga or event-driven process manager:
      ```
@@ -121,8 +123,8 @@ infrastructure/
          → Create wallet transaction (WalletDebitedEvent)
      ```
    - Each step is idempotent with compensation logic (e.g., if escrow creation fails after payment, auto-refund).
-
 3. **Retry / Dead Letter**:
+
    - Payment gateway calls (line 148: `paymentGatewayService.chargeAuthorization`) can fail (network timeout, gateway down).
    - No retry logic — failure throws exception, client sees error.
    - Recommendation: Queue `ChargePendingEscrow` command to BullMQ, retry 3x with exponential backoff, send to dead-letter queue if all fail.
@@ -222,13 +224,14 @@ src/escrow/
 ### Aggregate Boundary Violations
 
 1. **EscrowService directly mutates Errand.status**
+
    - **Evidence**: `src/errands/errands.service.ts` (lines 198, 1799, 1941) calls `prisma.errand.update({ data: { status } })` directly.
    - **Schema gap**: `Escrow.errand` relation has no protection against direct updates from other modules.
    - **Impact**: Errand status can change without Errand aggregate's validation (e.g., cannot complete if not assigned).
    - **Fix priority**: PHASE 1 — replace with event: `EscrowReleased` → `ErrandEventHandler.updateStatus()`.
    - **Migration notes**: No schema change needed (code-only refactoring). Risk: MEDIUM (need saga to coordinate Errand + Escrow state changes).
-
 2. **EscrowService directly mutates Application.status**
+
    - **Evidence**: `EscrowService.acceptApplicationAndFundEscrow` (line ~90 in escrow.service.ts) updates application.status.
    - **Schema gap**: No cascade or constraint preventing this.
    - **Impact**: Application acceptance bypasses Application aggregate invariants.
@@ -237,6 +240,7 @@ src/escrow/
 ### Dangling Reference Risks
 
 1. **Escrow.errandId → Errand (Financial audit trail at risk)**
+
    - **Schema**: No cascade rule (`Escrow.errand` relation missing `onDelete`).
    - **Bug**: If errand deleted (admin cleanup or future soft-delete), escrow record becomes orphaned — cannot trace payment back to job.
    - **Impact**: **HIGH** — audit compliance violation (financial records must be traceable).
@@ -250,14 +254,14 @@ src/escrow/
    - **Migration**: `npx prisma db push` (additive, no backfill needed).
    - **Rollback**: Safe (can remove constraint if breaks admin features).
    - **Priority**: PHASE 1 (before errand deletion feature is built).
-
 2. **Escrow.clientId → Client**
+
    - **Schema**: No cascade rule.
    - **Bug**: Deleting client orphans all their escrows.
    - **Impact**: MEDIUM (client deletion unlikely, but user account deletion might be needed for GDPR).
    - **Fix**: Add `onDelete: Restrict` (prevent client deletion if escrows exist).
-
 3. **Escrow.workerId → Provider**
+
    - **Schema**: No cascade rule.
    - **Bug**: Deleting provider orphans all their escrows.
    - **Impact**: MEDIUM (same as client).
@@ -283,15 +287,15 @@ src/escrow/
 **Phase 1 changes for Escrow**:
 
 1. **Add cascade constraints** (errandId, clientId, workerId):
+
    - Migration: `npx prisma db push`
    - Rollback: Safe (remove constraints)
    - Risk: LOW
-
 2. **Extract Escrow aggregate + events** (code-only):
+
    - Migration: Code deployment
    - Rollback: Code revert
    - Risk: MEDIUM (need dual-write during transition if using feature flags)
-
 3. **No backfill scripts needed** (no data migration).
 
 **Risk revised from MEDIUM-HIGH to MEDIUM**: Schema analysis shows no complex migrations needed (only additive constraints). Main risk is event-driven refactoring coordination with Errands/Application modules.
@@ -342,7 +346,27 @@ src/escrow/
  * - Cannot transition backward in status flow
  * - One escrow per errand (errandId is unique)
  */
-class Escrow {
+class EscrowId extends EntityId {
+  /**
+   * Private constructor. Use EscrowId.new() or EscrowId.from().
+   */
+  private constructor(value: string);
+
+  /**
+   * Creates a new EscrowId.
+   */
+  static new(): EscrowId;
+
+  /**
+   * Rehydrates EscrowId from persisted value.
+   */
+  static from(value: string): EscrowId;
+}
+
+/**
+ * Escrow aggregate root representing funds held in escrow for an errand.
+ */
+class Escrow extends AggregateRoot<EscrowId> {
   /**
    * Private constructor - use Escrow.create() factory method instead.
    * @param id Unique escrow identifier (from schema: id String @id)
@@ -360,15 +384,15 @@ class Escrow {
    * @param updatedAt Last update timestamp
    */
   private constructor(
-    public readonly id: string,
-    public readonly errandId: string,
-    public readonly clientId: string,
-    public readonly workerId: string,
+    public readonly id: EscrowId,
+    public readonly errandId: ErrandId,
+    public readonly clientId: ClientId,
+    public readonly workerId: ProviderId,
     private amountGross: Money,
     private platformFee: Money,
     private amountNetWorker: Money,
     private status: EscrowStatus,
-    private holdUntil: Date,
+    private holdUntil: Date | null,
     private releasedAt: Date | null,
     private refundedAt: Date | null,
     public readonly createdAt: Date,
@@ -376,26 +400,43 @@ class Escrow {
   );
 
   /**
-   * Factory method to create new escrow with PENDING status.
-   * Splits gross amount into platform fee and net worker amount using provided fee rate.
-   * Default hold period is 7 days from creation.
+  * Factory method to create new escrow with PENDING status.
+  * Splits gross amount into platform fee and net worker amount using provided fee rate.
+  * Hold period is not started at creation. It starts after completion via hold().
    * @param errandId Unique errand identifier (must not already have escrow)
    * @param clientId Client posting errand
    * @param workerId Worker assigned to errand
    * @param amountGross Total amount in kobo (must be positive)
    * @param platformFeeRate Fee as basis points 0-10000 (e.g., 500 = 5%)
-   * @param holdUntil Optional hold-until date (defaults to now + 7 days)
    * @throws InvalidAmountError when amountGross <= 0
    * @throws InvalidFeeRateError when platformFeeRate < 0 or > 10000 basis points
    * @returns New Escrow instance with status = PENDING
    */
   static create(
-    errandId: string,
-    clientId: string,
-    workerId: string,
+    errandId: ErrandId,
+    clientId: ClientId,
+    workerId: ProviderId,
     amountGross: Money,
     platformFeeRate: number,
-    holdUntil?: Date,
+  ): Escrow;
+
+  /**
+   * Reconstitutes Escrow aggregate from persistence.
+   */
+  static reconstitute(
+    id: EscrowId,
+    errandId: ErrandId,
+    clientId: ClientId,
+    workerId: ProviderId,
+    amountGross: Money,
+    platformFee: Money,
+    amountNetWorker: Money,
+    status: EscrowStatus,
+    holdUntil: Date | null,
+    releasedAt: Date | null,
+    refundedAt: Date | null,
+    createdAt: Date,
+    updatedAt: Date,
   ): Escrow;
 
   /**
@@ -407,11 +448,12 @@ class Escrow {
   fund(): void;
 
   /**
-   * Transitions escrow from FUNDED → HELD after wallet hold succeeds.
-   * Called after funds are successfully held in client's wallet.
+   * Transitions escrow from FUNDED → HELD after errand completion.
+   * Sets holdUntil to completion time plus 3 days.
+   * @param completedAt Timestamp when errand was completed
    * @throws InvalidStatusTransitionError when current status is not FUNDED
    */
-  hold(): void;
+  hold(completedAt: Date): void;
 
   /**
    * Begins release process (HELD → RELEASING) when errand completes.
@@ -711,14 +753,14 @@ interface IEscrowRepository {
    * Finds escrow by ID.
    * @returns Escrow aggregate or null if not found
    */
-  findById(id: string): Promise<Escrow | null>;
+  findById(id: EscrowId): Promise<Escrow | null>;
 
   /**
    * Finds escrow by errand ID (1:1 relationship enforced by unique constraint).
    * Used by FundEscrowCommandHandler to check if escrow already exists (idempotency).
    * @returns Escrow aggregate or null if not found
    */
-  findByErrandId(errandId: string): Promise<Escrow | null>;
+  findByErrandId(errandId: ErrandId): Promise<Escrow | null>;
 
   /**
    * Finds all escrows for a client (for admin dashboard).
@@ -726,7 +768,7 @@ interface IEscrowRepository {
    * @param status Optional status filter
    * @returns Array of Escrow aggregates ordered by createdAt desc
    */
-  findByClientId(clientId: string, status?: EscrowStatus): Promise<Escrow[]>;
+  findByClientId(clientId: ClientId, status?: EscrowStatus): Promise<Escrow[]>;
 
   /**
    * Finds all escrows for a worker (for provider dashboard).
@@ -734,7 +776,10 @@ interface IEscrowRepository {
    * @param status Optional status filter
    * @returns Array of Escrow aggregates ordered by createdAt desc
    */
-  findByWorkerId(workerId: string, status?: EscrowStatus): Promise<Escrow[]>;
+  findByWorkerId(
+    workerId: ProviderId,
+    status?: EscrowStatus,
+  ): Promise<Escrow[]>;
 
   /**
    * Finds all escrows with expired hold periods (for auto-release scheduled job).
@@ -837,15 +882,15 @@ class FundEscrowCommandHandler {
 }
 
 interface FundEscrowCommand {
-  errandId: string;
-  clientId: string;
-  workerId: string;
+  errandId: ErrandId;
+  clientId: ClientId;
+  workerId: ProviderId;
   amountGross: Money;
-  paymentMethodId: string;
+  paymentMethodId: PaymentMethodId;
 }
 
 interface FundEscrowResult {
-  escrowId: string;
+  escrowId: EscrowId;
   amountGross: Money;
   platformFee: Money;
   amountNetWorker: Money;
@@ -909,7 +954,7 @@ class ReleaseEscrowCommandHandler {
 }
 
 interface ReleaseEscrowCommand {
-  escrowId: string;
+  escrowId: EscrowId;
 }
 
 /**
@@ -975,7 +1020,7 @@ class RefundEscrowCommandHandler {
 }
 
 interface RefundEscrowCommand {
-  escrowId: string;
+  escrowId: EscrowId;
   reason: RefundReason;
 }
 
@@ -1013,14 +1058,14 @@ class GetEscrowByErrandQueryHandler {
 }
 
 interface GetEscrowByErrandQuery {
-  errandId: string;
+  errandId: ErrandId;
 }
 
 interface EscrowDTO {
-  id: string;
-  errandId: string;
-  clientId: string;
-  workerId: string;
+  id: EscrowId;
+  errandId: ErrandId;
+  clientId: ClientId;
+  workerId: ProviderId;
   amountGross: number; // In kobo
   platformFee: number;
   amountNetWorker: number;
@@ -1052,10 +1097,10 @@ class RefundFailedError extends Error {}
  */
 class EscrowFundedEvent {
   constructor(
-    public readonly escrowId: string,
-    public readonly errandId: string,
-    public readonly clientId: string,
-    public readonly workerId: string,
+    public readonly escrowId: EscrowId,
+    public readonly errandId: ErrandId,
+    public readonly clientId: ClientId,
+    public readonly workerId: ProviderId,
     public readonly amountGross: Money,
     public readonly platformFee: Money,
     public readonly amountNetWorker: Money,
@@ -1083,9 +1128,9 @@ class EscrowFundedEvent {
  */
 class EscrowReleasingEvent {
   constructor(
-    public readonly escrowId: string,
-    public readonly errandId: string,
-    public readonly workerId: string,
+    public readonly escrowId: EscrowId,
+    public readonly errandId: ErrandId,
+    public readonly workerId: ProviderId,
     public readonly amount: Money,
     public readonly releasingAt: Date,
   ) {}
@@ -1109,9 +1154,9 @@ class EscrowReleasingEvent {
  */
 class EscrowReleasedEvent {
   constructor(
-    public readonly escrowId: string,
-    public readonly errandId: string,
-    public readonly workerId: string,
+    public readonly escrowId: EscrowId,
+    public readonly errandId: ErrandId,
+    public readonly workerId: ProviderId,
     public readonly amount: Money,
     public readonly releasedAt: Date,
   ) {}
@@ -1134,9 +1179,9 @@ class EscrowReleasedEvent {
  */
 class EscrowRefundingEvent {
   constructor(
-    public readonly escrowId: string,
-    public readonly errandId: string,
-    public readonly clientId: string,
+    public readonly escrowId: EscrowId,
+    public readonly errandId: ErrandId,
+    public readonly clientId: ClientId,
     public readonly amount: Money,
     public readonly reason: RefundReason,
     public readonly refundingAt: Date,
@@ -1164,9 +1209,9 @@ class EscrowRefundingEvent {
  */
 class EscrowRefundedEvent {
   constructor(
-    public readonly escrowId: string,
-    public readonly errandId: string,
-    public readonly clientId: string,
+    public readonly escrowId: EscrowId,
+    public readonly errandId: ErrandId,
+    public readonly clientId: ClientId,
     public readonly amount: Money,
     public readonly refundedAt: Date,
   ) {}
@@ -1190,8 +1235,8 @@ class EscrowRefundedEvent {
  */
 class EscrowDisputedEvent {
   constructor(
-    public readonly escrowId: string,
-    public readonly errandId: string,
+    public readonly escrowId: EscrowId,
+    public readonly errandId: ErrandId,
     public readonly disputedAt: Date,
   ) {}
 

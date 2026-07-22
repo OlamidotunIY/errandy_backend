@@ -131,7 +131,7 @@ src/infrastructure/push/  # OR src/common/push/
  */
 class PushNotificationMessage {
   constructor(
-    public readonly recipientUserId: string,
+    public readonly recipientUserId: UserId,
     public readonly fcmToken: string,
     public readonly title: string,
     public readonly body: string,
@@ -167,7 +167,7 @@ interface IPushTokenRepository {
   /**
    * Deletes invalid token discovered from provider response.
    */
-  deleteToken(userId: string, token: string): Promise<void>;
+  deleteToken(userId: UserId, token: string): Promise<void>;
 }
 ```
 
@@ -185,7 +185,7 @@ class SendPushNotificationCommandHandler {
 }
 
 interface SendPushNotificationCommand {
-  recipientUserId: string;
+  recipientUserId: UserId;
   fcmToken: string;
   title: string;
   body: string;
@@ -201,7 +201,7 @@ interface SendPushNotificationCommand {
  */
 class PushNotificationSentEvent {
   constructor(
-    public readonly recipientUserId: string,
+    public readonly recipientUserId: UserId,
     public readonly title: string,
   );
 }
@@ -211,7 +211,7 @@ class PushNotificationSentEvent {
  */
 class FcmTokenInvalidEvent {
   constructor(
-    public readonly recipientUserId: string,
+    public readonly recipientUserId: UserId,
     public readonly token: string,
   );
 }

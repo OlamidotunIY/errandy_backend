@@ -201,7 +201,7 @@ src/common/notification/  # OR src/infrastructure/notification/
  */
 class NotificationRequest {
   constructor(
-    public readonly recipientUserId: string,
+    public readonly recipientUserId: UserId,
     public readonly channels: Array<"EMAIL" | "PUSH">,
     public readonly templateKey: string,
     public readonly payload: Record<string, unknown>,
@@ -226,7 +226,7 @@ interface INotificationHistoryRepository {
    * Stores dispatched notification metadata.
    */
   save(entry: {
-    recipientUserId: string;
+    recipientUserId: UserId;
     templateKey: string;
     channels: Array<'EMAIL' | 'PUSH'>;
     sentAt: Date;
@@ -248,7 +248,7 @@ class SendNotificationCommandHandler {
 }
 
 interface SendNotificationCommand {
-  recipientUserId: string;
+  recipientUserId: UserId;
   templateKey: string;
   payload: Record<string, unknown>;
   channels: Array<'EMAIL' | 'PUSH'>;
@@ -263,7 +263,7 @@ interface SendNotificationCommand {
  */
 class NotificationDispatchRequestedEvent {
   constructor(
-    public readonly recipientUserId: string,
+    public readonly recipientUserId: UserId,
     public readonly channels: Array<"EMAIL" | "PUSH">,
     public readonly templateKey: string,
   );
@@ -274,7 +274,7 @@ class NotificationDispatchRequestedEvent {
  */
 class NotificationDispatchedEvent {
   constructor(
-    public readonly recipientUserId: string,
+    public readonly recipientUserId: UserId,
     public readonly templateKey: string,
     public readonly successfulChannels: Array<"EMAIL" | "PUSH">,
   );

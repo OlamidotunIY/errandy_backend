@@ -251,7 +251,27 @@ src/provider/
  * - averageRating is denormalized from Rating table (updated via events)
  * - One provider per user (userId is unique)
  */
-class Provider {
+class ProviderId extends EntityId {
+  /**
+   * Private constructor. Use ProviderId.new() or ProviderId.from().
+   */
+  private constructor(value: string);
+
+  /**
+   * Creates a new ProviderId.
+   */
+  static new(): ProviderId;
+
+  /**
+   * Rehydrates ProviderId from persisted value.
+   */
+  static from(value: string): ProviderId;
+}
+
+/**
+ * Provider aggregate root representing a service provider profile.
+ */
+class Provider extends AggregateRoot<ProviderId> {
   /**
    * Private constructor - use Provider.create() factory or load from repository.
    * @param id Unique provider identifier (from schema: id String @id)
@@ -264,8 +284,8 @@ class Provider {
    * @param updatedAt Last update timestamp
    */
   private constructor(
-    public readonly id: string,
-    public readonly userId: string,
+    public readonly id: ProviderId,
+    public readonly userId: UserId,
     private bio: string | null,
     private skills: string[],
     private verified: boolean,
@@ -282,7 +302,21 @@ class Provider {
    * @throws ProviderAlreadyExistsError when user already has provider profile
    * @returns New Provider instance
    */
-  static create(userId: string): Provider;
+  static create(userId: UserId): Provider;
+
+  /**
+   * Reconstitutes Provider aggregate from persistence.
+   */
+  static reconstitute(
+    id: ProviderId,
+    userId: UserId,
+    bio: string | null,
+    skills: string[],
+    verified: boolean,
+    averageRating: number | null,
+    createdAt: Date,
+    updatedAt: Date,
+  ): Provider;
 
   /**
    * Updates provider bio.
@@ -348,14 +382,14 @@ interface IProviderRepository {
    * @param id Provider ID
    * @returns Provider aggregate or null if not found
    */
-  findById(id: string): Promise<Provider | null>;
+  findById(id: ProviderId): Promise<Provider | null>;
 
   /**
    * Finds provider by user ID.
    * @param userId User ID
    * @returns Provider aggregate or null if not found
    */
-  findByUserId(userId: string): Promise<Provider | null>;
+  findByUserId(userId: UserId): Promise<Provider | null>;
 
   /**
    * Finds providers by skills (discovery query).
@@ -388,11 +422,11 @@ class CreateProviderCommandHandler {
    * @emits ProviderCreatedEvent
    * @returns Provider ID
    */
-  execute(command: CreateProviderCommand): Promise<string>;
+  execute(command: CreateProviderCommand): Promise<ProviderId>;
 }
 
 interface CreateProviderCommand {
-  userId: string;
+  userId: UserId;
 }
 
 /**
@@ -410,8 +444,8 @@ class UpdateProviderProfileCommandHandler {
 }
 
 interface UpdateProviderProfileCommand {
-  providerId: string;
-  updatedBy: string; // user ID (must match provider.userId)
+  providerId: ProviderId;
+  updatedBy: UserId; // user ID (must match provider.userId)
   bio?: string;
   skills?: string[];
 }
@@ -430,8 +464,8 @@ class VerifyProviderCommandHandler {
 }
 
 interface VerifyProviderCommand {
-  providerId: string;
-  verifiedBy: string; // admin user ID
+  providerId: ProviderId;
+  verifiedBy: UserId; // admin user ID
 }
 
 /**
@@ -447,7 +481,7 @@ class GetProviderQueryHandler {
 }
 
 interface GetProviderQuery {
-  providerId: string;
+  providerId: ProviderId;
 }
 
 /**
@@ -468,8 +502,8 @@ interface DiscoverProvidersQuery {
 }
 
 interface ProviderDTO {
-  id: string;
-  userId: string;
+  id: ProviderId;
+  userId: UserId;
   bio: string | null;
   skills: string[];
   verified: boolean;
@@ -489,8 +523,8 @@ interface ProviderDTO {
  */
 class ProviderCreatedEvent {
   constructor(
-    public readonly providerId: string,
-    public readonly userId: string,
+    public readonly providerId: ProviderId,
+    public readonly userId: UserId,
   ) {}
 }
 
@@ -500,7 +534,7 @@ class ProviderCreatedEvent {
  */
 class ProviderProfileUpdatedEvent {
   constructor(
-    public readonly providerId: string,
+    public readonly providerId: ProviderId,
     public readonly updates: { bio?: string; skills?: string[] },
   ) {}
 }
@@ -511,7 +545,7 @@ class ProviderProfileUpdatedEvent {
  */
 class ProviderSkillsChangedEvent {
   constructor(
-    public readonly providerId: string,
+    public readonly providerId: ProviderId,
     public readonly skills: string[],
   ) {}
 }
@@ -521,7 +555,7 @@ class ProviderSkillsChangedEvent {
  * Consumed by: Notification (notify provider)
  */
 class ProviderVerifiedEvent {
-  constructor(public readonly providerId: string) {}
+  constructor(public readonly providerId: ProviderId) {}
 }
 ```
 

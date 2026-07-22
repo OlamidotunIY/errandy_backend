@@ -212,25 +212,66 @@ src/client/
  * Trusted circle aggregate root.
  * Maps to TrustedCircle fields: id, clientId, name, createdAt.
  */
-class TrustedCircleAggregate {
+class TrustedCircleId extends EntityId {
+  /**
+   * Private constructor. Use TrustedCircleId.new() or TrustedCircleId.from().
+   */
+  private constructor(value: string);
+
+  /**
+   * Creates a new TrustedCircleId.
+   */
+  static new(): TrustedCircleId;
+
+  /**
+   * Rehydrates TrustedCircleId from persisted value.
+   */
+  static from(value: string): TrustedCircleId;
+}
+
+/**
+ * Trusted circle aggregate root.
+ */
+class TrustedCircleAggregate extends AggregateRoot<TrustedCircleId> {
   constructor(
-    public readonly id: string,
-    public readonly clientId: string,
+    public readonly id: TrustedCircleId,
+    public readonly clientId: ClientId,
     private name: string | null,
     public readonly createdAt: Date,
     private members: TrustedCircleMemberAggregate[],
   );
 
   /**
+   * Creates a new trusted circle aggregate.
+   */
+  static create(
+    clientId: ClientId,
+    name: string | null,
+    createdAt: Date,
+    members?: TrustedCircleMemberAggregate[],
+  ): TrustedCircleAggregate;
+
+  /**
+   * Reconstitutes trusted circle aggregate from persistence.
+   */
+  static reconstitute(
+    id: TrustedCircleId,
+    clientId: ClientId,
+    name: string | null,
+    createdAt: Date,
+    members: TrustedCircleMemberAggregate[],
+  ): TrustedCircleAggregate;
+
+  /**
    * Adds provider to circle if not already present.
    * Writes TrustedCircleMember fields trustedCircleId, providerId, source, status.
    */
-  addMember(providerId: string, source: CircleSource): void;
+  addMember(providerId: ProviderId, source: CircleSource): void;
 
   /**
    * Removes provider from circle.
    */
-  removeMember(providerId: string): void;
+  removeMember(providerId: ProviderId): void;
 }
 
 /**
@@ -239,8 +280,8 @@ class TrustedCircleAggregate {
 class TrustedCircleMemberAggregate {
   constructor(
     public readonly id: string,
-    public readonly trustedCircleId: string,
-    public readonly providerId: string,
+    public readonly trustedCircleId: TrustedCircleId,
+    public readonly providerId: ProviderId,
     public readonly addedAt: Date,
     public readonly source: CircleSource,
     public readonly status: TrustedCircleMemberStatus,
@@ -258,12 +299,12 @@ interface ITrustedCircleRepository {
   /**
    * Finds circle by TrustedCircle.id.
    */
-  findById(id: string): Promise<TrustedCircleAggregate | null>;
+  findById(id: TrustedCircleId): Promise<TrustedCircleAggregate | null>;
 
   /**
    * Finds circle owned by clientId.
    */
-  findByClientId(clientId: string): Promise<TrustedCircleAggregate | null>;
+  findByClientId(clientId: ClientId): Promise<TrustedCircleAggregate | null>;
 
   /**
    * Saves circle and member changes.
@@ -286,8 +327,8 @@ class AddToTrustedCircleCommandHandler {
 }
 
 interface AddToTrustedCircleCommand {
-  clientId: string;
-  providerId: string;
+  clientId: ClientId;
+  providerId: ProviderId;
   source: CircleSource;
 }
 
@@ -302,8 +343,8 @@ class RemoveFromTrustedCircleCommandHandler {
 }
 
 interface RemoveFromTrustedCircleCommand {
-  clientId: string;
-  providerId: string;
+  clientId: ClientId;
+  providerId: ProviderId;
 }
 ```
 
@@ -315,9 +356,9 @@ interface RemoveFromTrustedCircleCommand {
  */
 class ProviderAddedToCircleEvent {
   constructor(
-    public readonly trustedCircleId: string,
-    public readonly clientId: string,
-    public readonly providerId: string,
+    public readonly trustedCircleId: TrustedCircleId,
+    public readonly clientId: ClientId,
+    public readonly providerId: ProviderId,
   );
 }
 
@@ -326,9 +367,9 @@ class ProviderAddedToCircleEvent {
  */
 class ProviderRemovedFromCircleEvent {
   constructor(
-    public readonly trustedCircleId: string,
-    public readonly clientId: string,
-    public readonly providerId: string,
+    public readonly trustedCircleId: TrustedCircleId,
+    public readonly clientId: ClientId,
+    public readonly providerId: ProviderId,
   );
 }
 ```

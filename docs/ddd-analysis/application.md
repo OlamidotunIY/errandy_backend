@@ -428,7 +428,27 @@ model Application {
  * - Status transitions: PENDING → (ACCEPTED | REJECTED | CANCELLED)
  * - Only PENDING applications can be accepted/rejected
  */
-class Application {
+class ApplicationId extends EntityId {
+  /**
+   * Private constructor. Use ApplicationId.new() or ApplicationId.from().
+   */
+  private constructor(value: string);
+
+  /**
+   * Creates a new ApplicationId.
+   */
+  static new(): ApplicationId;
+
+  /**
+   * Rehydrates an ApplicationId from persisted value.
+   */
+  static from(value: string): ApplicationId;
+}
+
+/**
+ * Application aggregate root representing a provider's application to work on an errand.
+ */
+class Application extends AggregateRoot<ApplicationId> {
   /**
    * Private constructor - use Application.submit() factory or load from repository.
    * @param id Unique application identifier (from schema: id String @id)
@@ -443,9 +463,9 @@ class Application {
    * @param createdAt Creation timestamp
    */
   private constructor(
-    public readonly id: string,
-    public readonly errandId: string,
-    public readonly workerId: string,
+    public readonly id: ApplicationId,
+    public readonly errandId: ErrandId,
+    public readonly workerId: ProviderId,
     private status: ApplicationStatus,
     public readonly coverLetter: string | null,
     public readonly proposedRate: number | null,
@@ -465,11 +485,27 @@ class Application {
    * @throws WorkerAlreadyAppliedException when worker already applied to this errand (DB constraint violation)
    * @returns New Application instance with status = PENDING
    */
-  static submit(
-    errandId: string,
-    workerId: string,
+  static create(
+    errandId: ErrandId,
+    workerId: ProviderId,
     coverLetter?: string,
     proposedRate?: number,
+  ): Application;
+
+  /**
+   * Factory method to reconstitute an Application from persistence.
+   */
+  static reconstitute(
+    id: ApplicationId,
+    errandId: ErrandId,
+    workerId: ProviderId,
+    status: ApplicationStatus,
+    coverLetter: string | null,
+    proposedRate: number | null,
+    acceptedAt: Date | null,
+    rejectedAt: Date | null,
+    cancelledAt: Date | null,
+    createdAt: Date,
   ): Application;
 
   /**
@@ -479,7 +515,7 @@ class Application {
    * @throws InvalidStatusTransitionError when status is not PENDING
    * @emits ApplicationAcceptedEvent
    */
-  accept(acceptedBy: string): void;
+  accept(acceptedBy: ClientId): void;
 
   /**
    * Rejects application (PENDING → REJECTED).
@@ -487,7 +523,7 @@ class Application {
    * @throws InvalidStatusTransitionError when status is not PENDING
    * @emits ApplicationRejectedEvent
    */
-  reject(rejectedBy: string): void;
+  reject(rejectedBy: ClientId): void;
 
   /**
    * Cancels application (PENDING → CANCELLED).
@@ -527,7 +563,7 @@ interface IApplicationRepository {
    * @param id Application ID
    * @returns Application aggregate or null if not found
    */
-  findById(id: string): Promise<Application | null>;
+  findById(id: ApplicationId): Promise<Application | null>;
 
   /**
    * Finds worker's application for a specific errand.
@@ -537,8 +573,8 @@ interface IApplicationRepository {
    * @returns Application aggregate or null if not found
    */
   findByErrandAndWorker(
-    errandId: string,
-    workerId: string,
+    errandId: ErrandId,
+    workerId: ProviderId,
   ): Promise<Application | null>;
 
   /**
@@ -548,7 +584,7 @@ interface IApplicationRepository {
    * @returns Array of Application aggregates
    */
   findByErrand(
-    errandId: string,
+    errandId: ErrandId,
     status?: ApplicationStatus,
   ): Promise<Application[]>;
 
@@ -559,7 +595,7 @@ interface IApplicationRepository {
    * @returns Array of Application aggregates
    */
   findByWorker(
-    workerId: string,
+    workerId: ProviderId,
     status?: ApplicationStatus,
   ): Promise<Application[]>;
 
@@ -575,7 +611,7 @@ interface IApplicationRepository {
    * @param errandId Errand ID
    * @returns Map of status → count
    */
-  countByStatus(errandId: string): Promise<Map<ApplicationStatus, number>>;
+  countByStatus(errandId: ErrandId): Promise<Map<ApplicationStatus, number>>;
 }
 ```
 
@@ -595,12 +631,12 @@ class SubmitApplicationCommandHandler {
    * @throws WorkerAlreadyAppliedException when worker already applied
    * @emits ApplicationSubmittedEvent
    */
-  execute(command: SubmitApplicationCommand): Promise<string>; // returns application ID
+  execute(command: SubmitApplicationCommand): Promise<ApplicationId>; // returns application ID
 }
 
 interface SubmitApplicationCommand {
-  errandId: string;
-  workerId: string;
+  errandId: ErrandId;
+  workerId: ProviderId;
   coverLetter?: string;
   proposedRate?: number; // kobo
 }
@@ -621,8 +657,8 @@ class AcceptApplicationCommandHandler {
 }
 
 interface AcceptApplicationCommand {
-  applicationId: string;
-  acceptedBy: string; // client ID (must match errand.clientId)
+  applicationId: ApplicationId;
+  acceptedBy: ClientId; // client ID (must match errand.clientId)
 }
 
 /**
@@ -640,8 +676,8 @@ class RejectApplicationCommandHandler {
 }
 
 interface RejectApplicationCommand {
-  applicationId: string;
-  rejectedBy: string; // client ID
+  applicationId: ApplicationId;
+  rejectedBy: ClientId; // client ID
 }
 
 /**
@@ -659,8 +695,8 @@ class CancelApplicationCommandHandler {
 }
 
 interface CancelApplicationCommand {
-  applicationId: string;
-  cancelledBy: string; // worker ID (must match application.workerId)
+  applicationId: ApplicationId;
+  cancelledBy: ProviderId; // worker ID (must match application.workerId)
 }
 
 /**
@@ -676,7 +712,7 @@ class GetApplicationQueryHandler {
 }
 
 interface GetApplicationQuery {
-  applicationId: string;
+  applicationId: ApplicationId;
 }
 
 /**
@@ -691,7 +727,7 @@ class ListErrandApplicationsQueryHandler {
 }
 
 interface ListErrandApplicationsQuery {
-  errandId: string;
+  errandId: ErrandId;
   status?: ApplicationStatus;
 }
 
@@ -707,8 +743,8 @@ class GetMyApplicationQueryHandler {
 }
 
 interface GetMyApplicationQuery {
-  errandId: string;
-  workerId: string;
+  errandId: ErrandId;
+  workerId: ProviderId;
 }
 
 /**
@@ -723,13 +759,13 @@ class GetApplicationSummaryQueryHandler {
 }
 
 interface GetApplicationSummaryQuery {
-  errandId: string;
+  errandId: ErrandId;
 }
 
 interface ApplicationDTO {
-  id: string;
-  errandId: string;
-  workerId: string;
+  id: ApplicationId;
+  errandId: ErrandId;
+  workerId: ProviderId;
   status: ApplicationStatus;
   coverLetter: string | null;
   proposedRate: number | null;
@@ -739,15 +775,15 @@ interface ApplicationDTO {
   createdAt: Date;
   worker?: {
     // joined from Provider
-    id: string;
-    userId: string;
+    id: ProviderId;
+    userId: UserId;
     bio: string | null;
     skills: string[];
   };
 }
 
 interface ApplicationSummaryDTO {
-  errandId: string;
+  errandId: ErrandId;
   totalApplications: number;
   pendingCount: number;
   acceptedCount: number;
@@ -766,10 +802,10 @@ interface ApplicationSummaryDTO {
  */
 class ApplicationSubmittedEvent {
   constructor(
-    public readonly applicationId: string,
-    public readonly errandId: string,
-    public readonly workerId: string,
-    public readonly clientId: string,
+    public readonly applicationId: ApplicationId,
+    public readonly errandId: ErrandId,
+    public readonly workerId: ProviderId,
+    public readonly clientId: ClientId,
   ) {}
 }
 
@@ -780,11 +816,11 @@ class ApplicationSubmittedEvent {
  */
 class ApplicationAcceptedEvent {
   constructor(
-    public readonly applicationId: string,
-    public readonly errandId: string,
-    public readonly workerId: string,
-    public readonly clientId: string,
-    public readonly acceptedBy: string,
+    public readonly applicationId: ApplicationId,
+    public readonly errandId: ErrandId,
+    public readonly workerId: ProviderId,
+    public readonly clientId: ClientId,
+    public readonly acceptedBy: ClientId,
   ) {}
 }
 
@@ -794,10 +830,10 @@ class ApplicationAcceptedEvent {
  */
 class ApplicationRejectedEvent {
   constructor(
-    public readonly applicationId: string,
-    public readonly errandId: string,
-    public readonly workerId: string,
-    public readonly rejectedBy: string,
+    public readonly applicationId: ApplicationId,
+    public readonly errandId: ErrandId,
+    public readonly workerId: ProviderId,
+    public readonly rejectedBy: ClientId,
   ) {}
 }
 
@@ -807,9 +843,9 @@ class ApplicationRejectedEvent {
  */
 class ApplicationCancelledEvent {
   constructor(
-    public readonly applicationId: string,
-    public readonly errandId: string,
-    public readonly workerId: string,
+    public readonly applicationId: ApplicationId,
+    public readonly errandId: ErrandId,
+    public readonly workerId: ProviderId,
   ) {}
 }
 ```
@@ -847,8 +883,8 @@ class AcceptApplicationSaga {
    * @param acceptedApplicationId Application ID that was accepted (skip this one)
    */
   private rejectOtherApplications(
-    errandId: string,
-    acceptedApplicationId: string,
+    errandId: ErrandId,
+    acceptedApplicationId: ApplicationId,
   ): Promise<void>;
 
   /**
@@ -858,7 +894,10 @@ class AcceptApplicationSaga {
    * @param errandId Errand ID to rollback
    * @emits ApplicationAcceptanceFailedEvent
    */
-  private rollback(applicationId: string, errandId: string): Promise<void>;
+  private rollback(
+    applicationId: ApplicationId,
+    errandId: ErrandId,
+  ): Promise<void>;
 }
 
 /**
@@ -867,8 +906,8 @@ class AcceptApplicationSaga {
  */
 class ApplicationAcceptanceFailedEvent {
   constructor(
-    public readonly applicationId: string,
-    public readonly errandId: string,
+    public readonly applicationId: ApplicationId,
+    public readonly errandId: ErrandId,
     public readonly reason: string,
   ) {}
 }

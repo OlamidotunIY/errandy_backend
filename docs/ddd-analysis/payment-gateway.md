@@ -246,10 +246,30 @@ src/infrastructure/payment/  # OR src/common/payment/
  * Payment method aggregate.
  * Maps to PaymentMethod fields: id, userId, provider, providerRef, type, cardBrand, last4, expMonth, expYear, isDefault, verified, createdAt.
  */
-class PaymentMethodAggregate {
+class PaymentMethodId extends EntityId {
+  /**
+   * Private constructor. Use PaymentMethodId.new() or PaymentMethodId.from().
+   */
+  private constructor(value: string);
+
+  /**
+   * Creates a new PaymentMethodId.
+   */
+  static new(): PaymentMethodId;
+
+  /**
+   * Rehydrates PaymentMethodId from persisted value.
+   */
+  static from(value: string): PaymentMethodId;
+}
+
+/**
+ * Payment method aggregate.
+ */
+class PaymentMethodAggregate extends AggregateRoot<PaymentMethodId> {
   constructor(
-    public readonly id: string,
-    public readonly userId: string,
+    public readonly id: PaymentMethodId,
+    public readonly userId: UserId,
     public readonly provider: string,
     public readonly providerRef: string,
     public readonly type: string,
@@ -261,6 +281,41 @@ class PaymentMethodAggregate {
     private verified: boolean,
     public readonly createdAt: Date,
   );
+
+  /**
+   * Creates a new payment method aggregate.
+   */
+  static create(
+    userId: UserId,
+    provider: string,
+    providerRef: string,
+    type: string,
+    cardBrand: string | null,
+    last4: string | null,
+    expMonth: number | null,
+    expYear: number | null,
+    isDefault: boolean,
+    verified: boolean,
+    createdAt: Date,
+  ): PaymentMethodAggregate;
+
+  /**
+   * Reconstitutes payment method aggregate from persistence.
+   */
+  static reconstitute(
+    id: PaymentMethodId,
+    userId: UserId,
+    provider: string,
+    providerRef: string,
+    type: string,
+    cardBrand: string | null,
+    last4: string | null,
+    expMonth: number | null,
+    expYear: number | null,
+    isDefault: boolean,
+    verified: boolean,
+    createdAt: Date,
+  ): PaymentMethodAggregate;
 
   /**
    * Marks this method as default for owner userId.
@@ -289,17 +344,17 @@ interface IPaymentMethodRepository {
   /**
    * Finds payment method by PaymentMethod.id.
    */
-  findById(id: string): Promise<PaymentMethodAggregate | null>;
+  findById(id: PaymentMethodId): Promise<PaymentMethodAggregate | null>;
 
   /**
    * Finds methods by PaymentMethod.userId.
    */
-  findByUserId(userId: string): Promise<PaymentMethodAggregate[]>;
+  findByUserId(userId: UserId): Promise<PaymentMethodAggregate[]>;
 
   /**
    * Finds default method for user (isDefault = true).
    */
-  findDefaultByUserId(userId: string): Promise<PaymentMethodAggregate | null>;
+  findDefaultByUserId(userId: UserId): Promise<PaymentMethodAggregate | null>;
 
   /**
    * Persists PaymentMethod updates.
@@ -312,7 +367,7 @@ interface IPaymentMethodRepository {
   savePaystackCustomer(
     customerCode: string,
     customerId: string,
-    userId: string,
+    userId: UserId,
   ): Promise<void>;
 }
 ```
@@ -327,11 +382,11 @@ class AddPaymentMethodCommandHandler {
   /**
    * Verifies provider reference, saves method, enqueues refund compensation if needed.
    */
-  execute(command: AddPaymentMethodCommand): Promise<string>;
+  execute(command: AddPaymentMethodCommand): Promise<PaymentMethodId>;
 }
 
 interface AddPaymentMethodCommand {
-  userId: string;
+  userId: UserId;
   provider: 'paystack';
   authorizationCode: string;
   setAsDefault?: boolean;
@@ -348,8 +403,8 @@ class RemovePaymentMethodCommandHandler {
 }
 
 interface RemovePaymentMethodCommand {
-  paymentMethodId: string;
-  userId: string;
+  paymentMethodId: PaymentMethodId;
+  userId: UserId;
 }
 ```
 
@@ -361,8 +416,8 @@ interface RemovePaymentMethodCommand {
  */
 class PaymentMethodAddedEvent {
   constructor(
-    public readonly paymentMethodId: string,
-    public readonly userId: string,
+    public readonly paymentMethodId: PaymentMethodId,
+    public readonly userId: UserId,
     public readonly provider: string,
     public readonly isDefault: boolean,
   );
@@ -373,8 +428,8 @@ class PaymentMethodAddedEvent {
  */
 class PaymentMethodRemovedEvent {
   constructor(
-    public readonly paymentMethodId: string,
-    public readonly userId: string,
+    public readonly paymentMethodId: PaymentMethodId,
+    public readonly userId: UserId,
   );
 }
 ```

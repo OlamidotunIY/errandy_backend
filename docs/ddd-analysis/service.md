@@ -162,13 +162,72 @@ src/service/
  * Service catalog category aggregate (read-centric).
  * Maps to ServiceCategory fields: id, name, type.
  */
-class ServiceCategoryAggregate {
+class ServiceCategoryId extends EntityId {
+  /**
+   * Private constructor. Use ServiceCategoryId.new() or ServiceCategoryId.from().
+   */
+  private constructor(value: string);
+
+  /**
+   * Creates a new ServiceCategoryId.
+   */
+  static new(): ServiceCategoryId;
+
+  /**
+   * Rehydrates ServiceCategoryId from persisted value.
+   */
+  static from(value: string): ServiceCategoryId;
+}
+
+/**
+ * Service identifier used for catalog entries.
+ */
+class ServiceId extends EntityId {
+  /**
+   * Private constructor. Use ServiceId.new() or ServiceId.from().
+   */
+  private constructor(value: string);
+
+  /**
+   * Creates a new ServiceId.
+   */
+  static new(): ServiceId;
+
+  /**
+   * Rehydrates ServiceId from persisted value.
+   */
+  static from(value: string): ServiceId;
+}
+
+/**
+ * Service catalog category aggregate (read-centric).
+ */
+class ServiceCategoryAggregate extends AggregateRoot<ServiceCategoryId> {
   constructor(
-    public readonly id: string,
+    public readonly id: ServiceCategoryId,
     public readonly name: string,
     public readonly type: ServiceCategoryType,
     public readonly services: ServiceAggregate[],
   );
+
+  /**
+   * Creates a new service category aggregate.
+   */
+  static create(
+    name: string,
+    type: ServiceCategoryType,
+    services?: ServiceAggregate[],
+  ): ServiceCategoryAggregate;
+
+  /**
+   * Reconstitutes service category aggregate from persistence.
+   */
+  static reconstitute(
+    id: ServiceCategoryId,
+    name: string,
+    type: ServiceCategoryType,
+    services: ServiceAggregate[],
+  ): ServiceCategoryAggregate;
 }
 
 /**
@@ -176,10 +235,10 @@ class ServiceCategoryAggregate {
  */
 class ServiceAggregate {
   constructor(
-    public readonly id: string,
+    public readonly id: ServiceId,
     public readonly name: string,
     public readonly type: ServiceCategoryType,
-    public readonly categoryId: string,
+    public readonly categoryId: ServiceCategoryId,
   );
 }
 ```
@@ -199,12 +258,14 @@ interface IServiceRepository {
   /**
    * Returns services by Service.categoryId.
    */
-  findServicesByCategoryId(categoryId: string): Promise<ServiceAggregate[]>;
+  findServicesByCategoryId(
+    categoryId: ServiceCategoryId,
+  ): Promise<ServiceAggregate[]>;
 
   /**
    * Returns service by Service.id.
    */
-  findServiceById(id: string): Promise<ServiceAggregate | null>;
+  findServiceById(id: ServiceId): Promise<ServiceAggregate | null>;
 }
 ```
 
@@ -232,7 +293,7 @@ class GetServicesByCategoryQueryHandler {
 }
 
 interface GetServicesByCategoryQuery {
-  categoryId: string;
+  categoryId: ServiceCategoryId;
 }
 ```
 

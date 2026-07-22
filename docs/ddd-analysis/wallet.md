@@ -365,7 +365,27 @@ src/wallet/
  * - All balance changes must be recorded as immutable Transaction entities
  * - One wallet per user (ownerId + ownerType composite is unique)
  */
-class Wallet {
+class WalletId extends EntityId {
+  /**
+   * Private constructor. Use WalletId.new() or WalletId.from().
+   */
+  private constructor(value: string);
+
+  /**
+   * Creates a new WalletId.
+   */
+  static new(): WalletId;
+
+  /**
+   * Rehydrates WalletId from persisted value.
+   */
+  static from(value: string): WalletId;
+}
+
+/**
+ * Wallet aggregate root managing user balances and fund movements.
+ */
+class Wallet extends AggregateRoot<WalletId> {
   /**
    * Private constructor - use Wallet.create() factory or load from repository.
    * @param id Unique wallet identifier (from schema: id String @id)
@@ -378,8 +398,8 @@ class Wallet {
    * @param updatedAt Last update timestamp
    */
   private constructor(
-    public readonly id: string,
-    public readonly ownerId: string,
+    public readonly id: WalletId,
+    public readonly ownerId: UserId | ProviderId | ClientId,
     public readonly ownerType: OwnerType,
     private available: number,
     private held: number,
@@ -394,7 +414,21 @@ class Wallet {
    * @param ownerType USER | PROVIDER | CLIENT
    * @returns New Wallet instance with available=0, held=0
    */
-  static create(ownerId: string, ownerType: OwnerType): Wallet;
+  static create(ownerId: UserId | ProviderId | ClientId, ownerType: OwnerType): Wallet;
+
+  /**
+   * Reconstitutes Wallet aggregate from persistence.
+   */
+  static reconstitute(
+    id: WalletId,
+    ownerId: UserId | ProviderId | ClientId,
+    ownerType: OwnerType,
+    available: number,
+    held: number,
+    transactions: Transaction[],
+    createdAt: Date,
+    updatedAt: Date,
+  ): Wallet;
 
   /**
    * Increases available balance and creates CREDIT transaction.
@@ -411,7 +445,7 @@ class Wallet {
     amount: Money,
     source: string,
     reference: string,
-    errandId?: string,
+    errandId: ErrandId | null,
   ): void;
 
   /**
@@ -429,7 +463,7 @@ class Wallet {
     amount: Money,
     destination: string,
     reference: string,
-    errandId?: string,
+    errandId: ErrandId | null,
   ): void;
 
   /**
@@ -442,7 +476,7 @@ class Wallet {
    * @throws InsufficientFundsError when available balance < amount
    * @emits FundsHeldEvent
    */
-  hold(amount: Money, reference: string, errandId: string): void;
+  hold(amount: Money, reference: string, errandId: ErrandId): void;
 
   /**
    * Moves funds from held back to available (escrow cancelled/refunded).
@@ -454,7 +488,7 @@ class Wallet {
    * @throws InsufficientFundsError when held balance < amount
    * @emits FundsReleasedEvent
    */
-  releaseHold(amount: Money, reference: string, errandId: string): void;
+  releaseHold(amount: Money, reference: string, errandId: ErrandId): void;
 
   /**
    * Transfers held funds to another wallet (escrow payout to worker).
@@ -467,7 +501,7 @@ class Wallet {
    * @throws InsufficientFundsError when held balance < amount
    * @emits FundsTransferredEvent
    */
-  transferHeld(amount: Money, reference: string, errandId: string): void;
+  transferHeld(amount: Money, reference: string, errandId: ErrandId): void;
 
   /**
    * Returns current available balance (queryable).
@@ -511,13 +545,13 @@ class Transaction {
    */
   constructor(
     public readonly id: string,
-    public readonly walletId: string,
+    public readonly walletId: WalletId,
     public readonly type: TransactionType,
     public readonly amount: number,
     public readonly reference: string,
     public readonly status: TransactionStatus,
-    public readonly errandId: string | null,
-    public readonly ownerId: string,
+    public readonly errandId: ErrandId | null,
+    public readonly ownerId: UserId | ProviderId | ClientId,
     public readonly ownerType: OwnerType,
     public readonly createdAt: Date,
   );
@@ -585,7 +619,7 @@ interface IWalletRepository {
    * @param id Wallet ID
    * @returns Wallet aggregate or null if not found
    */
-  findById(id: string): Promise<Wallet | null>;
+  findById(id: WalletId): Promise<Wallet | null>;
 
   /**
    * Finds wallet by owner (user, provider, or client).
@@ -594,7 +628,10 @@ interface IWalletRepository {
    * @param ownerType Owner type enum
    * @returns Wallet aggregate or null if not found
    */
-  findByOwner(ownerId: string, ownerType: OwnerType): Promise<Wallet | null>;
+  findByOwner(
+    ownerId: UserId | ProviderId | ClientId,
+    ownerType: OwnerType,
+  ): Promise<Wallet | null>;
 
   /**
    * Persists wallet aggregate (insert if new, update if exists).
@@ -629,7 +666,7 @@ class CreateWalletCommandHandler {
 }
 
 interface CreateWalletCommand {
-  ownerId: string;
+  ownerId: UserId | ProviderId | ClientId;
   ownerType: OwnerType;
 }
 
@@ -648,12 +685,12 @@ class CreditWalletCommandHandler {
 }
 
 interface CreditWalletCommand {
-  ownerId: string;
+  ownerId: UserId | ProviderId | ClientId;
   ownerType: OwnerType;
   amount: number; // kobo
   source: string;
   reference: string;
-  errandId?: string;
+  errandId: ErrandId | null;
 }
 
 /**
@@ -672,12 +709,12 @@ class DebitWalletCommandHandler {
 }
 
 interface DebitWalletCommand {
-  ownerId: string;
+  ownerId: UserId | ProviderId | ClientId;
   ownerType: OwnerType;
   amount: number; // kobo
   destination: string;
   reference: string;
-  errandId?: string;
+  errandId: ErrandId | null;
 }
 
 /**
@@ -695,11 +732,11 @@ class HoldFundsCommandHandler {
 }
 
 interface HoldFundsCommand {
-  ownerId: string;
+  ownerId: UserId | ProviderId | ClientId;
   ownerType: OwnerType;
   amount: number; // kobo
   reference: string; // escrow ID
-  errandId: string;
+  errandId: ErrandId;
 }
 
 /**
@@ -717,11 +754,11 @@ class ReleaseHoldCommandHandler {
 }
 
 interface ReleaseHoldCommand {
-  ownerId: string;
+  ownerId: UserId | ProviderId | ClientId;
   ownerType: OwnerType;
   amount: number; // kobo
   reference: string; // escrow ID
-  errandId: string;
+  errandId: ErrandId;
 }
 
 /**
@@ -740,13 +777,13 @@ class TransferHeldFundsCommandHandler {
 }
 
 interface TransferHeldFundsCommand {
-  fromOwnerId: string; // client ID
+  fromOwnerId: UserId | ProviderId | ClientId; // client ID
   fromOwnerType: OwnerType; // CLIENT
-  toOwnerId: string; // worker ID
+  toOwnerId: UserId | ProviderId | ClientId; // worker ID
   toOwnerType: OwnerType; // PROVIDER
   amount: number; // kobo
   reference: string; // escrow ID
-  errandId: string;
+  errandId: ErrandId;
 }
 
 /**
@@ -762,13 +799,13 @@ class GetWalletQueryHandler {
 }
 
 interface GetWalletQuery {
-  ownerId: string;
+  ownerId: UserId | ProviderId | ClientId;
   ownerType: OwnerType;
 }
 
 interface WalletDTO {
-  id: string;
-  ownerId: string;
+  id: WalletId;
+  ownerId: UserId | ProviderId | ClientId;
   ownerType: OwnerType;
   availableBalance: number; // kobo
   heldBalance: number; // kobo
@@ -782,7 +819,7 @@ interface TransactionDTO {
   amount: number; // kobo
   reference: string;
   status: TransactionStatus;
-  errandId: string | null;
+  errandId: ErrandId | null;
   createdAt: Date;
 }
 ```
@@ -796,8 +833,8 @@ interface TransactionDTO {
  */
 class WalletCreatedEvent {
   constructor(
-    public readonly walletId: string,
-    public readonly ownerId: string,
+    public readonly walletId: WalletId,
+    public readonly ownerId: UserId | ProviderId | ClientId,
     public readonly ownerType: OwnerType,
   ) {}
 }
@@ -808,12 +845,12 @@ class WalletCreatedEvent {
  */
 class WalletCreditedEvent {
   constructor(
-    public readonly walletId: string,
-    public readonly ownerId: string,
+    public readonly walletId: WalletId,
+    public readonly ownerId: UserId | ProviderId | ClientId,
     public readonly amount: number, // kobo
     public readonly source: string,
     public readonly reference: string,
-    public readonly errandId: string | null,
+    public readonly errandId: ErrandId | null,
   ) {}
 }
 
@@ -823,12 +860,12 @@ class WalletCreditedEvent {
  */
 class WalletDebitedEvent {
   constructor(
-    public readonly walletId: string,
-    public readonly ownerId: string,
+    public readonly walletId: WalletId,
+    public readonly ownerId: UserId | ProviderId | ClientId,
     public readonly amount: number, // kobo
     public readonly destination: string,
     public readonly reference: string,
-    public readonly errandId: string | null,
+    public readonly errandId: ErrandId | null,
   ) {}
 }
 
@@ -838,11 +875,11 @@ class WalletDebitedEvent {
  */
 class FundsHeldEvent {
   constructor(
-    public readonly walletId: string,
-    public readonly ownerId: string,
+    public readonly walletId: WalletId,
+    public readonly ownerId: UserId | ProviderId | ClientId,
     public readonly amount: number, // kobo
     public readonly reference: string, // escrow ID
-    public readonly errandId: string,
+    public readonly errandId: ErrandId,
   ) {}
 }
 
@@ -852,11 +889,11 @@ class FundsHeldEvent {
  */
 class FundsReleasedEvent {
   constructor(
-    public readonly walletId: string,
-    public readonly ownerId: string,
+    public readonly walletId: WalletId,
+    public readonly ownerId: UserId | ProviderId | ClientId,
     public readonly amount: number, // kobo
     public readonly reference: string, // escrow ID
-    public readonly errandId: string,
+    public readonly errandId: ErrandId,
   ) {}
 }
 
@@ -866,11 +903,11 @@ class FundsReleasedEvent {
  */
 class FundsTransferredEvent {
   constructor(
-    public readonly fromWalletId: string,
-    public readonly toWalletId: string,
+    public readonly fromWalletId: WalletId,
+    public readonly toWalletId: WalletId,
     public readonly amount: number, // kobo
     public readonly reference: string, // escrow ID
-    public readonly errandId: string,
+    public readonly errandId: ErrandId,
   ) {}
 }
 ```

@@ -146,12 +146,32 @@ src/verification/
  * Verification aggregate for provider verification lifecycle.
  * Maps to ProviderVerification fields: id, identifier, value, providerId, type, status, metadata, verifiedAt, expiresAt, createdAt.
  */
-class ProviderVerificationAggregate {
+class VerificationId extends EntityId {
+  /**
+   * Private constructor. Use VerificationId.new() or VerificationId.from().
+   */
+  private constructor(value: string);
+
+  /**
+   * Creates a new VerificationId.
+   */
+  static new(): VerificationId;
+
+  /**
+   * Rehydrates VerificationId from persisted value.
+   */
+  static from(value: string): VerificationId;
+}
+
+/**
+ * Verification aggregate for provider verification lifecycle.
+ */
+class ProviderVerificationAggregate extends AggregateRoot<VerificationId> {
   constructor(
-    public readonly id: string,
+    public readonly id: VerificationId,
     public readonly identifier: string,
     private value: string,
-    public readonly providerId: string,
+    public readonly providerId: ProviderId,
     private type: VerificationType,
     private status: VerificationStatus,
     private metadata: Record<string, unknown> | null,
@@ -159,6 +179,35 @@ class ProviderVerificationAggregate {
     private expiresAt: Date | null,
     public readonly createdAt: Date,
   );
+
+  /**
+   * Creates a new provider verification aggregate.
+   */
+  static create(
+    identifier: string,
+    value: string,
+    providerId: ProviderId,
+    type: VerificationType,
+    metadata: Record<string, unknown> | null,
+    expiresAt: Date | null,
+    createdAt: Date,
+  ): ProviderVerificationAggregate;
+
+  /**
+   * Reconstitutes provider verification aggregate from persistence.
+   */
+  static reconstitute(
+    id: VerificationId,
+    identifier: string,
+    value: string,
+    providerId: ProviderId,
+    type: VerificationType,
+    status: VerificationStatus,
+    metadata: Record<string, unknown> | null,
+    verifiedAt: Date | null,
+    expiresAt: Date | null,
+    createdAt: Date,
+  ): ProviderVerificationAggregate;
 
   /**
    * Verifies submitted code/value and transitions status to APPROVED.
@@ -187,13 +236,13 @@ interface IVerificationRepository {
   /**
    * Finds verification by ProviderVerification.id.
    */
-  findById(id: string): Promise<ProviderVerificationAggregate | null>;
+  findById(id: VerificationId): Promise<ProviderVerificationAggregate | null>;
 
   /**
    * Finds verification by providerId and type.
    */
   findByProviderAndType(
-    providerId: string,
+    providerId: ProviderId,
     type: VerificationType,
   ): Promise<ProviderVerificationAggregate | null>;
 
@@ -214,11 +263,11 @@ class SendVerificationCodeCommandHandler {
   /**
    * Creates or refreshes pending verification entry and emits VerificationCodeSentEvent.
    */
-  execute(command: SendVerificationCodeCommand): Promise<string>;
+  execute(command: SendVerificationCodeCommand): Promise<VerificationId>;
 }
 
 interface SendVerificationCodeCommand {
-  providerId: string;
+  providerId: ProviderId;
   type: VerificationType;
   identifier: string;
 }
@@ -234,7 +283,7 @@ class VerifyCodeCommandHandler {
 }
 
 interface VerifyCodeCommand {
-  verificationId: string;
+  verificationId: VerificationId;
   submittedValue: string;
 }
 ```
@@ -247,8 +296,8 @@ interface VerifyCodeCommand {
  */
 class VerificationCodeSentEvent {
   constructor(
-    public readonly verificationId: string,
-    public readonly providerId: string,
+    public readonly verificationId: VerificationId,
+    public readonly providerId: ProviderId,
     public readonly type: VerificationType,
   );
 }
@@ -258,8 +307,8 @@ class VerificationCodeSentEvent {
  */
 class ProviderVerificationApprovedEvent {
   constructor(
-    public readonly verificationId: string,
-    public readonly providerId: string,
+    public readonly verificationId: VerificationId,
+    public readonly providerId: ProviderId,
     public readonly type: VerificationType,
   );
 }

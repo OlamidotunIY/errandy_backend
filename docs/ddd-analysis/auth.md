@@ -194,15 +194,78 @@ src/auth/
  * Auth identity snapshot used by the application layer.
  * Backed by User fields: id, email, phoneNumber, emailVerified, phoneNumberVerified, createdAt.
  */
-class AuthIdentity {
+class AuthIdentityId extends EntityId {
+  /**
+   * Private constructor. Use AuthIdentityId.new() or AuthIdentityId.from().
+   */
+  private constructor(value: string);
+
+  /**
+   * Creates a new AuthIdentityId.
+   */
+  static new(): AuthIdentityId;
+
+  /**
+   * Rehydrates AuthIdentityId from persisted value.
+   */
+  static from(value: string): AuthIdentityId;
+}
+
+/**
+ * Session identifier.
+ */
+class SessionId extends EntityId {
+  /**
+   * Private constructor. Use SessionId.new() or SessionId.from().
+   */
+  private constructor(value: string);
+
+  /**
+   * Creates a new SessionId.
+   */
+  static new(): SessionId;
+
+  /**
+   * Rehydrates SessionId from persisted value.
+   */
+  static from(value: string): SessionId;
+}
+
+/**
+ * Auth identity snapshot used by the application layer.
+ */
+class AuthIdentity extends AggregateRoot<AuthIdentityId> {
   constructor(
-    public readonly id: string,
+    public readonly id: AuthIdentityId,
     public readonly email: string | null,
     public readonly phoneNumber: string | null,
     public readonly emailVerified: boolean,
     public readonly phoneNumberVerified: boolean | null,
     public readonly createdAt: Date,
   );
+
+  /**
+   * Creates a new auth identity aggregate.
+   */
+  static create(
+    email: string | null,
+    phoneNumber: string | null,
+    emailVerified: boolean,
+    phoneNumberVerified: boolean | null,
+    createdAt: Date,
+  ): AuthIdentity;
+
+  /**
+   * Reconstitutes auth identity aggregate from persistence.
+   */
+  static reconstitute(
+    id: AuthIdentityId,
+    email: string | null,
+    phoneNumber: string | null,
+    emailVerified: boolean,
+    phoneNumberVerified: boolean | null,
+    createdAt: Date,
+  ): AuthIdentity;
 
   /**
    * Returns whether at least one login identifier exists.
@@ -215,10 +278,10 @@ class AuthIdentity {
  */
 class AuthSession {
   constructor(
-    public readonly id: string,
+    public readonly id: SessionId,
     public readonly token: string,
     public readonly expiresAt: Date,
-    public readonly userId: string,
+    public readonly userId: UserId,
   );
 
   /**
@@ -238,7 +301,7 @@ interface IAuthRepository {
   /**
    * Reads auth identity by User.id.
    */
-  findIdentityByUserId(userId: string): Promise<AuthIdentity | null>;
+  findIdentityByUserId(userId: UserId): Promise<AuthIdentity | null>;
 
   /**
    * Reads auth identity by User.email (unique).
@@ -275,7 +338,7 @@ class HandleSignUpCompleteCommandHandler {
 }
 
 interface HandleSignUpCompleteCommand {
-  userId?: string;
+  userId?: UserId;
   email?: string;
 }
 
@@ -290,8 +353,8 @@ class HandleLoginSucceededCommandHandler {
 }
 
 interface HandleLoginSucceededCommand {
-  userId: string;
-  sessionId: string;
+  userId: UserId;
+  sessionId: SessionId;
 }
 ```
 
@@ -303,7 +366,7 @@ interface HandleLoginSucceededCommand {
  */
 class UserRegisteredEvent {
   constructor(
-    public readonly userId: string,
+    public readonly userId: UserId,
     public readonly email: string | null,
     public readonly phoneNumber: string | null,
     public readonly createdAt: Date,
@@ -315,8 +378,8 @@ class UserRegisteredEvent {
  */
 class UserLoggedInEvent {
   constructor(
-    public readonly userId: string,
-    public readonly sessionId: string,
+    public readonly userId: UserId,
+    public readonly sessionId: SessionId,
     public readonly occurredAt: Date,
   );
 }

@@ -424,7 +424,7 @@ model UserAddress {
 
 ### Domain Layer
 
-````typescript
+```typescript
 /**
  * User aggregate root representing a platform user (shared kernel).
  * Core invariants:
@@ -434,7 +434,47 @@ model UserAddress {
  * - Cannot switch to CLIENT role without Client profile
  * - Email and phone must be unique across platform
  */
-class User {
+class UserId extends EntityId {
+  /**
+   * Private constructor. Use UserId.new() or UserId.from().
+   */
+  private constructor(value: string);
+
+  /**
+   * Creates a new UserId.
+   */
+  static new(): UserId;
+
+  /**
+   * Rehydrates UserId from persisted value.
+   */
+  static from(value: string): UserId;
+}
+
+/**
+ * Address identifier used across address-bearing modules.
+ */
+class AddressId extends EntityId {
+  /**
+   * Private constructor. Use AddressId.new() or AddressId.from().
+   */
+  private constructor(value: string);
+
+  /**
+   * Creates a new AddressId.
+   */
+  static new(): AddressId;
+
+  /**
+   * Rehydrates AddressId from persisted value.
+   */
+  static from(value: string): AddressId;
+}
+
+/**
+ * User aggregate root representing a platform user (shared kernel).
+ */
+class User extends AggregateRoot<UserId> {
   /**
    * Private constructor - use User.create() factory or load from repository.
    * @param id Unique user identifier (from schema: id String @id)
@@ -453,7 +493,7 @@ class User {
    * @param updatedAt Last update timestamp
    */
   private constructor(
-    public readonly id: string,
+    public readonly id: UserId,
     private name: string | null,
     private email: Email | null,
     private phoneNumber: PhoneNumber | null,
@@ -462,15 +502,137 @@ class User {
     private image: string | null,
     private roles: Role[],
     private activeRole: Role | null,
-    private activeAddressId: string | null,
+    private activeAddressId: AddressId | null,
     private onboardingProgress: OnboardingProgress,
     private readonly addresses: UserAddress[],
     public readonly createdAt: Date,
     public readonly updatedAt: Date,
   );
 
-  /**\n   * Factory method to create new user (called by auth module during registration).\n   * User starts with no roles - roles are added when Provider/Client profiles created.\n   * @param email Email address (optional - can register with phone only)\n   * @param phoneNumber Phone number (optional - can register with email only)\n   * @param name Optional name\n   * @throws NoContactProvidedError when both email and phone are null\n   * @returns New User instance with empty roles\n   */\n  static create(\n    email?: string,\n    phoneNumber?: string,\n    name?: string,\n  ): User;\n\n  /**\n   * Updates user profile (name, image, phone, email).\n   * Image upload happens in infrastructure layer - this just stores URL.\n   * @param updates Profile updates\n   * @throws InvalidEmailError when email format invalid\n   * @throws InvalidPhoneNumberError when phone format invalid\n   * @emits UserProfileUpdatedEvent\n   */\n  updateProfile(updates: Partial<UserProfileUpdates>): void;\n\n  /**\n   * Adds new address to user's address collection.\n   * First address added becomes active address automatically.\n   * @param street Street address\n   * @param city City\n   * @param state State\n   * @param country Country\n   * @param placeId Optional Google Places ID\n   * @param coordinates Optional GPS coordinates\n   * @returns New UserAddress ID\n   * @emits AddressAddedEvent\n   */\n  addAddress(\n    street: string,\n    city: string,\n    state: string,\n    country: string,\n    placeId?: string,\n    coordinates?: [number, number],\n  ): string;\n\n  /**\n   * Deletes address from user's collection.\n   * CRITICAL: Sets activeAddressId to null if deleting active address.\n   * @param addressId Address ID to delete\n   * @throws AddressNotFoundError when address doesn't belong to user\n   * @emits AddressDeletedEvent\n   */\n  deleteAddress(addressId: string): void;\n\n  /**\n   * Sets active address (used for location-based queries).\n   * @param addressId Address ID to set as active\n   * @throws AddressNotFoundError when address doesn't belong to user\n   * @emits ActiveAddressChangedEvent\n   */\n  setActiveAddress(addressId: string): void;\n\n  /**\n   * Adds role to user (called when Provider or Client profile created).\n   * @param role Role to add (PROVIDER or CLIENT)\n   * @throws RoleAlreadyExistsError when user already has role\n   * @emits RoleAddedEvent\n   */\n  addRole(role: Role): void;\n\n  /**\n   * Switches active role (user toggles between CLIENT and PROVIDER modes).\n   * @param role Role to switch to\n   * @throws RoleNotAssignedError when user doesn't have this role\n   * @emits ActiveRoleChangedEvent\n   */\n  switchRole(role: Role): void;\n\n  /**\n   * Marks email as verified.\n   * @emits EmailVerifiedEvent\n   */\n  verifyEmail(): void;\n\n  /**\n   * Marks phone as verified.\n   * @emits PhoneVerifiedEvent\n   */\n  verifyPhone(): void;\n\n  /**\n   * Updates onboarding progress (for providers).\n   * Tracks completion of profile, address, bio, skills, etc.\n   * @param field Onboarding field to mark complete\n   */\n  markOnboardingComplete(field: OnboardingField): void;\n\n  /**\n   * Checks if user has at least one verified contact method.\n   */\n  hasVerifiedContact(): boolean;\n\n  /**\n   * Returns active address or null.\n   */\n  getActiveAddress(): UserAddress | null;\n}\n\n/**\n * UserAddress child entity (owned by User aggregate).\n * Immutable once created - addresses are deleted/recreated, not edited.\n */\nclass UserAddress {\n  constructor(\n    public readonly id: string,\n    public readonly userId: string,\n    public readonly street: string,\n    public readonly city: string,\n    public readonly state: string,\n    public readonly country: string,\n    public readonly placeId: string | null,\n    public readonly coordinates: [number, number] | null,\n    public readonly createdAt: Date,\n  );\n}\n\n/**\n * Email value object with validation.\n * Immutable.\n */\nclass Email {\n  /**\n   * @param value Email string\n   * @throws InvalidEmailError when format invalid\n   */\n  constructor(public readonly value: string);\n\n  /**\n   * Returns lowercase normalized email.\n   */\n  toString(): string;\n}\n\n/**\n * Phone number value object with validation.\n * Immutable.\n */\nclass PhoneNumber {\n  /**\n   * @param value Phone string (E.164 format recommended: +2348012345678)\n   * @throws InvalidPhoneNumberError when format invalid\n   */\n  constructor(public readonly value: string);\n\n  /**\n   * Returns normalized phone number.\n   */\n  toString(): string;\n}\n\n/**\n * Onboarding progress tracker (value object).\n */\nclass OnboardingProgress {\n  constructor(\n    public readonly hasCompletedProfile: boolean,\n    public readonly hasAddedBio: boolean,\n    public readonly hasAddedSkills: boolean,\n    public readonly hasAddedAddress: boolean,\n  );\n\n  /**\n   * Checks if onboarding is complete (all fields true).\n   */\n  isComplete(): boolean;\n}\n\ninterface UserProfileUpdates {\n  name?: string;\n  email?: string;\n  phoneNumber?: string;\n  image?: string; // URL, not file - upload happens in infrastructure\n}\n\nenum OnboardingField {\n  PROFILE = 'hasCompletedProfile',\n  BIO = 'hasAddedBio',\n  SKILLS = 'hasAddedSkills',\n  ADDRESS = 'hasAddedAddress',\n}\n\n/** Thrown when user tries to register without email or phone. */\nclass NoContactProvidedError extends Error {}\n\n/** Thrown when email format invalid. */\nclass InvalidEmailError extends Error {}\n\n/** Thrown when phone format invalid. */\nclass InvalidPhoneNumberError extends Error {}\n\n/** Thrown when address doesn't belong to user. */\nclass AddressNotFoundError extends Error {}\n\n/** Thrown when user already has role. */\nclass RoleAlreadyExistsError extends Error {}\n\n/** Thrown when user tries to switch to role they don't have. */\nclass RoleNotAssignedError extends Error {}\n```\n\n### Repository Interface\n\n```typescript\n/**\n * Persistence contract for User aggregate (shared kernel).\n */\ninterface IUserRepository {\n  /**\n   * Finds user by unique ID.\n   * @param id User ID\n   * @returns User aggregate or null if not found\n   */\n  findById(id: string): Promise<User | null>;\n\n  /**\n   * Finds user by email.\n   * @param email Email address\n   * @returns User aggregate or null if not found\n   */\n  findByEmail(email: string): Promise<User | null>;\n\n  /**\n   * Finds user by phone number.\n   * @param phoneNumber Phone number\n   * @returns User aggregate or null if not found\n   */\n  findByPhoneNumber(phoneNumber: string): Promise<User | null>;\n\n  /**\n   * Persists user aggregate.\n   * @param user User to save\n   */\n  save(user: User): Promise<void>;\n\n  /**\n   * Finds all addresses for user.\n   * @param userId User ID\n   * @returns Array of UserAddress entities\n   */\n  findAddresses(userId: string): Promise<UserAddress[]>;\n}\n```\n\n### Application Layer\n\n```typescript\n/**\n * Updates user profile.\n */\nclass UpdateUserProfileCommandHandler {\n  /**\n   * @param command Profile update details\n   * @throws UserNotFoundException when user doesn't exist\n   * @throws InvalidEmailError when email format invalid\n   * @throws InvalidPhoneNumberError when phone format invalid\n   * @throws UnauthorizedException when updatedBy is not user themselves\n   * @emits UserProfileUpdatedEvent\n   */\n  execute(command: UpdateUserProfileCommand): Promise<void>;\n}\n\ninterface UpdateUserProfileCommand {\n  userId: string;\n  updatedBy: string; // must match userId for authorization\n  updates: Partial<UserProfileUpdates>;\n}\n\n/**\n * Adds address to user profile.\n */\nclass AddAddressCommandHandler {\n  /**\n   * @param command Address details\n   * @throws UserNotFoundException when user doesn't exist\n   * @emits AddressAddedEvent\n   * @returns Address ID\n   */\n  execute(command: AddAddressCommand): Promise<string>;\n}\n\ninterface AddAddressCommand {\n  userId: string;\n  street: string;\n  city: string;\n  state: string;\n  country: string;\n  placeId?: string;\n  coordinates?: [number, number];\n}\n\n/**\n * Deletes address from user profile.\n * CRITICAL: Handles activeAddressId cleanup.\n */\nclass DeleteAddressCommandHandler {\n  /**\n   * @param command Address to delete\n   * @throws UserNotFoundException when user doesn't exist\n   * @throws AddressNotFoundError when address doesn't belong to user\n   * @emits AddressDeletedEvent\n   */\n  execute(command: DeleteAddressCommand): Promise<void>;\n}\n\ninterface DeleteAddressCommand {\n  userId: string;\n  addressId: string;\n}\n\n/**\n * Sets active address.\n */\nclass SetActiveAddressCommandHandler {\n  /**\n   * @param command Address to set as active\n   * @throws UserNotFoundException when user doesn't exist\n   * @throws AddressNotFoundError when address doesn't belong to user\n   * @emits ActiveAddressChangedEvent\n   */\n  execute(command: SetActiveAddressCommand): Promise<void>;\n}\n\ninterface SetActiveAddressCommand {\n  userId: string;\n  addressId: string;\n}\n\n/**\n * Adds role to user (called when Provider or Client profile created).\n */\nclass AddRoleCommandHandler {\n  /**\n   * @param command Role to add\n   * @throws UserNotFoundException when user doesn't exist\n   * @throws RoleAlreadyExistsError when user already has role\n   * @emits RoleAddedEvent\n   */\n  execute(command: AddRoleCommand): Promise<void>;\n}\n\ninterface AddRoleCommand {\n  userId: string;\n  role: Role;\n}\n\n/**\n * Switches user's active role (toggle between CLIENT and PROVIDER).\n */\nclass SwitchRoleCommandHandler {\n  /**\n   * @param command Role to switch to\n   * @throws UserNotFoundException when user doesn't exist\n   * @throws RoleNotAssignedError when user doesn't have this role\n   * @emits ActiveRoleChangedEvent\n   */\n  execute(command: SwitchRoleCommand): Promise<void>;\n}\n\ninterface SwitchRoleCommand {\n  userId: string;\n  role: Role;\n}\n\n/**\n * Uploads profile image to Firebase Storage.\n * Infrastructure service (called by UpdateUserProfileCommandHandler).\n */\nclass UploadProfileImageService {\n  /**\n   * Uploads image file to Firebase Storage and returns URL.\n   * Deletes old image if replacing.\n   * @param userId User ID (used in storage path)\n   * @param imageFile Uploaded file buffer\n   * @param oldImageUrl Optional old image URL to delete\n   * @returns Firebase Storage URL\n   * @throws ImageUploadError when upload fails\n   */\n  uploadImage(\n    userId: string,\n    imageFile: Buffer,\n    oldImageUrl?: string,\n  ): Promise<string>;\n}\n\n/**\n * Query handler: Get user by ID.\n */\nclass GetUserQueryHandler {\n  /**\n   * @param query User ID\n   * @returns User details with addresses\n   * @throws UserNotFoundException when not found\n   */\n  execute(query: GetUserQuery): Promise<UserDTO>;\n}\n\ninterface GetUserQuery {\n  userId: string;\n}\n\ninterface UserDTO {\n  id: string;\n  name: string | null;\n  email: string | null;\n  phoneNumber: string | null;\n  emailVerified: boolean;\n  phoneVerified: boolean;\n  image: string | null;\n  roles: Role[];\n  activeRole: Role | null;\n  activeAddress: UserAddressDTO | null;\n  addresses: UserAddressDTO[];\n  onboardingProgress: {\n    hasCompletedProfile: boolean;\n    hasAddedBio: boolean;\n    hasAddedSkills: boolean;\n    hasAddedAddress: boolean;\n    isComplete: boolean;\n  };\n  createdAt: Date;\n}\n\ninterface UserAddressDTO {\n  id: string;\n  street: string;\n  city: string;\n  state: string;\n  country: string;\n  placeId: string | null;\n  coordinates: [number, number] | null;\n  createdAt: Date;\n}\n```\n\n### Domain Events\n\n```typescript\n/**\n * Emitted when user profile updated.\n * Consumed by: Payment-Gateway (update Paystack customer), Notification, Search indexer\n */\nclass UserProfileUpdatedEvent {\n  constructor(\n    public readonly userId: string,\n    public readonly updates: Partial<UserProfileUpdates>,\n  ) {}\n}\n\n/**\n * Emitted when address added.\n * Consumed by: Geolocation service (validate address), Errands (update feed)\n */\nclass AddressAddedEvent {\n  constructor(\n    public readonly userId: string,\n    public readonly addressId: string,\n    public readonly address: UserAddress,\n  ) {}\n}\n\n/**\n * Emitted when address deleted.\n * CRITICAL: Triggers cleanup in modules referencing addresses.\n * Consumed by: Errands (if errand serviceAddress references deleted address)\n */\nclass AddressDeletedEvent {\n  constructor(\n    public readonly userId: string,\n    public readonly addressId: string,\n  ) {}\n}\n\n/**\n * Emitted when active address changed.\n * Consumed by: Errands (update feed based on new location), Provider (update service area)\n */\nclass ActiveAddressChangedEvent {\n  constructor(\n    public readonly userId: string,\n    public readonly newActiveAddressId: string | null,\n  ) {}\n}\n\n/**\n * Emitted when role added to user.\n * Consumed by: Provider module (initialize Provider profile), Client module (initialize Client profile)\n */\nclass RoleAddedEvent {\n  constructor(\n    public readonly userId: string,\n    public readonly role: Role,\n  ) {}\n}\n\n/**\n * Emitted when user switches active role.\n * Consumed by: Notification (adjust notification preferences), Analytics\n */\nclass ActiveRoleChangedEvent {\n  constructor(\n    public readonly userId: string,\n    public readonly newActiveRole: Role,\n  ) {}\n}\n\n/**\n * Emitted when email verified.\n * Consumed by: Notification (send welcome email), Verification (mark email verification complete)\n */\nclass EmailVerifiedEvent {\n  constructor(public readonly userId: string, public readonly email: string) {}\n}\n\n/**\n * Emitted when phone verified.\n * Consumed by: Notification (send welcome SMS), Verification (mark phone verification complete)\n */\nclass PhoneVerifiedEvent {\n  constructor(\n    public readonly userId: string,\n    public readonly phoneNumber: string,\n  ) {}\n}\n```\n\n### Event Handlers (React to other module events)\n\n```typescript\n/**\n * Listens to ProviderCreatedEvent and adds PROVIDER role to user.\n * Part of provider registration flow.\n */\nclass OnProviderCreatedAddRoleHandler {\n  /**\n   * @listens ProviderCreatedEvent\n   * Calls AddRoleCommandHandler with role=PROVIDER\n   */\n  handle(event: ProviderCreatedEvent): Promise<void>;\n}\n\n/**\n * Listens to ClientCreatedEvent and adds CLIENT role to user.\n * Part of client registration flow.\n */\nclass OnClientCreatedAddRoleHandler {\n  /**\n   * @listens ClientCreatedEvent\n   * Calls AddRoleCommandHandler with role=CLIENT\n   */\n  handle(event: ClientCreatedEvent): Promise<void>;\n}\n```
-````
+  /**
+   * Creates a new user aggregate.
+   */
+  static create(
+    email?: string,
+    phoneNumber?: string,
+    name?: string,
+  ): User;
+
+  /**
+   * Reconstitutes user aggregate from persistence.
+   */
+  static reconstitute(
+    id: UserId,
+    name: string | null,
+    email: Email | null,
+    phoneNumber: PhoneNumber | null,
+    emailVerified: boolean,
+    phoneVerified: boolean,
+    image: string | null,
+    roles: Role[],
+    activeRole: Role | null,
+    activeAddressId: AddressId | null,
+    onboardingProgress: OnboardingProgress,
+    addresses: UserAddress[],
+    createdAt: Date,
+    updatedAt: Date,
+  ): User;
+
+
+  /**
+   * Updates user profile (name, image, phone, email).
+   * Image upload happens in infrastructure layer - this just stores URL.
+   * @param updates Profile updates
+   * @throws InvalidEmailError when email format invalid
+   * @throws InvalidPhoneNumberError when phone format invalid
+   * @emits UserProfileUpdatedEvent
+   */
+  updateProfile(updates: Partial<UserProfileUpdates>): void;
+
+  /**
+   * Adds new address to user's address collection.
+   * First address added becomes active address automatically.
+   * @param street Street address
+   * @param city City
+   * @param state State
+   * @param country Country
+   * @param placeId Optional Google Places ID
+   * @param coordinates Optional GPS coordinates
+   * @returns New UserAddress ID
+   * @emits AddressAddedEvent
+   */
+  addAddress(
+    street: string,
+    city: string,
+    state: string,
+    country: string,
+    placeId?: string,
+    coordinates?: [number, number],
+  ): AddressId;
+
+  /**
+   * Deletes address from user's collection.
+   * CRITICAL: Sets activeAddressId to null if deleting active address.
+   * @param addressId Address ID to delete
+   * @throws AddressNotFoundError when address doesn't belong to user
+   * @emits AddressDeletedEvent
+   */
+  deleteAddress(addressId: AddressId): void;
+
+  /**
+   * Sets active address (used for location-based queries).
+   * @param addressId Address ID to set as active
+   * @throws AddressNotFoundError when address doesn't belong to user
+   * @emits ActiveAddressChangedEvent
+   */
+  setActiveAddress(addressId: AddressId): void;
+
+  /**
+   * Adds role to user (called when Provider or Client profile created).
+   * @param role Role to add (PROVIDER or CLIENT)
+   * @throws RoleAlreadyExistsError when user already has role
+   * @emits RoleAddedEvent
+   */
+  addRole(role: Role): void;
+
+  /**
+   * Switches active role (user toggles between CLIENT and PROVIDER modes).
+   * @param role Role to switch to
+   * @throws RoleNotAssignedError when user doesn't have this role
+   * @emits ActiveRoleChangedEvent
+   */
+  switchRole(role: Role): void;
+
+  /**
+   * Marks email as verified.
+   * @emits EmailVerifiedEvent
+   */
+  verifyEmail(): void;
+
+  /**
+   * Marks phone as verified.
+   * @emits PhoneVerifiedEvent
+   */
+  verifyPhone(): void;
+
+  /**
+   * Updates onboarding progress (for providers).
+   * Tracks completion of profile, address, bio, skills, etc.
+   * @param field Onboarding field to mark complete
+   */
+  markOnboardingComplete(field: OnboardingField): void;
+
+  /**
+   * Checks if user has at least one verified contact method.
+   */
+  hasVerifiedContact(): boolean;
+
+  /**
+   * Returns active address or null.
+   */
+  getActiveAddress(): UserAddress | null;
+}
+```
 
 ### Repository Interface
 
@@ -482,7 +644,7 @@ interface IUserRepository {
   /**
    * Finds user by User.id.
    */
-  findById(id: string): Promise<User | null>;
+  findById(id: UserId): Promise<User | null>;
 
   /**
    * Finds user by unique User.email.
@@ -502,7 +664,7 @@ interface IUserRepository {
   /**
    * Returns UserAddress records by UserAddress.userId.
    */
-  findAddresses(userId: string): Promise<UserAddress[]>;
+  findAddresses(userId: UserId): Promise<UserAddress[]>;
 }
 ```
 
@@ -521,7 +683,7 @@ class UpdateUserProfileCommandHandler {
 }
 
 interface UpdateUserProfileCommand {
-  userId: string;
+  userId: UserId;
   name?: string;
   email?: string;
   phoneNumber?: string;
@@ -537,14 +699,14 @@ class AddAddressCommandHandler {
    * Inserts UserAddress row and may update User.activeAddressId.
    * @emits AddressAddedEvent
    */
-  execute(command: AddAddressCommand): Promise<string>;
+  execute(command: AddAddressCommand): Promise<AddressId>;
 }
 
 interface AddAddressCommand {
-  userId: string;
+  userId: UserId;
   label: string;
   address: string;
-  location: { type: "Point"; coordinates: [number, number] };
+  location: { type: 'Point'; coordinates: [number, number] };
 }
 
 /**
@@ -559,8 +721,8 @@ class DeleteAddressCommandHandler {
 }
 
 interface DeleteAddressCommand {
-  userId: string;
-  addressId: string;
+  userId: UserId;
+  addressId: AddressId;
 }
 ```
 
@@ -572,7 +734,7 @@ interface DeleteAddressCommand {
  */
 class UserProfileUpdatedEvent {
   constructor(
-    public readonly userId: string,
+    public readonly userId: UserId,
     public readonly updatedFields: Array<"name" | "email" | "phoneNumber" | "image" | "onboardingProgress">,
   );
 }
@@ -582,8 +744,8 @@ class UserProfileUpdatedEvent {
  */
 class AddressAddedEvent {
   constructor(
-    public readonly userId: string,
-    public readonly addressId: string,
+    public readonly userId: UserId,
+    public readonly addressId: AddressId,
   );
 }
 
@@ -592,8 +754,8 @@ class AddressAddedEvent {
  */
 class AddressDeletedEvent {
   constructor(
-    public readonly userId: string,
-    public readonly addressId: string,
+    public readonly userId: UserId,
+    public readonly addressId: AddressId,
     public readonly clearedActiveAddress: boolean,
   );
 }

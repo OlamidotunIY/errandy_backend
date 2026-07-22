@@ -235,7 +235,27 @@ src/client/
  * - averageRating is denormalized from Rating table (updated via events)
  * - One client per user (userId is unique)
  */
-class Client {
+class ClientId extends EntityId {
+  /**
+   * Private constructor. Use ClientId.new() or ClientId.from().
+   */
+  private constructor(value: string);
+
+  /**
+   * Creates a new ClientId.
+   */
+  static new(): ClientId;
+
+  /**
+   * Rehydrates ClientId from persisted value.
+   */
+  static from(value: string): ClientId;
+}
+
+/**
+ * Client aggregate root representing a client profile (errand poster).
+ */
+class Client extends AggregateRoot<ClientId> {
   /**
    * Private constructor - use Client.create() factory or load from repository.
    * @param id Unique client identifier (from schema: id String @id)
@@ -246,8 +266,8 @@ class Client {
    * @param updatedAt Last update timestamp
    */
   private constructor(
-    public readonly id: string,
-    public readonly userId: string,
+    public readonly id: ClientId,
+    public readonly userId: UserId,
     private verified: boolean,
     private averageRating: number | null,
     public readonly createdAt: Date,
@@ -262,7 +282,19 @@ class Client {
    * @throws ClientAlreadyExistsError when user already has client profile
    * @returns New Client instance
    */
-  static create(userId: string): Client;
+  static create(userId: UserId): Client;
+
+  /**
+   * Reconstitutes client aggregate from persistence.
+   */
+  static reconstitute(
+    id: ClientId,
+    userId: UserId,
+    verified: boolean,
+    averageRating: number | null,
+    createdAt: Date,
+    updatedAt: Date,
+  ): Client;
 
   /**
    * Marks client as verified.
@@ -300,14 +332,14 @@ interface IClientRepository {
    * @param id Client ID
    * @returns Client aggregate or null if not found
    */
-  findById(id: string): Promise<Client | null>;
+  findById(id: ClientId): Promise<Client | null>;
 
   /**
    * Finds client by user ID.
    * @param userId User ID
    * @returns Client aggregate or null if not found
    */
-  findByUserId(userId: string): Promise<Client | null>;
+  findByUserId(userId: UserId): Promise<Client | null>;
 
   /**
    * Persists client aggregate.
@@ -331,11 +363,11 @@ class CreateClientCommandHandler {
    * @emits ClientCreatedEvent
    * @returns Client ID
    */
-  execute(command: CreateClientCommand): Promise<string>;
+  execute(command: CreateClientCommand): Promise<ClientId>;
 }
 
 interface CreateClientCommand {
-  userId: string;
+  userId: UserId;
 }
 
 /**
@@ -351,8 +383,8 @@ class VerifyClientCommandHandler {
 }
 
 interface VerifyClientCommand {
-  clientId: string;
-  verifiedBy: string; // admin user ID
+  clientId: ClientId;
+  verifiedBy: UserId; // admin user ID
 }
 
 /**
@@ -368,7 +400,7 @@ class GetClientQueryHandler {
 }
 
 interface GetClientQuery {
-  clientId: string;
+  clientId: ClientId;
 }
 
 /**
@@ -384,12 +416,12 @@ class GetClientDashboardQueryHandler {
 }
 
 interface GetClientDashboardQuery {
-  clientId: string;
+  clientId: ClientId;
 }
 
 interface ClientDTO {
-  id: string;
-  userId: string;
+  id: ClientId;
+  userId: UserId;
   verified: boolean;
   averageRating: number | null;
   createdAt: Date;
@@ -424,8 +456,8 @@ interface ClientDashboardDTO {
  */
 class ClientCreatedEvent {
   constructor(
-    public readonly clientId: string,
-    public readonly userId: string,
+    public readonly clientId: ClientId,
+    public readonly userId: UserId,
   ) {}
 }
 
@@ -434,7 +466,7 @@ class ClientCreatedEvent {
  * Consumed by: Notification (notify client)
  */
 class ClientVerifiedEvent {
-  constructor(public readonly clientId: string) {}
+  constructor(public readonly clientId: ClientId) {}
 }
 ```
 

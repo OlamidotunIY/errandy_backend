@@ -174,31 +174,94 @@ src/organization/
  * Organization aggregate root.
  * Maps to Organization fields: id, name, type, createdAt, ownerId.
  */
-class OrganizationAggregate {
+class OrganizationId extends EntityId {
+  /**
+   * Private constructor. Use OrganizationId.new() or OrganizationId.from().
+   */
+  private constructor(value: string);
+
+  /**
+   * Creates a new OrganizationId.
+   */
+  static new(): OrganizationId;
+
+  /**
+   * Rehydrates OrganizationId from persisted value.
+   */
+  static from(value: string): OrganizationId;
+}
+
+/**
+ * Member identifier for organization membership records.
+ */
+class OrgMemberId extends EntityId {
+  /**
+   * Private constructor. Use OrgMemberId.new() or OrgMemberId.from().
+   */
+  private constructor(value: string);
+
+  /**
+   * Creates a new OrgMemberId.
+   */
+  static new(): OrgMemberId;
+
+  /**
+   * Rehydrates OrgMemberId from persisted value.
+   */
+  static from(value: string): OrgMemberId;
+}
+
+/**
+ * Organization aggregate root.
+ */
+class OrganizationAggregate extends AggregateRoot<OrganizationId> {
   constructor(
-    public readonly id: string,
+    public readonly id: OrganizationId,
     private name: string,
     private type: OrgType,
     public readonly createdAt: Date,
-    public readonly ownerId: string,
+    public readonly ownerId: UserId,
     private members: OrgMemberAggregate[],
   );
+
+  /**
+   * Creates a new organization aggregate.
+   */
+  static create(
+    name: string,
+    type: OrgType,
+    ownerId: UserId,
+    createdAt: Date,
+    members?: OrgMemberAggregate[],
+  ): OrganizationAggregate;
+
+  /**
+   * Reconstitutes organization aggregate from persistence.
+   */
+  static reconstitute(
+    id: OrganizationId,
+    name: string,
+    type: OrgType,
+    createdAt: Date,
+    ownerId: UserId,
+    members: OrgMemberAggregate[],
+  ): OrganizationAggregate;
 
   /**
    * Adds member with role into organization.
    * Writes OrgMember fields: id, orgId, userId, role, active.
    */
-  addMember(userId: string, role: OrgRole): void;
+  addMember(userId: UserId, role: OrgRole): void;
 
   /**
    * Removes member from organization by userId.
    */
-  removeMember(userId: string): void;
+  removeMember(userId: UserId): void;
 
   /**
    * Deactivates member without deleting row by setting active = false.
    */
-  deactivateMember(userId: string): void;
+  deactivateMember(userId: UserId): void;
 }
 
 /**
@@ -206,9 +269,9 @@ class OrganizationAggregate {
  */
 class OrgMemberAggregate {
   constructor(
-    public readonly id: string,
-    public readonly orgId: string,
-    public readonly userId: string,
+    public readonly id: OrgMemberId,
+    public readonly orgId: OrganizationId,
+    public readonly userId: UserId,
     public readonly role: OrgRole,
     public readonly active: boolean,
   );
@@ -225,17 +288,17 @@ interface IOrganizationRepository {
   /**
    * Finds organization by Organization.id.
    */
-  findById(id: string): Promise<OrganizationAggregate | null>;
+  findById(id: OrganizationId): Promise<OrganizationAggregate | null>;
 
   /**
    * Finds organizations by ownerId.
    */
-  findByOwnerId(ownerId: string): Promise<OrganizationAggregate[]>;
+  findByOwnerId(ownerId: UserId): Promise<OrganizationAggregate[]>;
 
   /**
    * Finds organization membership by OrgMember.userId.
    */
-  findByMemberUserId(userId: string): Promise<OrganizationAggregate | null>;
+  findByMemberUserId(userId: UserId): Promise<OrganizationAggregate | null>;
 
   /**
    * Persists organization and member changes.
@@ -254,13 +317,13 @@ class CreateOrganizationCommandHandler {
   /**
    * Creates Organization and emits OrganizationCreatedEvent.
    */
-  execute(command: CreateOrganizationCommand): Promise<string>;
+  execute(command: CreateOrganizationCommand): Promise<OrganizationId>;
 }
 
 interface CreateOrganizationCommand {
   name: string;
   type: OrgType;
-  ownerUserId: string;
+  ownerUserId: UserId;
 }
 
 /**
@@ -274,8 +337,8 @@ class AddOrganizationMemberCommandHandler {
 }
 
 interface AddOrganizationMemberCommand {
-  organizationId: string;
-  userId: string;
+  organizationId: OrganizationId;
+  userId: UserId;
   role: OrgRole;
 }
 ```
@@ -288,8 +351,8 @@ interface AddOrganizationMemberCommand {
  */
 class OrganizationCreatedEvent {
   constructor(
-    public readonly organizationId: string,
-    public readonly ownerId: string,
+    public readonly organizationId: OrganizationId,
+    public readonly ownerId: UserId,
     public readonly type: OrgType,
   );
 }
@@ -299,8 +362,8 @@ class OrganizationCreatedEvent {
  */
 class MemberAddedToOrganizationEvent {
   constructor(
-    public readonly organizationId: string,
-    public readonly userId: string,
+    public readonly organizationId: OrganizationId,
+    public readonly userId: UserId,
     public readonly role: OrgRole,
   );
 }

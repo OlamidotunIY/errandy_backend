@@ -116,7 +116,7 @@ src/infrastructure/presence/  # OR src/common/presence/
  */
 class UserPresence {
   constructor(
-    public readonly userId: string,
+    public readonly userId: UserId,
     public readonly isOnline: boolean,
     public readonly lastSeenAt: Date | null,
   );
@@ -138,17 +138,17 @@ interface IPresenceRepository {
   /**
    * Marks user as online with expiration TTL.
    */
-  setOnline(userId: string, ttlSeconds: number): Promise<void>;
+  setOnline(userId: UserId, ttlSeconds: number): Promise<void>;
 
   /**
    * Marks user offline and records last seen timestamp.
    */
-  setOffline(userId: string, lastSeenAt: Date): Promise<void>;
+  setOffline(userId: UserId, lastSeenAt: Date): Promise<void>;
 
   /**
    * Returns current online state and last seen info.
    */
-  getPresence(userId: string): Promise<UserPresence>;
+  getPresence(userId: UserId): Promise<UserPresence>;
 }
 ```
 
@@ -166,7 +166,7 @@ class UpdatePresenceCommandHandler {
 }
 
 interface UpdatePresenceCommand {
-  userId: string;
+  userId: UserId;
   online: boolean;
   observedAt: Date;
 }
@@ -180,7 +180,7 @@ interface UpdatePresenceCommand {
  */
 class PresenceChangedEvent {
   constructor(
-    public readonly userId: string,
+    public readonly userId: UserId,
     public readonly online: boolean,
     public readonly observedAt: Date,
   );

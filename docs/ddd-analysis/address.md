@@ -191,10 +191,30 @@ src/users/
  * Value object representing a user address consumed by Users and Errands contexts.
  * Maps to schema fields on UserAddress: id, userId, label, address, location, createdAt, updatedAt.
  */
+class AddressId extends EntityId {
+  /**
+   * Private constructor. Use AddressId.new() or AddressId.from().
+   */
+  private constructor(value: string);
+
+  /**
+   * Creates a new AddressId.
+   */
+  static new(): AddressId;
+
+  /**
+   * Rehydrates AddressId from persisted value.
+   */
+  static from(value: string): AddressId;
+}
+
+/**
+ * Snapshot of address values used by application and query layers.
+ */
 class UserAddressSnapshot {
   constructor(
-    public readonly id: string,
-    public readonly userId: string,
+    public readonly id: AddressId,
+    public readonly userId: UserId,
     public readonly label: string,
     public readonly address: string,
     public readonly location: { type: "Point"; coordinates: [number, number] },
@@ -240,12 +260,12 @@ interface IUserAddressRepository {
   /**
    * Returns all addresses owned by a user, ordered by createdAt descending.
    */
-  findByUserId(userId: string): Promise<UserAddressSnapshot[]>;
+  findByUserId(userId: UserId): Promise<UserAddressSnapshot[]>;
 
   /**
    * Finds one address by UserAddress.id.
    */
-  findById(id: string): Promise<UserAddressSnapshot | null>;
+  findById(id: AddressId): Promise<UserAddressSnapshot | null>;
 
   /**
    * Persists address updates for fields label, address, location, and updatedAt.
@@ -285,7 +305,7 @@ class GetUserAddressesQueryHandler {
 }
 
 interface GetUserAddressesQuery {
-  userId: string;
+  userId: UserId;
 }
 ```
 
@@ -297,7 +317,7 @@ interface GetUserAddressesQuery {
  */
 class AddressSuggestionsResolvedEvent {
   constructor(
-    public readonly userId: string | null,
+    public readonly userId: UserId | null,
     public readonly input: string,
     public readonly suggestionCount: number,
   );

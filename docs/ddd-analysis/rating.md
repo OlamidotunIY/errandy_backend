@@ -479,7 +479,27 @@ model Rating {
  * - Replies can only be added by the rating target (rateeId)
  * - Ratings are immutable after creation (except reactions/replies)
  */
-class Rating {
+class RatingId extends EntityId {
+  /**
+   * Private constructor. Use RatingId.new() or RatingId.from().
+   */
+  private constructor(value: string);
+
+  /**
+   * Creates a new RatingId.
+   */
+  static new(): RatingId;
+
+  /**
+   * Rehydrates RatingId from persisted value.
+   */
+  static from(value: string): RatingId;
+}
+
+/**
+ * Rating aggregate root representing a rating given after errand completion.
+ */
+class Rating extends AggregateRoot<RatingId> {
   /**
    * Private constructor - use Rating.create() factory or load from repository.
    * @param id Unique rating identifier (from schema: id String @id)
@@ -495,10 +515,10 @@ class Rating {
    * @param updatedAt Last update timestamp
    */
   private constructor(
-    public readonly id: string,
-    public readonly raterId: string,
-    public readonly rateeId: string,
-    public readonly errandId: string,
+    public readonly id: RatingId,
+    public readonly raterId: UserId,
+    public readonly rateeId: UserId,
+    public readonly errandId: ErrandId,
     public readonly raterRole: RaterRole,
     private score: Score,
     private comment: string | null,
@@ -522,12 +542,29 @@ class Rating {
    * @returns New Rating instance
    */
   static create(
-    raterId: string,
-    rateeId: string,
-    errandId: string,
+    raterId: UserId,
+    rateeId: UserId,
+    errandId: ErrandId,
     raterRole: RaterRole,
     score: number,
     comment?: string,
+  ): Rating;
+
+  /**
+   * Reconstitutes Rating aggregate from persistence.
+   */
+  static reconstitute(
+    id: RatingId,
+    raterId: UserId,
+    rateeId: UserId,
+    errandId: ErrandId,
+    raterRole: RaterRole,
+    score: Score,
+    comment: string | null,
+    reactions: RatingReaction[],
+    reply: string | null,
+    createdAt: Date,
+    updatedAt: Date,
   ): Rating;
 
   /**
@@ -539,7 +576,7 @@ class Rating {
    * @throws DuplicateReactionError when user already reacted with this emoji
    * @emits RatingReactionAddedEvent
    */
-  addReaction(userId: string, emoji: string): void;
+  addReaction(userId: UserId, emoji: string): void;
 
   /**
    * Removes emoji reaction.
@@ -548,7 +585,7 @@ class Rating {
    * @throws ReactionNotFoundError when reaction doesn't exist
    * @emits RatingReactionRemovedEvent
    */
-  removeReaction(userId: string, emoji: string): void;
+  removeReaction(userId: UserId, emoji: string): void;
 
   /**
    * Adds reply to rating (only ratee can reply).
@@ -584,8 +621,8 @@ class Rating {
 class RatingReaction {
   constructor(
     public readonly id: string,
-    public readonly ratingId: string,
-    public readonly userId: string,
+    public readonly ratingId: RatingId,
+    public readonly userId: UserId,
     public readonly emoji: Emoji,
     public readonly createdAt: Date,
   );
@@ -663,7 +700,7 @@ interface IRatingRepository {
    * @param id Rating ID
    * @returns Rating aggregate or null if not found
    */
-  findById(id: string): Promise<Rating | null>;
+  findById(id: RatingId): Promise<Rating | null>;
 
   /**
    * Finds rating for specific errand.
@@ -673,8 +710,8 @@ interface IRatingRepository {
    * @returns Rating aggregate or null if not found
    */
   findByErrandAndRater(
-    errandId: string,
-    raterId: string,
+    errandId: ErrandId,
+    raterId: UserId,
   ): Promise<Rating | null>;
 
   /**
@@ -682,14 +719,14 @@ interface IRatingRepository {
    * @param raterId Rater user ID
    * @returns Array of Rating aggregates
    */
-  findByRater(raterId: string): Promise<Rating[]>;
+  findByRater(raterId: UserId): Promise<Rating[]>;
 
   /**
    * Finds all ratings received by user.
    * @param rateeId Ratee user ID
    * @returns Array of Rating aggregates
    */
-  findByRatee(rateeId: string): Promise<Rating[]>;
+  findByRatee(rateeId: UserId): Promise<Rating[]>;
 
   /**
    * Persists rating aggregate.
@@ -703,14 +740,14 @@ interface IRatingRepository {
    * @param rateeId User being rated
    * @returns Average score (1.0-5.0) or null if no ratings
    */
-  calculateAverageRating(rateeId: string): Promise<number | null>;
+  calculateAverageRating(rateeId: UserId): Promise<number | null>;
 
   /**
    * Gets rating statistics for user.
    * @param rateeId User being rated
    * @returns Stats object with counts per star level
    */
-  getRatingStats(rateeId: string): Promise<RatingStats>;
+  getRatingStats(rateeId: UserId): Promise<RatingStats>;
 }
 
 interface RatingStats {
@@ -741,13 +778,13 @@ class CreateRatingCommandHandler {
    * @emits RatingCreatedEvent
    * @returns Rating ID
    */
-  execute(command: CreateRatingCommand): Promise<string>;
+  execute(command: CreateRatingCommand): Promise<RatingId>;
 }
 
 interface CreateRatingCommand {
-  raterId: string;
-  rateeId: string;
-  errandId: string;
+  raterId: UserId;
+  rateeId: UserId;
+  errandId: ErrandId;
   raterRole: RaterRole; // CLIENT or PROVIDER
   score: number; // 1-5
   comment?: string;
@@ -768,8 +805,8 @@ class AddRatingReactionCommandHandler {
 }
 
 interface AddRatingReactionCommand {
-  ratingId: string;
-  userId: string;
+  ratingId: RatingId;
+  userId: UserId;
   emoji: string;
 }
 
@@ -787,8 +824,8 @@ class RemoveRatingReactionCommandHandler {
 }
 
 interface RemoveRatingReactionCommand {
-  ratingId: string;
-  userId: string;
+  ratingId: RatingId;
+  userId: UserId;
   emoji: string;
 }
 
@@ -807,8 +844,8 @@ class AddRatingReplyCommandHandler {
 }
 
 interface AddRatingReplyCommand {
-  ratingId: string;
-  repliedBy: string; // must match rateeId
+  ratingId: RatingId;
+  repliedBy: UserId; // must match rateeId
   reply: string;
 }
 
@@ -827,8 +864,8 @@ class UpdateRatingReplyCommandHandler {
 }
 
 interface UpdateRatingReplyCommand {
-  ratingId: string;
-  updatedBy: string; // must match rateeId
+  ratingId: RatingId;
+  updatedBy: UserId; // must match rateeId
   reply: string;
 }
 
@@ -845,7 +882,7 @@ class GetRatingQueryHandler {
 }
 
 interface GetRatingQuery {
-  ratingId: string;
+  ratingId: RatingId;
 }
 
 /**
@@ -860,7 +897,7 @@ class GetUserRatingsQueryHandler {
 }
 
 interface GetUserRatingsQuery {
-  rateeId: string;
+  rateeId: UserId;
 }
 
 /**
@@ -875,23 +912,23 @@ class GetRatingStatsQueryHandler {
 }
 
 interface GetRatingStatsQuery {
-  rateeId: string;
+  rateeId: UserId;
 }
 
 interface RatingDTO {
-  id: string;
-  raterId: string;
-  rateeId: string;
-  errandId: string;
+  id: RatingId;
+  raterId: UserId;
+  rateeId: UserId;
+  errandId: ErrandId;
   raterRole: RaterRole;
   score: number;
   comment: string | null;
-  reactions: { emoji: string; userId: string; createdAt: Date }[];
+  reactions: { emoji: string; userId: UserId; createdAt: Date }[];
   reply: string | null;
   createdAt: Date;
   updatedAt: Date;
-  rater?: { id: string; name: string; image: string | null };
-  ratee?: { id: string; name: string; image: string | null };
+  rater?: { id: UserId; name: string; image: string | null };
+  ratee?: { id: UserId; name: string; image: string | null };
 }
 
 interface RatingStatsDTO {
@@ -917,10 +954,10 @@ interface RatingStatsDTO {
  */
 class RatingCreatedEvent {
   constructor(
-    public readonly ratingId: string,
-    public readonly raterId: string,
-    public readonly rateeId: string,
-    public readonly errandId: string,
+    public readonly ratingId: RatingId,
+    public readonly raterId: UserId,
+    public readonly rateeId: UserId,
+    public readonly errandId: ErrandId,
     public readonly raterRole: RaterRole,
     public readonly score: number,
   ) {}
@@ -932,8 +969,8 @@ class RatingCreatedEvent {
  */
 class RatingReactionAddedEvent {
   constructor(
-    public readonly ratingId: string,
-    public readonly userId: string,
+    public readonly ratingId: RatingId,
+    public readonly userId: UserId,
     public readonly emoji: string,
   ) {}
 }
@@ -943,8 +980,8 @@ class RatingReactionAddedEvent {
  */
 class RatingReactionRemovedEvent {
   constructor(
-    public readonly ratingId: string,
-    public readonly userId: string,
+    public readonly ratingId: RatingId,
+    public readonly userId: UserId,
     public readonly emoji: string,
   ) {}
 }
@@ -955,8 +992,8 @@ class RatingReactionRemovedEvent {
  */
 class RatingRepliedEvent {
   constructor(
-    public readonly ratingId: string,
-    public readonly rateeId: string,
+    public readonly ratingId: RatingId,
+    public readonly rateeId: UserId,
     public readonly reply: string,
   ) {}
 }
@@ -966,7 +1003,7 @@ class RatingRepliedEvent {
  */
 class RatingReplyUpdatedEvent {
   constructor(
-    public readonly ratingId: string,
+    public readonly ratingId: RatingId,
     public readonly reply: string,
   ) {}
 }

@@ -145,7 +145,7 @@ interface ValidateWsConnectionCommand {
  */
 class WsClientConnectedEvent {
   constructor(
-    public readonly userId: string | null,
+    public readonly userId: UserId | null,
     public readonly connectedAt: Date,
   );
 }

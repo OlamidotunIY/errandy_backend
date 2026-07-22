@@ -158,12 +158,32 @@ src/dispute/
  * Dispute aggregate for conflict resolution workflow.
  * Maps to Dispute fields: id, errandId, clientId, workerId, status, reason, createdAt.
  */
-class Dispute {
+class DisputeId extends EntityId {
+  /**
+   * Private constructor. Use DisputeId.new() or DisputeId.from().
+   */
+  private constructor(value: string);
+
+  /**
+   * Creates a new DisputeId.
+   */
+  static new(): DisputeId;
+
+  /**
+   * Rehydrates DisputeId from persisted value.
+   */
+  static from(value: string): DisputeId;
+}
+
+/**
+ * Dispute aggregate for conflict resolution workflow.
+ */
+class Dispute extends AggregateRoot<DisputeId> {
   constructor(
-    public readonly id: string,
-    public readonly errandId: string,
-    public readonly clientId: string,
-    public readonly workerId: string,
+    public readonly id: DisputeId,
+    public readonly errandId: ErrandId,
+    public readonly clientId: ClientId,
+    public readonly workerId: ProviderId,
     private status: DisputeStatus,
     public readonly reason: string,
     public readonly createdAt: Date,
@@ -172,7 +192,20 @@ class Dispute {
   /**
    * Opens a new dispute in PENDING status.
    */
-  static open(errandId: string, clientId: string, workerId: string, reason: string): Dispute;
+  static create(errandId: ErrandId, clientId: ClientId, workerId: ProviderId, reason: string): Dispute;
+
+  /**
+   * Reconstitutes dispute aggregate from persistence.
+   */
+  static reconstitute(
+    id: DisputeId,
+    errandId: ErrandId,
+    clientId: ClientId,
+    workerId: ProviderId,
+    status: DisputeStatus,
+    reason: string,
+    createdAt: Date,
+  ): Dispute;
 
   /**
    * Accepts a dispute after review.
@@ -198,17 +231,17 @@ interface IDisputeRepository {
   /**
    * Reads dispute by Dispute.id.
    */
-  findById(id: string): Promise<Dispute | null>;
+  findById(id: DisputeId): Promise<Dispute | null>;
 
   /**
    * Reads disputes by errandId.
    */
-  findByErrandId(errandId: string): Promise<Dispute[]>;
+  findByErrandId(errandId: ErrandId): Promise<Dispute[]>;
 
   /**
    * Reads current open dispute for an errand if present.
    */
-  findPendingByErrandId(errandId: string): Promise<Dispute | null>;
+  findPendingByErrandId(errandId: ErrandId): Promise<Dispute | null>;
 
   /**
    * Saves status updates and reason metadata.
@@ -227,12 +260,12 @@ class OpenDisputeCommandHandler {
   /**
    * Creates dispute and emits DisputeOpenedEvent.
    */
-  execute(command: OpenDisputeCommand): Promise<string>;
+  execute(command: OpenDisputeCommand): Promise<DisputeId>;
 }
 
 interface OpenDisputeCommand {
-  errandId: string;
-  openedByUserId: string;
+  errandId: ErrandId;
+  openedByUserId: UserId;
   reason: string;
 }
 
@@ -247,8 +280,8 @@ class ResolveDisputeCommandHandler {
 }
 
 interface ResolveDisputeCommand {
-  disputeId: string;
-  resolverUserId: string;
+  disputeId: DisputeId;
+  resolverUserId: UserId;
   resolution: 'ACCEPTED' | 'REJECTED';
 }
 ```
@@ -261,10 +294,10 @@ interface ResolveDisputeCommand {
  */
 class DisputeOpenedEvent {
   constructor(
-    public readonly disputeId: string,
-    public readonly errandId: string,
-    public readonly clientId: string,
-    public readonly workerId: string,
+    public readonly disputeId: DisputeId,
+    public readonly errandId: ErrandId,
+    public readonly clientId: ClientId,
+    public readonly workerId: ProviderId,
   );
 }
 
@@ -273,8 +306,8 @@ class DisputeOpenedEvent {
  */
 class DisputeResolvedEvent {
   constructor(
-    public readonly disputeId: string,
-    public readonly errandId: string,
+    public readonly disputeId: DisputeId,
+    public readonly errandId: ErrandId,
     public readonly status: DisputeStatus,
   );
 }

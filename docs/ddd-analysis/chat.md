@@ -451,7 +451,47 @@ src/chat/
  * - Participants can only read messages if they're in the room
  * - Messages are append-only (cannot edit/delete after send)
  */
-class ChatRoom {
+class ChatRoomId extends EntityId {
+  /**
+   * Private constructor. Use ChatRoomId.new() or ChatRoomId.from().
+   */
+  private constructor(value: string);
+
+  /**
+   * Creates a new ChatRoomId.
+   */
+  static new(): ChatRoomId;
+
+  /**
+   * Rehydrates ChatRoomId from persisted value.
+   */
+  static from(value: string): ChatRoomId;
+}
+
+/**
+ * Message identifier for chat message entities.
+ */
+class MessageId extends EntityId {
+  /**
+   * Private constructor. Use MessageId.new() or MessageId.from().
+   */
+  private constructor(value: string);
+
+  /**
+   * Creates a new MessageId.
+   */
+  static new(): MessageId;
+
+  /**
+   * Rehydrates MessageId from persisted value.
+   */
+  static from(value: string): MessageId;
+}
+
+/**
+ * ChatRoom aggregate root representing conversation between users.
+ */
+class ChatRoom extends AggregateRoot<ChatRoomId> {
   /**
    * Private constructor - use ChatRoom.create() factory or load from repository.
    * @param id Unique chat room identifier (from schema: id String @id)
@@ -463,11 +503,11 @@ class ChatRoom {
    * @param updatedAt Last activity timestamp
    */
   private constructor(
-    public readonly id: string,
-    public readonly errandId: string | null,
-    private readonly participantIds: string[],
+    public readonly id: ChatRoomId,
+    public readonly errandId: ErrandId | null,
+    private readonly participantIds: UserId[],
     private readonly messages: Message[],
-    private lastMessageId: string | null,
+    private lastMessageId: MessageId | null,
     public readonly createdAt: Date,
     public readonly updatedAt: Date,
   );
@@ -481,8 +521,21 @@ class ChatRoom {
    * @returns New ChatRoom instance
    */
   static create(
-    participantIds: string[],
-    errandId?: string,
+    participantIds: UserId[],
+    errandId?: ErrandId,
+  ): ChatRoom;
+
+  /**
+   * Reconstitutes ChatRoom aggregate from persistence.
+   */
+  static reconstitute(
+    id: ChatRoomId,
+    errandId: ErrandId | null,
+    participantIds: UserId[],
+    messages: Message[],
+    lastMessageId: MessageId | null,
+    createdAt: Date,
+    updatedAt: Date,
   ): ChatRoom;
 
   /**
@@ -497,10 +550,10 @@ class ChatRoom {
    * @returns New Message ID
    */
   sendMessage(
-    senderId: string,
+    senderId: UserId,
     messageType: MessageType,
     content: string,
-  ): string;
+  ): MessageId;
 
   /**
    * Marks message as read by user.
@@ -511,7 +564,7 @@ class ChatRoom {
    * @throws MessageNotFoundException when message not in this room
    * @emits MessageReadEvent
    */
-  markMessageAsRead(messageId: string, userId: string): void;
+  markMessageAsRead(messageId: MessageId, userId: UserId): void;
 
   /**
    * Adds participant to chat room.
@@ -520,7 +573,7 @@ class ChatRoom {
    * @throws ParticipantAlreadyExistsError when user already in room
    * @emits ParticipantAddedEvent
    */
-  addParticipant(userId: string): void;
+  addParticipant(userId: UserId): void;
 
   /**
    * Removes participant from chat room.
@@ -529,20 +582,20 @@ class ChatRoom {
    * @throws CannotRemoveLastParticipantError when trying to remove last participant
    * @emits ParticipantRemovedEvent
    */
-  removeParticipant(userId: string): void;
+  removeParticipant(userId: UserId): void;
 
   /**
    * Checks if user is participant.
    * @param userId User ID
    */
-  isParticipant(userId: string): boolean;
+  isParticipant(userId: UserId): boolean;
 
   /**
    * Returns unread message count for user.
    * @param userId User ID
    * @returns Number of unread messages
    */
-  getUnreadCount(userId: string): number;
+  getUnreadCount(userId: UserId): number;
 }
 
 /**
@@ -551,9 +604,9 @@ class ChatRoom {
  */
 class Message {
   constructor(
-    public readonly id: string,
-    public readonly chatRoomId: string,
-    public readonly senderId: string,
+    public readonly id: MessageId,
+    public readonly chatRoomId: ChatRoomId,
+    public readonly senderId: UserId,
     public readonly type: MessageType,
     public readonly content: string,
     public readonly createdAt: Date,
@@ -574,8 +627,8 @@ class Message {
  */
 class ChatRoomParticipant {
   constructor(
-    public readonly chatRoomId: string,
-    public readonly userId: string,
+    public readonly chatRoomId: ChatRoomId,
+    public readonly userId: UserId,
     public readonly joinedAt: Date,
   );
 }
@@ -614,7 +667,7 @@ interface IChatRoomRepository {
    * @param id Chat room ID
    * @returns ChatRoom aggregate or null if not found
    */
-  findById(id: string): Promise<ChatRoom | null>;
+  findById(id: ChatRoomId): Promise<ChatRoom | null>;
 
   /**
    * Finds chat room for specific errand and participants.
@@ -624,8 +677,8 @@ interface IChatRoomRepository {
    * @returns ChatRoom aggregate or null if not found
    */
   findByErrandAndParticipants(
-    errandId: string,
-    participantIds: string[],
+    errandId: ErrandId,
+    participantIds: UserId[],
   ): Promise<ChatRoom | null>;
 
   /**
@@ -633,7 +686,7 @@ interface IChatRoomRepository {
    * @param userId User ID
    * @returns Array of ChatRoom aggregates sorted by last activity
    */
-  findByUser(userId: string): Promise<ChatRoom[]>;
+  findByUser(userId: UserId): Promise<ChatRoom[]>;
 
   /**
    * Persists chat room aggregate.
@@ -650,9 +703,9 @@ interface IChatRoomRepository {
    * @returns Array of Message entities sorted by createdAt DESC
    */
   findMessages(
-    chatRoomId: string,
+    chatRoomId: ChatRoomId,
     limit: number,
-    beforeMessageId?: string,
+    beforeMessageId?: MessageId,
   ): Promise<Message[]>;
 }
 ```
@@ -671,12 +724,12 @@ class CreateChatRoomCommandHandler {
    * @emits ChatRoomCreatedEvent
    * @returns Chat room ID
    */
-  execute(command: CreateChatRoomCommand): Promise<string>;
+  execute(command: CreateChatRoomCommand): Promise<ChatRoomId>;
 }
 
 interface CreateChatRoomCommand {
-  participantIds: string[];
-  errandId?: string;
+  participantIds: UserId[];
+  errandId?: ErrandId;
 }
 
 /**
@@ -692,12 +745,12 @@ class SendMessageCommandHandler {
    * @emits MessageSentEvent (triggers PubSub broadcast)
    * @returns Message ID
    */
-  execute(command: SendMessageCommand): Promise<string>;
+  execute(command: SendMessageCommand): Promise<MessageId>;
 }
 
 interface SendMessageCommand {
-  chatRoomId: string;
-  senderId: string;
+  chatRoomId: ChatRoomId;
+  senderId: UserId;
   type: MessageType;
   content: string; // text, URL, or JSON coordinates
   file?: Buffer; // for IMAGE/AUDIO uploads (converted to URL by handler)
@@ -718,9 +771,9 @@ class MarkMessageAsReadCommandHandler {
 }
 
 interface MarkMessageAsReadCommand {
-  chatRoomId: string;
-  messageId: string;
-  userId: string;
+  chatRoomId: ChatRoomId;
+  messageId: MessageId;
+  userId: UserId;
 }
 
 /**
@@ -737,8 +790,8 @@ class AddParticipantCommandHandler {
 }
 
 interface AddParticipantCommand {
-  chatRoomId: string;
-  userId: string;
+  chatRoomId: ChatRoomId;
+  userId: UserId;
 }
 
 /**
@@ -755,8 +808,8 @@ class RemoveParticipantCommandHandler {
 }
 
 interface RemoveParticipantCommand {
-  chatRoomId: string;
-  userId: string;
+  chatRoomId: ChatRoomId;
+  userId: UserId;
 }
 
 /**
@@ -772,7 +825,7 @@ class GetChatRoomQueryHandler {
 }
 
 interface GetChatRoomQuery {
-  chatRoomId: string;
+  chatRoomId: ChatRoomId;
 }
 
 /**
@@ -787,7 +840,7 @@ class ListUserChatRoomsQueryHandler {
 }
 
 interface ListUserChatRoomsQuery {
-  userId: string;
+  userId: UserId;
 }
 
 /**
@@ -802,15 +855,15 @@ class GetMessagesQueryHandler {
 }
 
 interface GetMessagesQuery {
-  chatRoomId: string;
+  chatRoomId: ChatRoomId;
   limit: number;
-  beforeMessageId?: string; // cursor for pagination
+  beforeMessageId?: MessageId; // cursor for pagination
 }
 
 interface ChatRoomDTO {
-  id: string;
-  errandId: string | null;
-  participants: { userId: string; name: string; image: string | null }[];
+  id: ChatRoomId;
+  errandId: ErrandId | null;
+  participants: { userId: UserId; name: string; image: string | null }[];
   lastMessage: MessageDTO | null;
   unreadCount: number; // for current user
   createdAt: Date;
@@ -818,9 +871,9 @@ interface ChatRoomDTO {
 }
 
 interface MessageDTO {
-  id: string;
-  chatRoomId: string;
-  senderId: string;
+  id: MessageId;
+  chatRoomId: ChatRoomId;
+  senderId: UserId;
   type: MessageType;
   content: string;
   createdAt: Date;
@@ -837,9 +890,9 @@ interface MessageDTO {
  */
 class ChatRoomCreatedEvent {
   constructor(
-    public readonly chatRoomId: string,
-    public readonly participantIds: string[],
-    public readonly errandId: string | null,
+    public readonly chatRoomId: ChatRoomId,
+    public readonly participantIds: UserId[],
+    public readonly errandId: ErrandId | null,
   ) {}
 }
 
@@ -850,12 +903,12 @@ class ChatRoomCreatedEvent {
  */
 class MessageSentEvent {
   constructor(
-    public readonly messageId: string,
-    public readonly chatRoomId: string,
-    public readonly senderId: string,
+    public readonly messageId: MessageId,
+    public readonly chatRoomId: ChatRoomId,
+    public readonly senderId: UserId,
     public readonly type: MessageType,
     public readonly content: string,
-    public readonly recipientIds: string[], // all participants except sender
+    public readonly recipientIds: UserId[], // all participants except sender
   ) {}
 }
 
@@ -865,9 +918,9 @@ class MessageSentEvent {
  */
 class MessageReadEvent {
   constructor(
-    public readonly messageId: string,
-    public readonly chatRoomId: string,
-    public readonly userId: string,
+    public readonly messageId: MessageId,
+    public readonly chatRoomId: ChatRoomId,
+    public readonly userId: UserId,
   ) {}
 }
 
@@ -877,8 +930,8 @@ class MessageReadEvent {
  */
 class ParticipantAddedEvent {
   constructor(
-    public readonly chatRoomId: string,
-    public readonly userId: string,
+    public readonly chatRoomId: ChatRoomId,
+    public readonly userId: UserId,
   ) {}
 }
 
@@ -888,8 +941,8 @@ class ParticipantAddedEvent {
  */
 class ParticipantRemovedEvent {
   constructor(
-    public readonly chatRoomId: string,
-    public readonly userId: string,
+    public readonly chatRoomId: ChatRoomId,
+    public readonly userId: UserId,
   ) {}
 }
 ```
