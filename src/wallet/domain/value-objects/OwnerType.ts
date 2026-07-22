@@ -1,0 +1,3 @@
+enum OwnerType {}
+
+export { OwnerType };
