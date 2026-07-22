@@ -150,3 +150,102 @@ src/service/
 2. **Add DataLoader** for service categories (prevent N+1).
 3. **Add `isActive` flag** to Service model (soft delete for deprecated services).
 4. **Introduce IServiceRepository** if Service grows complex (admin panel for managing catalog).
+
+---
+
+## 12. Implementation Spec
+
+### Domain Layer
+
+```typescript
+/**
+ * Service catalog category aggregate (read-centric).
+ * Maps to ServiceCategory fields: id, name, type.
+ */
+class ServiceCategoryAggregate {
+  constructor(
+    public readonly id: string,
+    public readonly name: string,
+    public readonly type: ServiceCategoryType,
+    public readonly services: ServiceAggregate[],
+  );
+}
+
+/**
+ * Service entry mapped from Service model fields: id, name, type, categoryId.
+ */
+class ServiceAggregate {
+  constructor(
+    public readonly id: string,
+    public readonly name: string,
+    public readonly type: ServiceCategoryType,
+    public readonly categoryId: string,
+  );
+}
+```
+
+### Repository Interface
+
+```typescript
+/**
+ * Read contract for service catalog and category listing.
+ */
+interface IServiceRepository {
+  /**
+   * Returns all categories with child services.
+   */
+  findAllCategories(): Promise<ServiceCategoryAggregate[]>;
+
+  /**
+   * Returns services by Service.categoryId.
+   */
+  findServicesByCategoryId(categoryId: string): Promise<ServiceAggregate[]>;
+
+  /**
+   * Returns service by Service.id.
+   */
+  findServiceById(id: string): Promise<ServiceAggregate | null>;
+}
+```
+
+### Application Layer
+
+```typescript
+/**
+ * Query handler for full service category listing.
+ */
+class GetServiceCategoriesQueryHandler {
+  /**
+   * Reads and returns all ServiceCategory records.
+   */
+  execute(): Promise<ServiceCategoryAggregate[]>;
+}
+
+/**
+ * Query handler for services under one category.
+ */
+class GetServicesByCategoryQueryHandler {
+  /**
+   * Reads Service records filtered by categoryId.
+   */
+  execute(query: GetServicesByCategoryQuery): Promise<ServiceAggregate[]>;
+}
+
+interface GetServicesByCategoryQuery {
+  categoryId: string;
+}
+```
+
+### Domain Events
+
+```typescript
+/**
+ * Emitted when service catalog cache is refreshed.
+ */
+class ServiceCatalogRefreshedEvent {
+  constructor(
+    public readonly categoryCount: number,
+    public readonly serviceCount: number,
+  );
+}
+```

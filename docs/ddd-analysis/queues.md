@@ -126,3 +126,91 @@ src/infrastructure/queues/  # OR src/common/queues/
 2. **Configure retry policies** (exponential backoff, max retries, DLQ).
 3. **Add monitoring** (queue depth, DLQ size).
 4. **Add scheduled jobs** (cleanup expired escrows, send reminders).
+
+---
+
+## 12. Implementation Spec
+
+### Domain Layer
+
+```typescript
+/**
+ * Queue job envelope shared by background processors.
+ * // TODO: Job metadata is currently transient; no dedicated Prisma model exists.
+ */
+class QueueJobEnvelope {
+  constructor(
+    public readonly queueName: string,
+    public readonly jobName: string,
+    public readonly payload: Record<string, unknown>,
+    public readonly attempts: number,
+  );
+
+  /**
+   * Validates queue and job names before enqueue.
+   */
+  validate(): void;
+}
+```
+
+### Repository Interface
+
+```typescript
+/**
+ * Optional persistence for queue processing outcomes.
+ * // TODO: Decide whether WebhookEvent can store failed job metadata.
+ */
+interface IQueueAuditRepository {
+  /**
+   * Stores failed job details for retry analysis.
+   */
+  saveFailedJob(job: QueueJobEnvelope, reason: string): Promise<void>;
+}
+```
+
+### Application Layer
+
+```typescript
+/**
+ * Enqueues generic background jobs.
+ */
+class EnqueueJobCommandHandler {
+  /**
+   * Pushes a queue job into broker and emits QueueJobEnqueuedEvent.
+   */
+  execute(command: EnqueueJobCommand): Promise<void>;
+}
+
+interface EnqueueJobCommand {
+  queueName: string;
+  jobName: string;
+  payload: Record<string, unknown>;
+  attempts?: number;
+}
+```
+
+### Domain Events
+
+```typescript
+/**
+ * Emitted when a background job is enqueued.
+ */
+class QueueJobEnqueuedEvent {
+  constructor(
+    public readonly queueName: string,
+    public readonly jobName: string,
+    public readonly enqueuedAt: Date,
+  );
+}
+
+/**
+ * Emitted when a background job is permanently failed.
+ */
+class QueueJobFailedEvent {
+  constructor(
+    public readonly queueName: string,
+    public readonly jobName: string,
+    public readonly reason: string,
+  );
+}
+```

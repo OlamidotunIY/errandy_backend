@@ -101,3 +101,88 @@ src/infrastructure/presence/  # OR src/common/presence/
 2. **Add error handling** (fallback if Redis is down — assume user offline).
 3. **Add presence cleanup** (scheduled job to remove stale connections).
 4. **Optimize TTL** (tune connection set TTL based on WebSocket ping/pong intervals).
+
+---
+
+## 12. Implementation Spec
+
+### Domain Layer
+
+```typescript
+/**
+ * Presence snapshot value object.
+ * References User.id as principal identifier.
+ * // TODO: Presence currently stored in Redis only; no Prisma model exists.
+ */
+class UserPresence {
+  constructor(
+    public readonly userId: string,
+    public readonly isOnline: boolean,
+    public readonly lastSeenAt: Date | null,
+  );
+
+  /**
+   * Returns TTL key suffix for distributed cache storage.
+   */
+  getCacheKey(): string;
+}
+```
+
+### Repository Interface
+
+```typescript
+/**
+ * Presence cache storage contract.
+ */
+interface IPresenceRepository {
+  /**
+   * Marks user as online with expiration TTL.
+   */
+  setOnline(userId: string, ttlSeconds: number): Promise<void>;
+
+  /**
+   * Marks user offline and records last seen timestamp.
+   */
+  setOffline(userId: string, lastSeenAt: Date): Promise<void>;
+
+  /**
+   * Returns current online state and last seen info.
+   */
+  getPresence(userId: string): Promise<UserPresence>;
+}
+```
+
+### Application Layer
+
+```typescript
+/**
+ * Handles websocket connect/disconnect updates for presence cache.
+ */
+class UpdatePresenceCommandHandler {
+  /**
+   * Updates repository and emits PresenceChangedEvent.
+   */
+  execute(command: UpdatePresenceCommand): Promise<void>;
+}
+
+interface UpdatePresenceCommand {
+  userId: string;
+  online: boolean;
+  observedAt: Date;
+}
+```
+
+### Domain Events
+
+```typescript
+/**
+ * Emitted when user presence changes.
+ */
+class PresenceChangedEvent {
+  constructor(
+    public readonly userId: string,
+    public readonly online: boolean,
+    public readonly observedAt: Date,
+  );
+}
+```

@@ -1088,59 +1088,103 @@ This section provides a comprehensive reference of all key domain interfaces, co
 
 ### Repository Interfaces
 
-| Module          | Repository Interface     | Key Methods                                                                                  | Purpose                                            |
-| --------------- | ------------------------ | -------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| **Escrow**      | `IEscrowRepository`      | `findById`, `findByErrand`, `save`                                                           | Persistence contract for Escrow aggregate          |
-| **Wallet**      | `IWalletRepository`      | `findById`, `findByOwner`, `save`, `findWalletsWithDiscrepancies`                            | Wallet aggregate persistence + integrity audit     |
-| **Application** | `IApplicationRepository` | `findById`, `findByErrandAndWorker`, `findByErrand`, `save`, `countByStatus`                 | Application aggregate persistence + queries        |
-| **Errands**     | `IErrandRepository`      | `findById`, `findNearby`, `findFeedErrands`, `save`                                          | Errand aggregate persistence + geospatial queries  |
-| **Users**       | `IUserRepository`        | `findById`, `findByEmail`, `findByPhoneNumber`, `save`, `findAddresses`                      | Shared kernel user aggregate persistence           |
-| **Rating**      | `IRatingRepository`      | `findById`, `findByRater`, `findByRatee`, `save`, `calculateAverageRating`, `getRatingStats` | Rating aggregate persistence + stats aggregation   |
-| **Chat**        | `IChatRoomRepository`    | `findById`, `findByErrandAndParticipants`, `findByUser`, `save`, `findMessages`              | Chat room aggregate persistence + messaging        |
-| **Provider**    | `IProviderRepository`    | `findById`, `findByUserId`, `findBySkills`, `save`                                           | Provider aggregate persistence + discovery queries |
-| **Client**      | `IClientRepository`      | `findById`, `findByUserId`, `save`                                                           | Client aggregate persistence                       |
+| Module              | Repository Interface             | Key Methods                                                                                  | Purpose                                            |
+| ------------------- | -------------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| **Escrow**          | `IEscrowRepository`              | `findById`, `findByErrand`, `save`                                                           | Persistence contract for Escrow aggregate          |
+| **Wallet**          | `IWalletRepository`              | `findById`, `findByOwner`, `save`, `findWalletsWithDiscrepancies`                            | Wallet aggregate persistence + integrity audit     |
+| **Application**     | `IApplicationRepository`         | `findById`, `findByErrandAndWorker`, `findByErrand`, `save`, `countByStatus`                 | Application aggregate persistence + queries        |
+| **Errands**         | `IErrandRepository`              | `findById`, `findNearby`, `findFeedErrands`, `save`                                          | Errand aggregate persistence + geospatial queries  |
+| **Users**           | `IUserRepository`                | `findById`, `findByEmail`, `findByPhoneNumber`, `save`, `findAddresses`                      | Shared kernel user aggregate persistence           |
+| **Rating**          | `IRatingRepository`              | `findById`, `findByRater`, `findByRatee`, `save`, `calculateAverageRating`, `getRatingStats` | Rating aggregate persistence + stats aggregation   |
+| **Chat**            | `IChatRoomRepository`            | `findById`, `findByErrandAndParticipants`, `findByUser`, `save`, `findMessages`              | Chat room aggregate persistence + messaging        |
+| **Provider**        | `IProviderRepository`            | `findById`, `findByUserId`, `findBySkills`, `save`                                           | Provider aggregate persistence + discovery queries |
+| **Client**          | `IClientRepository`              | `findById`, `findByUserId`, `save`                                                           | Client aggregate persistence                       |
+| **Address**         | `IUserAddressRepository`         | `findByUserId`, `findById`, `save`                                                           | User address persistence for geocoding + profiles  |
+| **Auth**            | `IAuthRepository`                | `findIdentityByUserId`, `findIdentityByEmail`, `findSessionByToken`, `saveVerification`      | Auth identity/session lookup + verification store  |
+| **Dispute**         | `IDisputeRepository`             | `findById`, `findByErrandId`, `findPendingByErrandId`, `save`                                | Dispute lifecycle persistence                      |
+| **Organization**    | `IOrganizationRepository`        | `findById`, `findByOwnerId`, `findByMemberUserId`, `save`                                    | Organization and membership persistence            |
+| **Payment-Gateway** | `IPaymentMethodRepository`       | `findById`, `findByUserId`, `findDefaultByUserId`, `save`, `savePaystackCustomer`            | Payment method + provider customer mapping         |
+| **Service**         | `IServiceRepository`             | `findAllCategories`, `findServicesByCategoryId`, `findServiceById`                           | Read model for service catalog                     |
+| **Trusted-Circle**  | `ITrustedCircleRepository`       | `findById`, `findByClientId`, `save`                                                         | Trusted circle and member persistence              |
+| **Verification**    | `IVerificationRepository`        | `findById`, `findByProviderAndType`, `save`                                                  | Provider verification persistence                  |
+| **Notification**    | `INotificationHistoryRepository` | `save`                                                                                       | Optional notification delivery history             |
+| **Email**           | `IEmailDeliveryRepository`       | `saveDeliveryEvent`                                                                          | Optional provider delivery audit trail             |
+| **PubSub**          | `IPubSubAuditRepository`         | `savePublishAudit`                                                                           | Optional broker publish telemetry                  |
+| **Push**            | `IPushTokenRepository`           | `deleteToken`                                                                                | Invalid token cleanup contract                     |
+| **Presence**        | `IPresenceRepository`            | `setOnline`, `setOffline`, `getPresence`                                                     | Redis presence read/write abstraction              |
+| **Redis**           | `IRedisCacheRepository`          | `get`, `set`, `delete`                                                                       | Generic cache repository abstraction               |
+| **Queues**          | `IQueueAuditRepository`          | `saveFailedJob`                                                                              | Optional background job failure telemetry          |
+| **Common**          | `IErrorAuditRepository`          | `save`                                                                                       | Optional normalized exception audit                |
+| **Config**          | `IConfigRepository`              | `getGraphqlWsPolicy`                                                                         | Runtime config access abstraction                  |
+| **Firebase**        | `IFileAuditRepository`           | `saveUploadAudit`                                                                            | Optional upload audit persistence                  |
+| **Utils**           | `IUtilityOwnershipRepository`    | `listOwnership`                                                                              | Utility ownership metadata for leakage audit       |
 
 ### Command Handlers (Write Operations)
 
-| Module          | Command Handler                       | Trigger                          | Purpose                                     | Emits Event                   |
-| --------------- | ------------------------------------- | -------------------------------- | ------------------------------------------- | ----------------------------- |
-| **Escrow**      | `CreateEscrowCommandHandler`          | Application accepted             | Creates escrow for errand                   | `EscrowCreatedEvent`          |
-| **Escrow**      | `FundEscrowCommandHandler`            | Payment charged                  | Funds escrow via payment gateway            | `EscrowFundedEvent`           |
-| **Escrow**      | `ReleaseEscrowCommandHandler`         | Errand completed                 | Releases escrow funds to worker             | `EscrowReleasedEvent`         |
-| **Escrow**      | `RefundEscrowCommandHandler`          | Errand cancelled                 | Refunds escrow to client                    | `EscrowRefundedEvent`         |
-| **Wallet**      | `CreateWalletCommandHandler`          | User registration                | Creates wallet for user                     | `WalletCreatedEvent`          |
-| **Wallet**      | `CreditWalletCommandHandler`          | Top-up, refund, payout           | Credits wallet balance                      | `WalletCreditedEvent`         |
-| **Wallet**      | `DebitWalletCommandHandler`           | Withdrawal, payment              | Debits wallet balance                       | `WalletDebitedEvent`          |
-| **Wallet**      | `HoldFundsCommandHandler`             | Escrow funded                    | Holds funds in wallet (available → held)    | `FundsHeldEvent`              |
-| **Wallet**      | `ReleaseHoldCommandHandler`           | Escrow cancelled                 | Releases held funds (held → available)      | `FundsReleasedEvent`          |
-| **Wallet**      | `TransferHeldFundsCommandHandler`     | Escrow released                  | Transfers held funds to worker wallet       | `FundsTransferredEvent`       |
-| **Application** | `SubmitApplicationCommandHandler`     | Worker applies to errand         | Creates application                         | `ApplicationSubmittedEvent`   |
-| **Application** | `AcceptApplicationCommandHandler`     | Client accepts worker            | Accepts application (triggers saga)         | `ApplicationAcceptedEvent`    |
-| **Application** | `RejectApplicationCommandHandler`     | Client rejects worker            | Rejects application                         | `ApplicationRejectedEvent`    |
-| **Application** | `CancelApplicationCommandHandler`     | Worker cancels                   | Cancels application                         | `ApplicationCancelledEvent`   |
-| **Errands**     | `CreateErrandCommandHandler`          | Client creates errand            | Creates errand in DRAFT status              | `ErrandCreatedEvent`          |
-| **Errands**     | `PublishErrandCommandHandler`         | Client publishes draft           | Publishes errand (DRAFT → OPEN)             | `ErrandPublishedEvent`        |
-| **Errands**     | `AssignWorkerCommandHandler`          | Application accepted             | Assigns worker (OPEN → ASSIGNED)            | `ErrandAssignedEvent`         |
-| **Errands**     | `StartErrandCommandHandler`           | Worker starts                    | Starts errand (ASSIGNED → IN_PROGRESS)      | `ErrandStartedEvent`          |
-| **Errands**     | `CompleteErrandCommandHandler`        | Client/worker completes          | Completes errand (triggers escrow release)  | `ErrandCompletedEvent`        |
-| **Errands**     | `CancelErrandCommandHandler`          | Client cancels                   | Cancels errand (triggers escrow refund)     | `ErrandCancelledEvent`        |
-| **Users**       | `UpdateUserProfileCommandHandler`     | User updates profile             | Updates user profile                        | `UserProfileUpdatedEvent`     |
-| **Users**       | `AddAddressCommandHandler`            | User adds address                | Adds address to user                        | `AddressAddedEvent`           |
-| **Users**       | `DeleteAddressCommandHandler`         | User deletes address             | Deletes address (cleans up activeAddressId) | `AddressDeletedEvent`         |
-| **Users**       | `SetActiveAddressCommandHandler`      | User sets active address         | Sets active address                         | `ActiveAddressChangedEvent`   |
-| **Users**       | `AddRoleCommandHandler`               | Provider/Client created          | Adds role to user                           | `RoleAddedEvent`              |
-| **Users**       | `SwitchRoleCommandHandler`            | User toggles role                | Switches active role                        | `ActiveRoleChangedEvent`      |
-| **Rating**      | `CreateRatingCommandHandler`          | Errand completed (rating prompt) | Creates rating                              | `RatingCreatedEvent`          |
-| **Rating**      | `AddRatingReactionCommandHandler`     | User reacts to rating            | Adds emoji reaction                         | `RatingReactionAddedEvent`    |
-| **Rating**      | `AddRatingReplyCommandHandler`        | Ratee replies                    | Adds reply to rating                        | `RatingRepliedEvent`          |
-| **Chat**        | `CreateChatRoomCommandHandler`        | Application submitted            | Creates chat room                           | `ChatRoomCreatedEvent`        |
-| **Chat**        | `SendMessageCommandHandler`           | User sends message               | Sends message in chat                       | `MessageSentEvent`            |
-| **Chat**        | `MarkMessageAsReadCommandHandler`     | User reads message               | Marks message as read                       | `MessageReadEvent`            |
-| **Provider**    | `CreateProviderCommandHandler`        | User registers as provider       | Creates provider profile                    | `ProviderCreatedEvent`        |
-| **Provider**    | `UpdateProviderProfileCommandHandler` | Provider updates profile         | Updates bio/skills                          | `ProviderProfileUpdatedEvent` |
-| **Provider**    | `VerifyProviderCommandHandler`        | Admin verifies                   | Verifies provider                           | `ProviderVerifiedEvent`       |
-| **Client**      | `CreateClientCommandHandler`          | User registers as client         | Creates client profile                      | `ClientCreatedEvent`          |
-| **Client**      | `VerifyClientCommandHandler`          | Admin verifies                   | Verifies client                             | `ClientVerifiedEvent`         |
+| Module              | Command Handler                         | Trigger                          | Purpose                                     | Emits Event                         |
+| ------------------- | --------------------------------------- | -------------------------------- | ------------------------------------------- | ----------------------------------- |
+| **Escrow**          | `CreateEscrowCommandHandler`            | Application accepted             | Creates escrow for errand                   | `EscrowCreatedEvent`                |
+| **Escrow**          | `FundEscrowCommandHandler`              | Payment charged                  | Funds escrow via payment gateway            | `EscrowFundedEvent`                 |
+| **Escrow**          | `ReleaseEscrowCommandHandler`           | Errand completed                 | Releases escrow funds to worker             | `EscrowReleasedEvent`               |
+| **Escrow**          | `RefundEscrowCommandHandler`            | Errand cancelled                 | Refunds escrow to client                    | `EscrowRefundedEvent`               |
+| **Wallet**          | `CreateWalletCommandHandler`            | User registration                | Creates wallet for user                     | `WalletCreatedEvent`                |
+| **Wallet**          | `CreditWalletCommandHandler`            | Top-up, refund, payout           | Credits wallet balance                      | `WalletCreditedEvent`               |
+| **Wallet**          | `DebitWalletCommandHandler`             | Withdrawal, payment              | Debits wallet balance                       | `WalletDebitedEvent`                |
+| **Wallet**          | `HoldFundsCommandHandler`               | Escrow funded                    | Holds funds in wallet (available → held)    | `FundsHeldEvent`                    |
+| **Wallet**          | `ReleaseHoldCommandHandler`             | Escrow cancelled                 | Releases held funds (held → available)      | `FundsReleasedEvent`                |
+| **Wallet**          | `TransferHeldFundsCommandHandler`       | Escrow released                  | Transfers held funds to worker wallet       | `FundsTransferredEvent`             |
+| **Application**     | `SubmitApplicationCommandHandler`       | Worker applies to errand         | Creates application                         | `ApplicationSubmittedEvent`         |
+| **Application**     | `AcceptApplicationCommandHandler`       | Client accepts worker            | Accepts application (triggers saga)         | `ApplicationAcceptedEvent`          |
+| **Application**     | `RejectApplicationCommandHandler`       | Client rejects worker            | Rejects application                         | `ApplicationRejectedEvent`          |
+| **Application**     | `CancelApplicationCommandHandler`       | Worker cancels                   | Cancels application                         | `ApplicationCancelledEvent`         |
+| **Errands**         | `CreateErrandCommandHandler`            | Client creates errand            | Creates errand in DRAFT status              | `ErrandCreatedEvent`                |
+| **Errands**         | `PublishErrandCommandHandler`           | Client publishes draft           | Publishes errand (DRAFT → OPEN)             | `ErrandPublishedEvent`              |
+| **Errands**         | `AssignWorkerCommandHandler`            | Application accepted             | Assigns worker (OPEN → ASSIGNED)            | `ErrandAssignedEvent`               |
+| **Errands**         | `StartErrandCommandHandler`             | Worker starts                    | Starts errand (ASSIGNED → IN_PROGRESS)      | `ErrandStartedEvent`                |
+| **Errands**         | `CompleteErrandCommandHandler`          | Client/worker completes          | Completes errand (triggers escrow release)  | `ErrandCompletedEvent`              |
+| **Errands**         | `CancelErrandCommandHandler`            | Client cancels                   | Cancels errand (triggers escrow refund)     | `ErrandCancelledEvent`              |
+| **Users**           | `UpdateUserProfileCommandHandler`       | User updates profile             | Updates user profile                        | `UserProfileUpdatedEvent`           |
+| **Users**           | `AddAddressCommandHandler`              | User adds address                | Adds address to user                        | `AddressAddedEvent`                 |
+| **Users**           | `DeleteAddressCommandHandler`           | User deletes address             | Deletes address (cleans up activeAddressId) | `AddressDeletedEvent`               |
+| **Users**           | `SetActiveAddressCommandHandler`        | User sets active address         | Sets active address                         | `ActiveAddressChangedEvent`         |
+| **Users**           | `AddRoleCommandHandler`                 | Provider/Client created          | Adds role to user                           | `RoleAddedEvent`                    |
+| **Users**           | `SwitchRoleCommandHandler`              | User toggles role                | Switches active role                        | `ActiveRoleChangedEvent`            |
+| **Rating**          | `CreateRatingCommandHandler`            | Errand completed (rating prompt) | Creates rating                              | `RatingCreatedEvent`                |
+| **Rating**          | `AddRatingReactionCommandHandler`       | User reacts to rating            | Adds emoji reaction                         | `RatingReactionAddedEvent`          |
+| **Rating**          | `AddRatingReplyCommandHandler`          | Ratee replies                    | Adds reply to rating                        | `RatingRepliedEvent`                |
+| **Chat**            | `CreateChatRoomCommandHandler`          | Application submitted            | Creates chat room                           | `ChatRoomCreatedEvent`              |
+| **Chat**            | `SendMessageCommandHandler`             | User sends message               | Sends message in chat                       | `MessageSentEvent`                  |
+| **Chat**            | `MarkMessageAsReadCommandHandler`       | User reads message               | Marks message as read                       | `MessageReadEvent`                  |
+| **Provider**        | `CreateProviderCommandHandler`          | User registers as provider       | Creates provider profile                    | `ProviderCreatedEvent`              |
+| **Provider**        | `UpdateProviderProfileCommandHandler`   | Provider updates profile         | Updates bio/skills                          | `ProviderProfileUpdatedEvent`       |
+| **Provider**        | `VerifyProviderCommandHandler`          | Admin verifies                   | Verifies provider                           | `ProviderVerifiedEvent`             |
+| **Client**          | `CreateClientCommandHandler`            | User registers as client         | Creates client profile                      | `ClientCreatedEvent`                |
+| **Client**          | `VerifyClientCommandHandler`            | Admin verifies                   | Verifies client                             | `ClientVerifiedEvent`               |
+| **Address**         | `GetUserAddressesQueryHandler`          | User opens saved addresses       | Reads user address snapshots                | `AddressSuggestionsResolvedEvent`   |
+| **Auth**            | `HandleSignUpCompleteCommandHandler`    | Sign-up completion hook          | Bridges registration into typed events      | `UserRegisteredEvent`               |
+| **Auth**            | `HandleLoginSucceededCommandHandler`    | Login success hook               | Emits typed login event                     | `UserLoggedInEvent`                 |
+| **Dispute**         | `OpenDisputeCommandHandler`             | Client/worker opens dispute      | Creates dispute in pending state            | `DisputeOpenedEvent`                |
+| **Dispute**         | `ResolveDisputeCommandHandler`          | Admin resolution decision        | Accepts/rejects dispute                     | `DisputeResolvedEvent`              |
+| **Organization**    | `CreateOrganizationCommandHandler`      | Owner creates organization       | Creates organization aggregate              | `OrganizationCreatedEvent`          |
+| **Organization**    | `AddOrganizationMemberCommandHandler`   | Owner/admin adds member          | Adds member to organization                 | `MemberAddedToOrganizationEvent`    |
+| **Payment-Gateway** | `AddPaymentMethodCommandHandler`        | User adds card/payment method    | Verifies and saves payment method           | `PaymentMethodAddedEvent`           |
+| **Payment-Gateway** | `RemovePaymentMethodCommandHandler`     | User removes payment method      | Removes saved payment method                | `PaymentMethodRemovedEvent`         |
+| **Trusted-Circle**  | `AddToTrustedCircleCommandHandler`      | Client adds trusted provider     | Adds member to trusted circle               | `ProviderAddedToCircleEvent`        |
+| **Trusted-Circle**  | `RemoveFromTrustedCircleCommandHandler` | Client removes trusted provider  | Removes member from trusted circle          | `ProviderRemovedFromCircleEvent`    |
+| **Verification**    | `SendVerificationCodeCommandHandler`    | Verification requested           | Issues verification challenge               | `VerificationCodeSentEvent`         |
+| **Verification**    | `VerifyCodeCommandHandler`              | Verification response submitted  | Approves/rejects verification               | `ProviderVerificationApprovedEvent` |
+| **Notification**    | `SendNotificationCommandHandler`        | Domain event fan-out             | Sends multi-channel notifications           | `NotificationDispatchedEvent`       |
+| **Email**           | `QueueEmailCommandHandler`              | Email send request               | Queues provider email delivery              | `EmailQueuedEvent`                  |
+| **Push**            | `SendPushNotificationCommandHandler`    | Push send request                | Sends FCM notification                      | `PushNotificationSentEvent`         |
+| **PubSub**          | `BroadcastDomainEventCommandHandler`    | Domain event bridge              | Publishes payload to topic subscribers      | `PubSubMessagePublishedEvent`       |
+| **Presence**        | `UpdatePresenceCommandHandler`          | WebSocket connect/disconnect     | Updates user presence state                 | `PresenceChangedEvent`              |
+| **Queues**          | `EnqueueJobCommandHandler`              | Async side-effect request        | Queues background processing jobs           | `QueueJobEnqueuedEvent`             |
+| **Redis**           | `ReadThroughCacheQueryHandler`          | Cache-backed read                | Performs read-through cache strategy        | `CacheEntrySetEvent`                |
+| **Common**          | `RecordExceptionAuditHandler`           | Exception captured               | Persists normalized exception metadata      | `ExceptionMappedEvent`              |
+| **Config**          | `ValidateWsConnectionCommandHandler`    | GraphQL WS connection            | Validates WS auth/config policy             | `WsClientConnectedEvent`            |
+| **Firebase**        | `UploadFileCommandHandler`              | File upload request              | Stores file via adapter and tracks audit    | `FileUploadedEvent`                 |
+| **Service**         | `GetServicesByCategoryQueryHandler`     | Service catalog query            | Returns services filtered by category       | `ServiceCatalogRefreshedEvent`      |
+| **Utils**           | `AuditUtilityOwnershipCommandHandler`   | Utility audit run                | Flags domain leakage in shared utils        | `UtilityDomainLeakDetectedEvent`    |
 
 ### Domain Events (Critical Event Flows)
 

@@ -101,3 +101,69 @@ src/verification/
 2. **Move OTP to Verification** (extract `OtpCode` value object).
 3. **Audit Utils** — ensure no other domain logic leaked in.
 4. **Keep only technical utilities** in Utils (event emitter, date formatting, etc.).
+
+---
+
+## 12. Implementation Spec
+
+### Domain Layer
+
+```typescript
+/**
+ * Technical utility descriptor.
+ * // TODO: Utils has no dedicated Prisma model; all persisted fields belong to domain modules.
+ */
+class UtilityFunctionDescriptor {
+  constructor(
+    public readonly name: string,
+    public readonly ownerModule: "common" | "errands" | "verification" | "other",
+  );
+
+  /**
+   * Returns true when utility contains pure technical behavior and no business invariant.
+   */
+  isTechnicalOnly(): boolean;
+}
+```
+
+### Repository Interface
+
+```typescript
+/**
+ * Optional metadata source for utility ownership mapping.
+ */
+interface IUtilityOwnershipRepository {
+  /**
+   * Returns registered utility ownership entries.
+   */
+  listOwnership(): Promise<UtilityFunctionDescriptor[]>;
+}
+```
+
+### Application Layer
+
+```typescript
+/**
+ * Audits utilities for accidental domain leakage.
+ */
+class AuditUtilityOwnershipCommandHandler {
+  /**
+   * Identifies utility functions that should move into bounded contexts.
+   */
+  execute(): Promise<Array<{ utilityName: string; targetModule: string }>>;
+}
+```
+
+### Domain Events
+
+```typescript
+/**
+ * Emitted when utility-domain leakage is detected.
+ */
+class UtilityDomainLeakDetectedEvent {
+  constructor(
+    public readonly utilityName: string,
+    public readonly targetModule: string,
+  );
+}
+```

@@ -200,3 +200,135 @@ src/client/
 5. **Emit events**: `ProviderAddedToCircle`, `CircleShared`.
 6. **Add transaction** for circle creation + member creation (prevent duplicate circles).
 7. **Implement member approval flow** (if provider must approve being added to circle).
+
+---
+
+## 12. Implementation Spec
+
+### Domain Layer
+
+```typescript
+/**
+ * Trusted circle aggregate root.
+ * Maps to TrustedCircle fields: id, clientId, name, createdAt.
+ */
+class TrustedCircleAggregate {
+  constructor(
+    public readonly id: string,
+    public readonly clientId: string,
+    private name: string | null,
+    public readonly createdAt: Date,
+    private members: TrustedCircleMemberAggregate[],
+  );
+
+  /**
+   * Adds provider to circle if not already present.
+   * Writes TrustedCircleMember fields trustedCircleId, providerId, source, status.
+   */
+  addMember(providerId: string, source: CircleSource): void;
+
+  /**
+   * Removes provider from circle.
+   */
+  removeMember(providerId: string): void;
+}
+
+/**
+ * Circle member child entity mapped from TrustedCircleMember model.
+ */
+class TrustedCircleMemberAggregate {
+  constructor(
+    public readonly id: string,
+    public readonly trustedCircleId: string,
+    public readonly providerId: string,
+    public readonly addedAt: Date,
+    public readonly source: CircleSource,
+    public readonly status: TrustedCircleMemberStatus,
+  );
+}
+```
+
+### Repository Interface
+
+```typescript
+/**
+ * Persistence contract for trusted circles.
+ */
+interface ITrustedCircleRepository {
+  /**
+   * Finds circle by TrustedCircle.id.
+   */
+  findById(id: string): Promise<TrustedCircleAggregate | null>;
+
+  /**
+   * Finds circle owned by clientId.
+   */
+  findByClientId(clientId: string): Promise<TrustedCircleAggregate | null>;
+
+  /**
+   * Saves circle and member changes.
+   */
+  save(circle: TrustedCircleAggregate): Promise<void>;
+}
+```
+
+### Application Layer
+
+```typescript
+/**
+ * Adds provider into a client's trusted circle.
+ */
+class AddToTrustedCircleCommandHandler {
+  /**
+   * Mutates circle and emits ProviderAddedToCircleEvent.
+   */
+  execute(command: AddToTrustedCircleCommand): Promise<void>;
+}
+
+interface AddToTrustedCircleCommand {
+  clientId: string;
+  providerId: string;
+  source: CircleSource;
+}
+
+/**
+ * Removes provider from trusted circle.
+ */
+class RemoveFromTrustedCircleCommandHandler {
+  /**
+   * Mutates circle and emits ProviderRemovedFromCircleEvent.
+   */
+  execute(command: RemoveFromTrustedCircleCommand): Promise<void>;
+}
+
+interface RemoveFromTrustedCircleCommand {
+  clientId: string;
+  providerId: string;
+}
+```
+
+### Domain Events
+
+```typescript
+/**
+ * Emitted when provider is added to circle.
+ */
+class ProviderAddedToCircleEvent {
+  constructor(
+    public readonly trustedCircleId: string,
+    public readonly clientId: string,
+    public readonly providerId: string,
+  );
+}
+
+/**
+ * Emitted when provider is removed from circle.
+ */
+class ProviderRemovedFromCircleEvent {
+  constructor(
+    public readonly trustedCircleId: string,
+    public readonly clientId: string,
+    public readonly providerId: string,
+  );
+}
+```

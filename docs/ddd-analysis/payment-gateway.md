@@ -234,3 +234,147 @@ src/infrastructure/payment/  # OR src/common/payment/
 7. **Add card expiry validation** (prevent charging expired cards).
 8. **Encrypt authorization codes** at rest (PCI compliance).
 9. **Add DataLoader** for payment methods (prevent N+1 if needed).
+
+---
+
+## 12. Implementation Spec
+
+### Domain Layer
+
+```typescript
+/**
+ * Payment method aggregate.
+ * Maps to PaymentMethod fields: id, userId, provider, providerRef, type, cardBrand, last4, expMonth, expYear, isDefault, verified, createdAt.
+ */
+class PaymentMethodAggregate {
+  constructor(
+    public readonly id: string,
+    public readonly userId: string,
+    public readonly provider: string,
+    public readonly providerRef: string,
+    public readonly type: string,
+    public readonly cardBrand: string | null,
+    public readonly last4: string | null,
+    public readonly expMonth: number | null,
+    public readonly expYear: number | null,
+    private isDefault: boolean,
+    private verified: boolean,
+    public readonly createdAt: Date,
+  );
+
+  /**
+   * Marks this method as default for owner userId.
+   */
+  setDefault(): void;
+
+  /**
+   * Marks method as verified once authorization succeeds.
+   */
+  markVerified(): void;
+
+  /**
+   * Checks card expiry from expMonth and expYear.
+   */
+  isExpired(now: Date): boolean;
+}
+```
+
+### Repository Interface
+
+```typescript
+/**
+ * Persistence contract for payment methods and provider customer mapping.
+ */
+interface IPaymentMethodRepository {
+  /**
+   * Finds payment method by PaymentMethod.id.
+   */
+  findById(id: string): Promise<PaymentMethodAggregate | null>;
+
+  /**
+   * Finds methods by PaymentMethod.userId.
+   */
+  findByUserId(userId: string): Promise<PaymentMethodAggregate[]>;
+
+  /**
+   * Finds default method for user (isDefault = true).
+   */
+  findDefaultByUserId(userId: string): Promise<PaymentMethodAggregate | null>;
+
+  /**
+   * Persists PaymentMethod updates.
+   */
+  save(method: PaymentMethodAggregate): Promise<void>;
+
+  /**
+   * Saves/updates PaystackCustomer mapping (customer_code, customer_id, userId).
+   */
+  savePaystackCustomer(
+    customerCode: string,
+    customerId: string,
+    userId: string,
+  ): Promise<void>;
+}
+```
+
+### Application Layer
+
+```typescript
+/**
+ * Orchestrates card authorization verification and persistence.
+ */
+class AddPaymentMethodCommandHandler {
+  /**
+   * Verifies provider reference, saves method, enqueues refund compensation if needed.
+   */
+  execute(command: AddPaymentMethodCommand): Promise<string>;
+}
+
+interface AddPaymentMethodCommand {
+  userId: string;
+  provider: 'paystack';
+  authorizationCode: string;
+  setAsDefault?: boolean;
+}
+
+/**
+ * Removes payment method owned by user.
+ */
+class RemovePaymentMethodCommandHandler {
+  /**
+   * Deletes method and emits PaymentMethodRemovedEvent.
+   */
+  execute(command: RemovePaymentMethodCommand): Promise<void>;
+}
+
+interface RemovePaymentMethodCommand {
+  paymentMethodId: string;
+  userId: string;
+}
+```
+
+### Domain Events
+
+```typescript
+/**
+ * Emitted when payment method is successfully added and verified.
+ */
+class PaymentMethodAddedEvent {
+  constructor(
+    public readonly paymentMethodId: string,
+    public readonly userId: string,
+    public readonly provider: string,
+    public readonly isDefault: boolean,
+  );
+}
+
+/**
+ * Emitted when payment method is removed.
+ */
+class PaymentMethodRemovedEvent {
+  constructor(
+    public readonly paymentMethodId: string,
+    public readonly userId: string,
+  );
+}
+```

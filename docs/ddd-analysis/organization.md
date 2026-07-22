@@ -162,3 +162,146 @@ src/organization/
    - Introduce IOrganizationRepository and `PrismaOrganizationRepository`.
    - Create command handlers (CreateOrganization, AddMember, RemoveMember).
    - Emit events: `OrganizationCreated`, `MemberAddedToOrganization`.
+
+---
+
+## 12. Implementation Spec
+
+### Domain Layer
+
+```typescript
+/**
+ * Organization aggregate root.
+ * Maps to Organization fields: id, name, type, createdAt, ownerId.
+ */
+class OrganizationAggregate {
+  constructor(
+    public readonly id: string,
+    private name: string,
+    private type: OrgType,
+    public readonly createdAt: Date,
+    public readonly ownerId: string,
+    private members: OrgMemberAggregate[],
+  );
+
+  /**
+   * Adds member with role into organization.
+   * Writes OrgMember fields: id, orgId, userId, role, active.
+   */
+  addMember(userId: string, role: OrgRole): void;
+
+  /**
+   * Removes member from organization by userId.
+   */
+  removeMember(userId: string): void;
+
+  /**
+   * Deactivates member without deleting row by setting active = false.
+   */
+  deactivateMember(userId: string): void;
+}
+
+/**
+ * Child entity mapped from OrgMember model.
+ */
+class OrgMemberAggregate {
+  constructor(
+    public readonly id: string,
+    public readonly orgId: string,
+    public readonly userId: string,
+    public readonly role: OrgRole,
+    public readonly active: boolean,
+  );
+}
+```
+
+### Repository Interface
+
+```typescript
+/**
+ * Persistence contract for Organization aggregate.
+ */
+interface IOrganizationRepository {
+  /**
+   * Finds organization by Organization.id.
+   */
+  findById(id: string): Promise<OrganizationAggregate | null>;
+
+  /**
+   * Finds organizations by ownerId.
+   */
+  findByOwnerId(ownerId: string): Promise<OrganizationAggregate[]>;
+
+  /**
+   * Finds organization membership by OrgMember.userId.
+   */
+  findByMemberUserId(userId: string): Promise<OrganizationAggregate | null>;
+
+  /**
+   * Persists organization and member changes.
+   */
+  save(organization: OrganizationAggregate): Promise<void>;
+}
+```
+
+### Application Layer
+
+```typescript
+/**
+ * Creates a new organization and initial owner membership.
+ */
+class CreateOrganizationCommandHandler {
+  /**
+   * Creates Organization and emits OrganizationCreatedEvent.
+   */
+  execute(command: CreateOrganizationCommand): Promise<string>;
+}
+
+interface CreateOrganizationCommand {
+  name: string;
+  type: OrgType;
+  ownerUserId: string;
+}
+
+/**
+ * Adds a member to an existing organization.
+ */
+class AddOrganizationMemberCommandHandler {
+  /**
+   * Adds OrgMember row and emits MemberAddedToOrganizationEvent.
+   */
+  execute(command: AddOrganizationMemberCommand): Promise<void>;
+}
+
+interface AddOrganizationMemberCommand {
+  organizationId: string;
+  userId: string;
+  role: OrgRole;
+}
+```
+
+### Domain Events
+
+```typescript
+/**
+ * Emitted when organization is created.
+ */
+class OrganizationCreatedEvent {
+  constructor(
+    public readonly organizationId: string,
+    public readonly ownerId: string,
+    public readonly type: OrgType,
+  );
+}
+
+/**
+ * Emitted when user is added as an organization member.
+ */
+class MemberAddedToOrganizationEvent {
+  constructor(
+    public readonly organizationId: string,
+    public readonly userId: string,
+    public readonly role: OrgRole,
+  );
+}
+```

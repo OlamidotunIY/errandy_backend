@@ -146,3 +146,136 @@ src/dispute/
 4. **Emit events**: `DisputeOpened`, `DisputeResolved`.
 5. **Create DisputeResolutionSaga** (orchestrates escrow release/refund based on resolution).
 6. **Add admin panel** for dispute management (review evidence, make decisions).
+
+---
+
+## 12. Implementation Spec
+
+### Domain Layer
+
+```typescript
+/**
+ * Dispute aggregate for conflict resolution workflow.
+ * Maps to Dispute fields: id, errandId, clientId, workerId, status, reason, createdAt.
+ */
+class Dispute {
+  constructor(
+    public readonly id: string,
+    public readonly errandId: string,
+    public readonly clientId: string,
+    public readonly workerId: string,
+    private status: DisputeStatus,
+    public readonly reason: string,
+    public readonly createdAt: Date,
+  );
+
+  /**
+   * Opens a new dispute in PENDING status.
+   */
+  static open(errandId: string, clientId: string, workerId: string, reason: string): Dispute;
+
+  /**
+   * Accepts a dispute after review.
+   * Transition: PENDING -> ACCEPTED.
+   */
+  accept(): void;
+
+  /**
+   * Rejects a dispute after review.
+   * Transition: PENDING -> REJECTED.
+   */
+  reject(): void;
+}
+```
+
+### Repository Interface
+
+```typescript
+/**
+ * Persistence contract for Dispute aggregate.
+ */
+interface IDisputeRepository {
+  /**
+   * Reads dispute by Dispute.id.
+   */
+  findById(id: string): Promise<Dispute | null>;
+
+  /**
+   * Reads disputes by errandId.
+   */
+  findByErrandId(errandId: string): Promise<Dispute[]>;
+
+  /**
+   * Reads current open dispute for an errand if present.
+   */
+  findPendingByErrandId(errandId: string): Promise<Dispute | null>;
+
+  /**
+   * Saves status updates and reason metadata.
+   */
+  save(dispute: Dispute): Promise<void>;
+}
+```
+
+### Application Layer
+
+```typescript
+/**
+ * Opens a dispute for an errand participant.
+ */
+class OpenDisputeCommandHandler {
+  /**
+   * Creates dispute and emits DisputeOpenedEvent.
+   */
+  execute(command: OpenDisputeCommand): Promise<string>;
+}
+
+interface OpenDisputeCommand {
+  errandId: string;
+  openedByUserId: string;
+  reason: string;
+}
+
+/**
+ * Resolves a pending dispute by admin action.
+ */
+class ResolveDisputeCommandHandler {
+  /**
+   * Updates Dispute.status and emits DisputeResolvedEvent.
+   */
+  execute(command: ResolveDisputeCommand): Promise<void>;
+}
+
+interface ResolveDisputeCommand {
+  disputeId: string;
+  resolverUserId: string;
+  resolution: 'ACCEPTED' | 'REJECTED';
+}
+```
+
+### Domain Events
+
+```typescript
+/**
+ * Emitted when a dispute is opened.
+ */
+class DisputeOpenedEvent {
+  constructor(
+    public readonly disputeId: string,
+    public readonly errandId: string,
+    public readonly clientId: string,
+    public readonly workerId: string,
+  );
+}
+
+/**
+ * Emitted when a dispute is resolved.
+ */
+class DisputeResolvedEvent {
+  constructor(
+    public readonly disputeId: string,
+    public readonly errandId: string,
+    public readonly status: DisputeStatus,
+  );
+}
+```

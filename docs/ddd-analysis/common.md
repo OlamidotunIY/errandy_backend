@@ -87,3 +87,84 @@ src/common/
 1. **Audit Common directory** — move any domain logic to appropriate modules.
 2. **Standardize exception filters** (map domain exceptions to HTTP status codes).
 3. **Add logging** (exception filters should log errors for debugging).
+
+---
+
+## 12. Implementation Spec
+
+### Domain Layer
+
+```typescript
+/**
+ * Technical value object for normalized error envelopes returned by filters.
+ * // TODO: No dedicated Prisma model currently stores this envelope.
+ */
+class ErrorEnvelope {
+  constructor(
+    public readonly code: string,
+    public readonly message: string,
+    public readonly traceId: string | null,
+    public readonly occurredAt: Date,
+  );
+
+  /**
+   * Returns error payload shape that is consistent across HTTP and GraphQL adapters.
+   */
+  toResponseBody(): { code: string; message: string; traceId: string | null };
+}
+```
+
+### Repository Interface
+
+```typescript
+/**
+ * Optional repository for persisted exception audit entries.
+ * // TODO: Decide whether to map to WebhookEvent(id, eventId, provider, eventType, data, createdAt)
+ * // TODO: or introduce a dedicated ErrorAudit model.
+ */
+interface IErrorAuditRepository {
+  /**
+   * Persists a normalized error envelope for operational troubleshooting.
+   */
+  save(envelope: ErrorEnvelope): Promise<void>;
+}
+```
+
+### Application Layer
+
+```typescript
+/**
+ * Maps domain/application exceptions into transport-safe response payloads.
+ */
+class MapExceptionToEnvelopeHandler {
+  /**
+   * Creates ErrorEnvelope with stable error code and optional trace id.
+   */
+  execute(exception: unknown): ErrorEnvelope;
+}
+
+/**
+ * Records exception envelope for asynchronous monitoring.
+ */
+class RecordExceptionAuditHandler {
+  /**
+   * Persists envelope using IErrorAuditRepository when configured.
+   */
+  execute(envelope: ErrorEnvelope): Promise<void>;
+}
+```
+
+### Domain Events
+
+```typescript
+/**
+ * Emitted when transport layer catches and normalizes an exception.
+ */
+class ExceptionMappedEvent {
+  constructor(
+    public readonly code: string,
+    public readonly traceId: string | null,
+    public readonly occurredAt: Date,
+  );
+}
+```

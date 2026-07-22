@@ -182,3 +182,142 @@ src/auth/
 3. **Move auth guards/decorators** to `src/common/auth/` if not domain-specific.
 4. **Add event persistence**: Replace NestJS EventEmitter with BullMQ for `user.created` events (allows retry on listener failure).
 5. **Document better-auth integration** (how sign-up/login flows work, where hooks are configured).
+
+---
+
+## 12. Implementation Spec
+
+### Domain Layer
+
+```typescript
+/**
+ * Auth identity snapshot used by the application layer.
+ * Backed by User fields: id, email, phoneNumber, emailVerified, phoneNumberVerified, createdAt.
+ */
+class AuthIdentity {
+  constructor(
+    public readonly id: string,
+    public readonly email: string | null,
+    public readonly phoneNumber: string | null,
+    public readonly emailVerified: boolean,
+    public readonly phoneNumberVerified: boolean | null,
+    public readonly createdAt: Date,
+  );
+
+  /**
+   * Returns whether at least one login identifier exists.
+   */
+  hasLoginIdentifier(): boolean;
+}
+
+/**
+ * Session snapshot mapped from Session fields: id, token, expiresAt, userId.
+ */
+class AuthSession {
+  constructor(
+    public readonly id: string,
+    public readonly token: string,
+    public readonly expiresAt: Date,
+    public readonly userId: string,
+  );
+
+  /**
+   * Returns true when session is expired at read time.
+   */
+  isExpired(now: Date): boolean;
+}
+```
+
+### Repository Interface
+
+```typescript
+/**
+ * Repository contract for auth-adjacent persisted records.
+ */
+interface IAuthRepository {
+  /**
+   * Reads auth identity by User.id.
+   */
+  findIdentityByUserId(userId: string): Promise<AuthIdentity | null>;
+
+  /**
+   * Reads auth identity by User.email (unique).
+   */
+  findIdentityByEmail(email: string): Promise<AuthIdentity | null>;
+
+  /**
+   * Reads active session by Session.token.
+   */
+  findSessionByToken(token: string): Promise<AuthSession | null>;
+
+  /**
+   * Creates/updates Verification row with identifier, value, expiresAt.
+   */
+  saveVerification(
+    identifier: string,
+    value: string,
+    expiresAt: Date,
+  ): Promise<void>;
+}
+```
+
+### Application Layer
+
+```typescript
+/**
+ * Handles post-registration bridge from better-auth into internal event pipeline.
+ */
+class HandleSignUpCompleteCommandHandler {
+  /**
+   * Loads user by id/email, validates identity existence, then emits UserRegisteredEvent.
+   */
+  execute(command: HandleSignUpCompleteCommand): Promise<void>;
+}
+
+interface HandleSignUpCompleteCommand {
+  userId?: string;
+  email?: string;
+}
+
+/**
+ * Handles successful login hook and emits typed login event.
+ */
+class HandleLoginSucceededCommandHandler {
+  /**
+   * Emits UserLoggedInEvent with userId and Session.id for auditing.
+   */
+  execute(command: HandleLoginSucceededCommand): Promise<void>;
+}
+
+interface HandleLoginSucceededCommand {
+  userId: string;
+  sessionId: string;
+}
+```
+
+### Domain Events
+
+```typescript
+/**
+ * Emitted after user registration completes.
+ */
+class UserRegisteredEvent {
+  constructor(
+    public readonly userId: string,
+    public readonly email: string | null,
+    public readonly phoneNumber: string | null,
+    public readonly createdAt: Date,
+  );
+}
+
+/**
+ * Emitted after successful login session creation.
+ */
+class UserLoggedInEvent {
+  constructor(
+    public readonly userId: string,
+    public readonly sessionId: string,
+    public readonly occurredAt: Date,
+  );
+}
+```

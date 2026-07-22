@@ -187,3 +187,96 @@ src/common/notification/  # OR src/infrastructure/notification/
 5. **Add notification history** (optional: store sent notifications for audit trail).
 6. **Add preference management** (optional: user can opt out of certain notifications).
 7. **Move to `common/` or `infrastructure/`** (rename from `notification/` to clarify it's not a domain module).
+
+---
+
+## 12. Implementation Spec
+
+### Domain Layer
+
+```typescript
+/**
+ * Notification request value object used for channel orchestration.
+ * References User fields: id, email, phoneNumber, activeRole for recipient targeting.
+ */
+class NotificationRequest {
+  constructor(
+    public readonly recipientUserId: string,
+    public readonly channels: Array<"EMAIL" | "PUSH">,
+    public readonly templateKey: string,
+    public readonly payload: Record<string, unknown>,
+  );
+
+  /**
+   * Ensures at least one channel exists and template key is present.
+   */
+  validate(): void;
+}
+```
+
+### Repository Interface
+
+```typescript
+/**
+ * Optional history persistence contract for notification delivery.
+ * // TODO: No Notification Prisma model currently exists.
+ */
+interface INotificationHistoryRepository {
+  /**
+   * Stores dispatched notification metadata.
+   */
+  save(entry: {
+    recipientUserId: string;
+    templateKey: string;
+    channels: Array<'EMAIL' | 'PUSH'>;
+    sentAt: Date;
+  }): Promise<void>;
+}
+```
+
+### Application Layer
+
+```typescript
+/**
+ * Sends multi-channel notifications through underlying adapters.
+ */
+class SendNotificationCommandHandler {
+  /**
+   * Routes request to channel adapters and emits NotificationDispatchedEvent.
+   */
+  execute(command: SendNotificationCommand): Promise<void>;
+}
+
+interface SendNotificationCommand {
+  recipientUserId: string;
+  templateKey: string;
+  payload: Record<string, unknown>;
+  channels: Array<'EMAIL' | 'PUSH'>;
+}
+```
+
+### Domain Events
+
+```typescript
+/**
+ * Emitted when notification fan-out starts.
+ */
+class NotificationDispatchRequestedEvent {
+  constructor(
+    public readonly recipientUserId: string,
+    public readonly channels: Array<"EMAIL" | "PUSH">,
+    public readonly templateKey: string,
+  );
+}
+
+/**
+ * Emitted after channel delivery attempts complete.
+ */
+class NotificationDispatchedEvent {
+  constructor(
+    public readonly recipientUserId: string,
+    public readonly templateKey: string,
+    public readonly successfulChannels: Array<"EMAIL" | "PUSH">,
+  );
+}
+```

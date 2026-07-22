@@ -179,3 +179,138 @@ src/users/
 5. **Add retry logic** for Google Places API calls (3x with exponential backoff).
 6. **Add coordinate validation** (latitude/longitude ranges).
 7. **Add DataLoader** for user addresses (prevent N+1 if needed).
+
+---
+
+## 12. Implementation Spec
+
+### Domain Layer
+
+```typescript
+/**
+ * Value object representing a user address consumed by Users and Errands contexts.
+ * Maps to schema fields on UserAddress: id, userId, label, address, location, createdAt, updatedAt.
+ */
+class UserAddressSnapshot {
+  constructor(
+    public readonly id: string,
+    public readonly userId: string,
+    public readonly label: string,
+    public readonly address: string,
+    public readonly location: { type: "Point"; coordinates: [number, number] },
+    public readonly createdAt: Date,
+    public readonly updatedAt: Date,
+  );
+
+  /**
+   * Validates coordinate boundaries before issuing geocoding lookups.
+   * Latitude must be in [-90, 90], longitude in [-180, 180].
+   */
+  validateCoordinates(): void;
+}
+
+/**
+ * Port for external geocoding providers.
+ */
+interface IGeocodingService {
+  /**
+   * Resolves free-text input to candidate addresses.
+   */
+  suggestAddresses(input: string): Promise<Array<{ placeId: string; description: string }>>;
+
+  /**
+   * Resolves coordinates to a formatted address.
+   */
+  reverseGeocode(lat: number, lng: number): Promise<{ formattedAddress: string; placeId?: string }>;
+
+  /**
+   * Resolves provider-specific place id to full address details.
+   */
+  getPlaceDetails(placeId: string): Promise<{ formattedAddress: string; location: { type: "Point"; coordinates: [number, number] } }>;
+}
+```
+
+### Repository Interface
+
+```typescript
+/**
+ * Read/write contract for persisted user addresses (UserAddress model).
+ */
+interface IUserAddressRepository {
+  /**
+   * Returns all addresses owned by a user, ordered by createdAt descending.
+   */
+  findByUserId(userId: string): Promise<UserAddressSnapshot[]>;
+
+  /**
+   * Finds one address by UserAddress.id.
+   */
+  findById(id: string): Promise<UserAddressSnapshot | null>;
+
+  /**
+   * Persists address updates for fields label, address, location, and updatedAt.
+   */
+  save(address: UserAddressSnapshot): Promise<void>;
+}
+```
+
+### Application Layer
+
+```typescript
+/**
+ * Query handler for geocoding autocomplete requests.
+ */
+class SuggestAddressesQueryHandler {
+  /**
+   * @param query Contains partial address input
+   * @returns Place suggestions for UI autocomplete
+   */
+  execute(
+    query: SuggestAddressesQuery,
+  ): Promise<Array<{ placeId: string; description: string }>>;
+}
+
+interface SuggestAddressesQuery {
+  input: string;
+}
+
+/**
+ * Query handler for a user's saved addresses.
+ */
+class GetUserAddressesQueryHandler {
+  /**
+   * Reads UserAddress records by userId and returns normalized snapshots.
+   */
+  execute(query: GetUserAddressesQuery): Promise<UserAddressSnapshot[]>;
+}
+
+interface GetUserAddressesQuery {
+  userId: string;
+}
+```
+
+### Domain Events
+
+```typescript
+/**
+ * Emitted when autocomplete suggestions are returned from geocoding adapter.
+ */
+class AddressSuggestionsResolvedEvent {
+  constructor(
+    public readonly userId: string | null,
+    public readonly input: string,
+    public readonly suggestionCount: number,
+  );
+}
+
+/**
+ * Emitted when reverse geocoding resolves a coordinate pair.
+ */
+class ReverseGeocodeResolvedEvent {
+  constructor(
+    public readonly lat: number,
+    public readonly lng: number,
+    public readonly formattedAddress: string,
+  );
+}
+```

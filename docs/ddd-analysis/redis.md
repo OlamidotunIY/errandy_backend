@@ -94,3 +94,92 @@ src/infrastructure/redis/  # OR src/common/redis/
 2. **Add caching layer** (Service catalog, Provider ratings, Errand search).
 3. **Add rate limiting** (API requests per user/IP).
 4. **Add logging** (Redis connection events).
+
+---
+
+## 12. Implementation Spec
+
+### Domain Layer
+
+```typescript
+/**
+ * Cache entry value object.
+ * // TODO: Redis cache is transient and not represented by Prisma model fields.
+ */
+class CacheEntry {
+  constructor(
+    public readonly key: string,
+    public readonly value: string,
+    public readonly ttlSeconds: number,
+  );
+
+  /**
+   * Validates key and TTL constraints.
+   */
+  validate(): void;
+}
+```
+
+### Repository Interface
+
+```typescript
+/**
+ * Redis-backed cache contract.
+ */
+interface IRedisCacheRepository {
+  /**
+   * Reads cached value by key.
+   */
+  get(key: string): Promise<string | null>;
+
+  /**
+   * Writes cache value with expiration.
+   */
+  set(entry: CacheEntry): Promise<void>;
+
+  /**
+   * Deletes value by key.
+   */
+  delete(key: string): Promise<void>;
+}
+```
+
+### Application Layer
+
+```typescript
+/**
+ * Handles cache-aside reads.
+ */
+class ReadThroughCacheQueryHandler {
+  /**
+   * Returns cached value if found, else invokes loader and caches result.
+   */
+  execute(query: ReadThroughCacheQuery): Promise<string>;
+}
+
+interface ReadThroughCacheQuery {
+  key: string;
+  ttlSeconds: number;
+}
+```
+
+### Domain Events
+
+```typescript
+/**
+ * Emitted when cache entry is written.
+ */
+class CacheEntrySetEvent {
+  constructor(
+    public readonly key: string,
+    public readonly ttlSeconds: number,
+  );
+}
+
+/**
+ * Emitted when cache miss occurs.
+ */
+class CacheMissedEvent {
+  constructor(public readonly key: string);
+}
+```

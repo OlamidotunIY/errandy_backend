@@ -123,3 +123,91 @@ src/infrastructure/pubsub/  # OR src/common/pubsub/
    - Event handlers listen to domain events and publish to PubSub.
 4. **Add logging** (published events for debugging).
 5. **Add error handling** (fallback if Redis is down — log error, don't throw).
+
+---
+
+## 12. Implementation Spec
+
+### Domain Layer
+
+```typescript
+/**
+ * PubSub message envelope for cross-module broadcasts.
+ * // TODO: No dedicated Prisma model exists for transient pubsub payloads.
+ */
+class PubSubMessage {
+  constructor(
+    public readonly topic: string,
+    public readonly payload: Record<string, unknown>,
+    public readonly correlationId: string | null,
+  );
+
+  /**
+   * Validates topic naming convention and payload presence.
+   */
+  validate(): void;
+}
+
+/**
+ * Port for publish/subscribe broker operations.
+ */
+interface IPubSubService {
+  /**
+   * Publishes message to topic.
+   */
+  publish(message: PubSubMessage): Promise<void>;
+}
+```
+
+### Repository Interface
+
+```typescript
+/**
+ * Optional persistence contract for pubsub delivery telemetry.
+ * // TODO: Decide whether to persist broker publish audit into WebhookEvent.
+ */
+interface IPubSubAuditRepository {
+  /**
+   * Stores metadata for attempted publish operations.
+   */
+  savePublishAudit(
+    topic: string,
+    success: boolean,
+    occurredAt: Date,
+  ): Promise<void>;
+}
+```
+
+### Application Layer
+
+```typescript
+/**
+ * Publishes domain events to websocket topic channels.
+ */
+class BroadcastDomainEventCommandHandler {
+  /**
+   * Translates incoming domain event payload into PubSubMessage and publishes.
+   */
+  execute(command: BroadcastDomainEventCommand): Promise<void>;
+}
+
+interface BroadcastDomainEventCommand {
+  topic: string;
+  payload: Record<string, unknown>;
+  correlationId?: string;
+}
+```
+
+### Domain Events
+
+```typescript
+/**
+ * Emitted when pubsub publish succeeds.
+ */
+class PubSubMessagePublishedEvent {
+  constructor(
+    public readonly topic: string,
+    public readonly correlationId: string | null,
+  );
+}
+```

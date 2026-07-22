@@ -134,3 +134,133 @@ src/verification/
 3. **Introduce IVerificationRepository** and `PrismaVerificationRepository`.
 4. **Emit events**: `PhoneVerified`, `EmailVerified`.
 5. **Integrate with Users module** (update `phoneVerified`, `emailVerified` flags).
+
+---
+
+## 12. Implementation Spec
+
+### Domain Layer
+
+```typescript
+/**
+ * Verification aggregate for provider verification lifecycle.
+ * Maps to ProviderVerification fields: id, identifier, value, providerId, type, status, metadata, verifiedAt, expiresAt, createdAt.
+ */
+class ProviderVerificationAggregate {
+  constructor(
+    public readonly id: string,
+    public readonly identifier: string,
+    private value: string,
+    public readonly providerId: string,
+    private type: VerificationType,
+    private status: VerificationStatus,
+    private metadata: Record<string, unknown> | null,
+    private verifiedAt: Date | null,
+    private expiresAt: Date | null,
+    public readonly createdAt: Date,
+  );
+
+  /**
+   * Verifies submitted code/value and transitions status to APPROVED.
+   */
+  approve(verifiedAt: Date): void;
+
+  /**
+   * Rejects verification and transitions status to REJECTED.
+   */
+  reject(): void;
+
+  /**
+   * Marks verification as expired.
+   */
+  expire(expiredAt: Date): void;
+}
+```
+
+### Repository Interface
+
+```typescript
+/**
+ * Persistence contract for ProviderVerification lifecycle.
+ */
+interface IVerificationRepository {
+  /**
+   * Finds verification by ProviderVerification.id.
+   */
+  findById(id: string): Promise<ProviderVerificationAggregate | null>;
+
+  /**
+   * Finds verification by providerId and type.
+   */
+  findByProviderAndType(
+    providerId: string,
+    type: VerificationType,
+  ): Promise<ProviderVerificationAggregate | null>;
+
+  /**
+   * Saves verification status changes.
+   */
+  save(verification: ProviderVerificationAggregate): Promise<void>;
+}
+```
+
+### Application Layer
+
+```typescript
+/**
+ * Sends verification challenge or code to selected channel/provider.
+ */
+class SendVerificationCodeCommandHandler {
+  /**
+   * Creates or refreshes pending verification entry and emits VerificationCodeSentEvent.
+   */
+  execute(command: SendVerificationCodeCommand): Promise<string>;
+}
+
+interface SendVerificationCodeCommand {
+  providerId: string;
+  type: VerificationType;
+  identifier: string;
+}
+
+/**
+ * Verifies submitted challenge response.
+ */
+class VerifyCodeCommandHandler {
+  /**
+   * Validates verification value and updates status.
+   */
+  execute(command: VerifyCodeCommand): Promise<void>;
+}
+
+interface VerifyCodeCommand {
+  verificationId: string;
+  submittedValue: string;
+}
+```
+
+### Domain Events
+
+```typescript
+/**
+ * Emitted when verification challenge is sent.
+ */
+class VerificationCodeSentEvent {
+  constructor(
+    public readonly verificationId: string,
+    public readonly providerId: string,
+    public readonly type: VerificationType,
+  );
+}
+
+/**
+ * Emitted when verification is approved.
+ */
+class ProviderVerificationApprovedEvent {
+  constructor(
+    public readonly verificationId: string,
+    public readonly providerId: string,
+    public readonly type: VerificationType,
+  );
+}
+```

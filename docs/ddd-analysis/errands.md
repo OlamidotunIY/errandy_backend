@@ -513,3 +513,184 @@ class Errand {
 
   /**\n   * Updates errand details (title, description, location, pricing, dates).\n   * Can only update DRAFT errands freely. OPEN errands have restrictions.\n   * @param updates Partial errand updates\n   * @throws InvalidStatusForUpdateError when trying to update non-DRAFT/OPEN errand\n   * @emits ErrandUpdatedEvent\n   */\n  update(updates: Partial<ErrandUpdates>): void;\n\n  /**\n   * Publishes errand (DRAFT → OPEN).\n   * Requires location and pricing to be complete.\n   * @throws IncompleteErrandError when location or pricing missing\n   * @throws InvalidStatusTransitionError when status is not DRAFT\n   * @emits ErrandPublishedEvent\n   */\n  publish(): void;\n\n  /**\n   * Assigns worker to errand (OPEN → ASSIGNED).\n   * Called when application is accepted.\n   * @param workerId Worker ID being assigned\n   * @throws InvalidStatusTransitionError when status is not OPEN\n   * @throws WorkerAlreadyAssignedError when errand already has assignedTo\n   * @emits ErrandAssignedEvent\n   */\n  assignWorker(workerId: string): void;\n\n  /**\n   * Starts errand work (ASSIGNED → IN_PROGRESS).\n   * Worker indicates they've started the job.\n   * @throws InvalidStatusTransitionError when status is not ASSIGNED\n   * @emits ErrandStartedEvent\n   */\n  start(): void;\n\n  /**\n   * Marks errand as complete (IN_PROGRESS → COMPLETED).\n   * Triggers escrow release.\n   * @throws InvalidStatusTransitionError when status is not IN_PROGRESS\n   * @emits ErrandCompletedEvent\n   */\n  complete(): void;\n\n  /**\n   * Cancels errand (any status → CANCELLED).\n   * Can be cancelled by client before IN_PROGRESS.\n   * @param reason Optional cancellation reason\n   * @throws CannotCancelCompletedErrandError when status is COMPLETED\n   * @emits ErrandCancelledEvent\n   */\n  cancel(reason?: string): void;\n\n  /**\n   * Checks if errand can receive applications.\n   * Only OPEN errands with sourceType != DIRECT/RECURRING_CONTRACT/LISTING_HIRE.\n   */\n  canAcceptApplications(): boolean;\n\n  /**\n   * Adds attachment (image/document).\n   * @param url Attachment URL (Firebase Storage)\n   * @param type Attachment type (IMAGE, DOCUMENT)\n   */\n  addAttachment(url: string, type: AttachmentType): void;\n\n  /**\n   * Returns current status.\n   */\n  getStatus(): ErrandStatus;\n\n  /**\n   * Returns location.\n   */\n  getLocation(): Location;\n\n  /**\n   * Returns pricing.\n   */\n  getPricing(): Pricing;\n}\n\n/**\n * Location value object encapsulating geospatial data and address.\n * Immutable - all updates return new Location instances.\n */\nclass Location {\n  /**\n   * @param geoPoint GeoJSON point (from schema: location Json with type/coordinates)\n   * @param address Human-readable address (from schema: serviceAddress String)\n   * @param placeId Optional Google Places ID for validation\n   * @throws InvalidLocationError when geoPoint coordinates are invalid\n   */\n  constructor(\n    public readonly geoPoint: GeoPoint,\n    public readonly address: string,\n    public readonly placeId?: string,\n  );\n\n  /**\n   * Calculates distance to another location in kilometers.\n   * Uses haversine formula.\n   * @param other Target location\n   * @returns Distance in kilometers\n   */\n  distanceTo(other: Location): number;\n\n  /**\n   * Checks if location is within radius of another location.\n   * @param center Center location\n   * @param radiusKm Radius in kilometers\n   */\n  isWithinRadius(center: Location, radiusKm: number): boolean;\n\n  /**\n   * Returns MongoDB GeoJSON representation for $geoNear queries.\n   */\n  toGeoJSON(): { type: 'Point'; coordinates: [number, number] };\n}\n\n/**\n * GeoJSON Point structure.\n */\ninterface GeoPoint {\n  type: 'Point';\n  coordinates: [number, number]; // [longitude, latitude]\n}\n\n/**\n * Pricing value object encapsulating all cost components.\n * Immutable.\n */\nclass Pricing {\n  /**\n   * @param price Fixed price in kobo (from schema: price Int?)\n   * @param hourlyRate Hourly rate in kobo (from schema: hourlyRate Int?)\n   * @param transportAllowance Transport cost in kobo (from schema: transportAllowance Int?)\n   * @param materialsBudget Materials budget in kobo (from schema: materialsBudget Int?)\n   * @throws IncompletePricingError when both price and hourlyRate are null\n   */\n  constructor(\n    public readonly price: number | null,\n    public readonly hourlyRate: number | null,\n    public readonly transportAllowance: number,\n    public readonly materialsBudget: number,\n  );\n\n  /**\n   * Calculates total estimated cost.\n   * If hourlyRate is set, assumes minimum 1 hour.\n   * @returns Total cost in kobo (price/hourlyRate + transport + materials)\n   */\n  calculateTotal(): number;\n\n  /**\n   * Checks if pricing is complete (has price OR hourlyRate).\n   */\n  isComplete(): boolean;\n\n  /**\n   * Formats as Naira string (e.g., \"₦1,500.00\").\n   */\n  toNairaString(): string;\n}\n\n/**\n * Errand attachment entity (child of Errand).\n * Immutable once created.\n */\nclass ErrandAttachment {\n  constructor(\n    public readonly id: string,\n    public readonly errandId: string,\n    public readonly url: string,\n    public readonly type: AttachmentType,\n    public readonly createdAt: Date,\n  );\n}\n\ninterface ErrandUpdates {\n  title?: string;\n  description?: string;\n  location?: Location;\n  pricing?: Pricing;\n  startDate?: Date;\n  endDate?: Date;\n}\n\n/** Thrown when trying to publish errand without complete location/pricing. */\nclass IncompleteErrandError extends Error {}\n\n/** Thrown when invalid status transition attempted. */\nclass InvalidStatusTransitionError extends Error {}\n\n/** Thrown when trying to cancel completed errand. */\nclass CannotCancelCompletedErrandError extends Error {}\n\n/** Thrown when trying to update errand in invalid status. */\nclass InvalidStatusForUpdateError extends Error {}\n\n/** Thrown when worker already assigned. */\nclass WorkerAlreadyAssignedError extends Error {}\n\n/** Thrown when location coordinates invalid. */\nclass InvalidLocationError extends Error {}\n\n/** Thrown when pricing incomplete. */\nclass IncompletePricingError extends Error {}\n```\n\n### Repository Interface\n\n```typescript\n/**\n * Persistence contract for Errand aggregate.\n */\ninterface IErrandRepository {\n  /**\n   * Finds errand by unique ID.\n   * @param id Errand ID\n   * @returns Errand aggregate or null if not found\n   */\n  findById(id: string): Promise<Errand | null>;\n\n  /**\n   * Finds all errands posted by client.\n   * @param clientId Client ID\n   * @param status Optional filter by status\n   * @returns Array of Errand aggregates\n   */\n  findByClient(\n    clientId: string,\n    status?: ErrandStatus,\n  ): Promise<Errand[]>;\n\n  /**\n   * Finds errands assigned to worker.\n   * @param workerId Worker ID\n   * @param status Optional filter by status\n   * @returns Array of Errand aggregates\n   */\n  findByWorker(\n    workerId: string,\n    status?: ErrandStatus,\n  ): Promise<Errand[]>;\n\n  /**\n   * Geospatial query: Find errands near location.\n   * Uses MongoDB $geoNear aggregation.\n   * @param location Center point\n   * @param radiusKm Search radius in kilometers\n   * @param filters Optional filters (status, serviceId, etc.)\n   * @param limit Max results\n   * @returns Errands sorted by distance (nearest first)\n   */\n  findNearby(\n    location: Location,\n    radiusKm: number,\n    filters?: ErrandQueryFilters,\n    limit?: number,\n  ): Promise<Array<{ errand: Errand; distanceKm: number }>>;\n\n  /**\n   * Personalized feed query for worker.\n   * Combines geospatial proximity + skill matching + priority scoring.\n   * @param workerId Worker ID\n   * @param location Worker's location\n   * @param limit Max results\n   * @returns Prioritized errands with match score\n   */\n  findFeedErrands(\n    workerId: string,\n    location: Location,\n    limit?: number,\n  ): Promise<Array<{ errand: Errand; matchScore: number }>>;\n\n  /**\n   * Persists errand aggregate.\n   * @param errand Errand to save\n   */\n  save(errand: Errand): Promise<void>;\n\n  /**\n   * Deletes errand (soft delete - sets deletedAt).\n   * @param id Errand ID\n   */\n  delete(id: string): Promise<void>;\n}\n\ninterface ErrandQueryFilters {\n  status?: ErrandStatus;\n  serviceId?: string;\n  sourceType?: ErrandSourceType;\n  minPrice?: number; // kobo\n  maxPrice?: number; // kobo\n}\n```\n\n### Application Layer\n\n```typescript\n/**\n * Creates new errand in DRAFT status.\n */\nclass CreateErrandCommandHandler {\n  /**\n   * @param command Errand creation details\n   * @throws ClientNotFoundException when client doesn't exist\n   * @throws InvalidServiceIdError when service doesn't exist\n   * @emits ErrandCreatedEvent\n   * @returns Errand ID\n   */\n  execute(command: CreateErrandCommand): Promise<string>;\n}\n\ninterface CreateErrandCommand {\n  clientId: string;\n  serviceId: string;\n  title: string;\n  description: string;\n  sourceType: ErrandSourceType;\n  providerId?: string; // for DIRECT errands\n  location?: { address: string; coordinates: [number, number] };\n  pricing?: { price?: number; hourlyRate?: number; transportAllowance?: number; materialsBudget?: number };\n  startDate?: Date;\n  endDate?: Date;\n}\n\n/**\n * Updates errand details.\n */\nclass UpdateErrandCommandHandler {\n  /**\n   * @param command Update details\n   * @throws ErrandNotFoundException when errand doesn't exist\n   * @throws UnauthorizedException when updatedBy is not errand client\n   * @throws InvalidStatusForUpdateError when errand status doesn't allow updates\n   * @emits ErrandUpdatedEvent\n   */\n  execute(command: UpdateErrandCommand): Promise<void>;\n}\n\ninterface UpdateErrandCommand {\n  errandId: string;\n  updatedBy: string; // must match errand.clientId\n  updates: Partial<ErrandUpdates>;\n}\n\n/**\n * Publishes errand (DRAFT → OPEN).\n */\nclass PublishErrandCommandHandler {\n  /**\n   * @param command Publication details\n   * @throws ErrandNotFoundException when errand doesn't exist\n   * @throws UnauthorizedException when publishedBy is not errand client\n   * @throws IncompleteErrandError when location or pricing incomplete\n   * @throws InvalidStatusTransitionError when status is not DRAFT\n   * @emits ErrandPublishedEvent\n   */\n  execute(command: PublishErrandCommand): Promise<void>;\n}\n\ninterface PublishErrandCommand {\n  errandId: string;\n  publishedBy: string; // client ID\n}\n\n/**\n * Assigns worker to errand (called by AcceptApplicationSaga).\n */\nclass AssignWorkerCommandHandler {\n  /**\n   * @param command Assignment details\n   * @throws ErrandNotFoundException when errand doesn't exist\n   * @throws InvalidStatusTransitionError when status is not OPEN\n   * @throws WorkerAlreadyAssignedError when errand already assigned\n   * @emits ErrandAssignedEvent\n   */\n  execute(command: AssignWorkerCommand): Promise<void>;\n}\n\ninterface AssignWorkerCommand {\n  errandId: string;\n  workerId: string;\n}\n\n/**\n * Starts errand work (ASSIGNED → IN_PROGRESS).\n */\nclass StartErrandCommandHandler {\n  /**\n   * @param command Start details\n   * @throws ErrandNotFoundException when errand doesn't exist\n   * @throws UnauthorizedException when startedBy is not assigned worker\n   * @throws InvalidStatusTransitionError when status is not ASSIGNED\n   * @emits ErrandStartedEvent\n   */\n  execute(command: StartErrandCommand): Promise<void>;\n}\n\ninterface StartErrandCommand {\n  errandId: string;\n  startedBy: string; // worker ID\n}\n\n/**\n * Completes errand (IN_PROGRESS → COMPLETED).\n */\nclass CompleteErrandCommandHandler {\n  /**\n   * @param command Completion details\n   * @throws ErrandNotFoundException when errand doesn't exist\n   * @throws UnauthorizedException when completedBy is not client or worker\n   * @throws InvalidStatusTransitionError when status is not IN_PROGRESS\n   * @emits ErrandCompletedEvent (triggers escrow release)\n   */\n  execute(command: CompleteErrandCommand): Promise<void>;\n}\n\ninterface CompleteErrandCommand {\n  errandId: string;\n  completedBy: string; // client or worker ID\n}\n\n/**\n * Cancels errand.\n */\nclass CancelErrandCommandHandler {\n  /**\n   * @param command Cancellation details\n   * @throws ErrandNotFoundException when errand doesn't exist\n   * @throws UnauthorizedException when cancelledBy is not client\n   * @throws CannotCancelCompletedErrandError when status is COMPLETED\n   * @emits ErrandCancelledEvent (triggers escrow refund if status was IN_PROGRESS)\n   */\n  execute(command: CancelErrandCommand): Promise<void>;\n}\n\ninterface CancelErrandCommand {\n  errandId: string;\n  cancelledBy: string; // client ID\n  reason?: string;\n}\n\n/**\n * Query handler: Get personalized feed of errands for worker.\n * Uses geospatial + skill matching.\n */\nclass GetFeedErrandsQueryHandler {\n  /**\n   * @param query Worker ID and location\n   * @returns Prioritized errands sorted by match score\n   */\n  execute(query: GetFeedErrandsQuery): Promise<ErrandFeedDTO[]>;\n}\n\ninterface GetFeedErrandsQuery {\n  workerId: string;\n  location: { coordinates: [number, number] };\n  radiusKm: number;\n  limit: number;\n}\n\n/**\n * Query handler: Get errand by ID.\n */\nclass GetErrandQueryHandler {\n  /**\n   * @param query Errand ID\n   * @returns Errand details\n   * @throws ErrandNotFoundException when not found\n   */\n  execute(query: GetErrandQuery): Promise<ErrandDTO>;\n}\n\ninterface GetErrandQuery {\n  errandId: string;\n}\n\ninterface ErrandDTO {\n  id: string;\n  clientId: string;\n  serviceId: string;\n  title: string;\n  description: string;\n  status: ErrandStatus;\n  sourceType: ErrandSourceType;\n  location: { address: string; coordinates: [number, number] };\n  pricing: { price?: number; hourlyRate?: number; transportAllowance: number; materialsBudget: number; total: number };\n  assignedTo: string | null;\n  startDate: Date | null;\n  endDate: Date | null;\n  createdAt: Date;\n  updatedAt: Date;\n}\n\ninterface ErrandFeedDTO extends ErrandDTO {\n  distanceKm: number;\n  matchScore: number; // 0-100 based on skills, distance, etc.\n}\n```\n\n### Domain Events\n\n```typescript\n/**\n * Emitted when new errand created.\n * Consumed by: Notification (notify nearby workers), Search indexer\n */\nclass ErrandCreatedEvent {\n  constructor(\n    public readonly errandId: string,\n    public readonly clientId: string,\n    public readonly serviceId: string,\n    public readonly location: Location,\n  ) {}\n}\n\n/**\n * Emitted when errand published (DRAFT → OPEN).\n * Consumed by: Notification (notify nearby workers), Recommendation engine\n */\nclass ErrandPublishedEvent {\n  constructor(\n    public readonly errandId: string,\n    public readonly clientId: string,\n    public readonly location: Location,\n    public readonly pricing: Pricing,\n  ) {}\n}\n\n/**\n * Emitted when errand updated.\n * Consumed by: Search re-indexer\n */\nclass ErrandUpdatedEvent {\n  constructor(\n    public readonly errandId: string,\n    public readonly updates: Partial<ErrandUpdates>,\n  ) {}\n}\n\n/**\n * Emitted when worker assigned to errand.\n * Consumed by: Escrow (create escrow), Notification, Application (reject other applications)\n */\nclass ErrandAssignedEvent {\n  constructor(\n    public readonly errandId: string,\n    public readonly clientId: string,\n    public readonly workerId: string,\n  ) {}\n}\n\n/**\n * Emitted when errand work starts.\n * Consumed by: Notification\n */\nclass ErrandStartedEvent {\n  constructor(\n    public readonly errandId: string,\n    public readonly workerId: string,\n  ) {}\n}\n\n/**\n * Emitted when errand completed.\n * CRITICAL: Triggers escrow release.\n * Consumed by: Escrow (release funds), Rating (prompt rating), Notification\n */\nclass ErrandCompletedEvent {\n  constructor(\n    public readonly errandId: string,\n    public readonly clientId: string,\n    public readonly workerId: string,\n  ) {}\n}\n\n/**\n * Emitted when errand cancelled.\n * Consumed by: Escrow (refund if status was IN_PROGRESS), Application (cancel applications), Notification\n */\nclass ErrandCancelledEvent {\n  constructor(\n    public readonly errandId: string,\n    public readonly clientId: string,\n    public readonly reason: string | null,\n  ) {}\n}\n```\n\n### Event Handlers (React to other module events)\n\n```typescript\n/**\n * Listens to ApplicationAcceptedEvent and assigns worker to errand.\n * Part of AcceptApplicationSaga.\n */\nclass OnApplicationAcceptedAssignWorkerHandler {\n  /**\n   * @listens ApplicationAcceptedEvent\n   * Calls AssignWorkerCommandHandler\n   */\n  handle(event: ApplicationAcceptedEvent): Promise<void>;\n}\n```
 ````
+
+### Repository Interface
+
+```typescript
+/**
+ * Persistence contract for Errand aggregate.
+ */
+interface IErrandRepository {
+  /**
+   * Finds errand by Errand.id.
+   */
+  findById(id: string): Promise<Errand | null>;
+
+  /**
+   * Finds feed errands using geospatial location filter.
+   * Uses Errand.location and Errand.status fields.
+   */
+  findFeedErrands(query: {
+    coordinates: [number, number];
+    radiusKm: number;
+    status: ErrandStatus;
+    limit: number;
+  }): Promise<Errand[]>;
+
+  /**
+   * Finds errands by client owner using Errand.clientId.
+   */
+  findByClientId(clientId: string): Promise<Errand[]>;
+
+  /**
+   * Persists aggregate state changes.
+   */
+  save(errand: Errand): Promise<void>;
+}
+```
+
+### Application Layer
+
+```typescript
+/**
+ * Creates errand draft.
+ */
+class CreateErrandCommandHandler {
+  /**
+   * Creates errand in DRAFT status and emits ErrandCreatedEvent.
+   */
+  execute(command: CreateErrandCommand): Promise<string>;
+}
+
+interface CreateErrandCommand {
+  clientId: string;
+  serviceId: string;
+  title: string;
+  description: string;
+  sourceType: ErrandSourceType;
+  providerId?: string;
+}
+
+/**
+ * Publishes errand draft to OPEN.
+ */
+class PublishErrandCommandHandler {
+  /**
+   * Validates completeness and transitions status to OPEN.
+   * @emits ErrandPublishedEvent
+   */
+  execute(command: PublishErrandCommand): Promise<void>;
+}
+
+interface PublishErrandCommand {
+  errandId: string;
+  publishedBy: string;
+}
+
+/**
+ * Assigns worker when application acceptance completes.
+ */
+class AssignWorkerCommandHandler {
+  /**
+   * Updates Errand.assignedTo and status transition OPEN -> ASSIGNED.
+   * @emits ErrandAssignedEvent
+   */
+  execute(command: AssignWorkerCommand): Promise<void>;
+}
+
+interface AssignWorkerCommand {
+  errandId: string;
+  workerId: string;
+}
+
+/**
+ * Completes active errand.
+ */
+class CompleteErrandCommandHandler {
+  /**
+   * Transitions Errand.status IN_PROGRESS -> COMPLETED.
+   * @emits ErrandCompletedEvent
+   */
+  execute(command: CompleteErrandCommand): Promise<void>;
+}
+
+interface CompleteErrandCommand {
+  errandId: string;
+  completedBy: string;
+}
+```
+
+### Domain Events
+
+```typescript
+/**
+ * Emitted when errand draft is created.
+ */
+class ErrandCreatedEvent {
+  constructor(
+    public readonly errandId: string,
+    public readonly clientId: string,
+    public readonly serviceId: string,
+  );
+}
+
+/**
+ * Emitted when errand is published.
+ */
+class ErrandPublishedEvent {
+  constructor(
+    public readonly errandId: string,
+    public readonly clientId: string,
+  );
+}
+
+/**
+ * Emitted when worker assignment succeeds.
+ */
+class ErrandAssignedEvent {
+  constructor(
+    public readonly errandId: string,
+    public readonly clientId: string,
+    public readonly workerId: string,
+  );
+}
+
+/**
+ * Emitted when errand completion succeeds.
+ */
+class ErrandCompletedEvent {
+  constructor(
+    public readonly errandId: string,
+    public readonly clientId: string,
+    public readonly workerId: string,
+  );
+}
+```
+
+### Saga
+
+```typescript
+/**
+ * Saga for multi-step errand completion flow.
+ */
+class CompleteErrandSaga {
+  /**
+   * Triggered by ErrandCompletedEvent.
+   * Step 1: request Escrow release.
+   * Step 2: trigger wallet transfer from held to worker balance.
+   * Step 3: request rating prompt notifications.
+   */
+  handle(event: ErrandCompletedEvent): Promise<void>;
+}
+
+/**
+ * Saga for cancellation with potential refund flow.
+ */
+class RefundErrandSaga {
+  /**
+   * Triggered by ErrandCancelledEvent.
+   * // TODO: Confirm cancellation status gate in module flow before triggering escrow refund.
+   */
+  handle(event: ErrandCancelledEvent): Promise<void>;
+}
+```

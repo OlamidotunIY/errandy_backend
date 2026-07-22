@@ -117,3 +117,102 @@ src/infrastructure/push/  # OR src/common/push/
 3. **Queue push notifications in BullMQ** (retry 3x on failure).
 4. **Emit FcmTokenInvalid event** when token is invalid → trigger cleanup.
 5. **Add push notification rate limiting** (prevent spam).
+
+---
+
+## 12. Implementation Spec
+
+### Domain Layer
+
+```typescript
+/**
+ * Push notification message value object.
+ * References User.id for recipient and uses provider token from caller context.
+ */
+class PushNotificationMessage {
+  constructor(
+    public readonly recipientUserId: string,
+    public readonly fcmToken: string,
+    public readonly title: string,
+    public readonly body: string,
+    public readonly data: Record<string, string>,
+  );
+
+  /**
+   * Validates required token/title/body before dispatch.
+   */
+  validate(): void;
+}
+
+/**
+ * Port for push provider adapters.
+ */
+interface IPushService {
+  /**
+   * Sends one push notification message.
+   */
+  send(message: PushNotificationMessage): Promise<void>;
+}
+```
+
+### Repository Interface
+
+```typescript
+/**
+ * Optional token persistence contract.
+ * // TODO: User model currently has no explicit fcmToken field in schema.prisma.
+ * // TODO: Decide token storage source of truth before implementation.
+ */
+interface IPushTokenRepository {
+  /**
+   * Deletes invalid token discovered from provider response.
+   */
+  deleteToken(userId: string, token: string): Promise<void>;
+}
+```
+
+### Application Layer
+
+```typescript
+/**
+ * Queues and dispatches push notifications.
+ */
+class SendPushNotificationCommandHandler {
+  /**
+   * Sends notification and emits PushNotificationSentEvent or FcmTokenInvalidEvent.
+   */
+  execute(command: SendPushNotificationCommand): Promise<void>;
+}
+
+interface SendPushNotificationCommand {
+  recipientUserId: string;
+  fcmToken: string;
+  title: string;
+  body: string;
+  data?: Record<string, string>;
+}
+```
+
+### Domain Events
+
+```typescript
+/**
+ * Emitted when push provider accepts the message.
+ */
+class PushNotificationSentEvent {
+  constructor(
+    public readonly recipientUserId: string,
+    public readonly title: string,
+  );
+}
+
+/**
+ * Emitted when provider reports token as invalid.
+ */
+class FcmTokenInvalidEvent {
+  constructor(
+    public readonly recipientUserId: string,
+    public readonly token: string,
+  );
+}
+```

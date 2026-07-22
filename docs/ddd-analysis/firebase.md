@@ -118,3 +118,115 @@ src/infrastructure/firebase/  # OR src/common/firebase/
 4. **Add file upload logging** (audit trail).
 5. **Add orphaned file cleanup** (scheduled job to delete files not referenced in DB).
 6. **Add file size/MIME validation** (prevent large/malicious uploads).
+
+---
+
+## 12. Implementation Spec
+
+### Domain Layer
+
+```typescript
+/**
+ * Value object for stored file metadata.
+ * // TODO: No dedicated Prisma model exists for file metadata ownership.
+ */
+class StoredFile {
+  constructor(
+    public readonly path: string,
+    public readonly contentType: string,
+    public readonly sizeBytes: number,
+    public readonly publicUrl: string | null,
+  );
+
+  /**
+   * Validates file metadata before adapter upload.
+   */
+  validate(): void;
+}
+
+/**
+ * Port for object storage operations.
+ */
+interface IFileStorageService {
+  /**
+   * Uploads stream/file bytes to provider storage and returns canonical metadata.
+   */
+  upload(file: StoredFile, body: NodeJS.ReadableStream | Buffer): Promise<StoredFile>;
+
+  /**
+   * Deletes object by storage path.
+   */
+  delete(path: string): Promise<void>;
+
+  /**
+   * Returns signed URL for temporary access.
+   */
+  getSignedUrl(path: string, expiresInSeconds: number): Promise<string>;
+}
+```
+
+### Repository Interface
+
+```typescript
+/**
+ * Optional persistence of upload audit entries.
+ * // TODO: Decide whether to persist in WebhookEvent.data or a dedicated upload table.
+ */
+interface IFileAuditRepository {
+  /**
+   * Saves upload operation audit payload.
+   */
+  saveUploadAudit(entry: {
+    path: string;
+    contentType: string;
+    sizeBytes: number;
+    uploadedAt: Date;
+  }): Promise<void>;
+}
+```
+
+### Application Layer
+
+```typescript
+/**
+ * Handles asynchronous file upload orchestration.
+ */
+class UploadFileCommandHandler {
+  /**
+   * Validates metadata, uploads file, and emits FileUploadedEvent.
+   */
+  execute(command: UploadFileCommand): Promise<StoredFile>;
+}
+
+interface UploadFileCommand {
+  path: string;
+  contentType: string;
+  sizeBytes: number;
+  body: NodeJS.ReadableStream | Buffer;
+}
+```
+
+### Domain Events
+
+```typescript
+/**
+ * Emitted when object storage upload succeeds.
+ */
+class FileUploadedEvent {
+  constructor(
+    public readonly path: string,
+    public readonly contentType: string,
+    public readonly sizeBytes: number,
+  );
+}
+
+/**
+ * Emitted when orphaned file cleanup job removes a stale file.
+ */
+class OrphanedFileDeletedEvent {
+  constructor(
+    public readonly path: string,
+    public readonly deletedAt: Date,
+  );
+}
+```

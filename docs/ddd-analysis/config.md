@@ -80,3 +80,83 @@ src/config/
 1. **Audit Config directory** — move any domain logic to appropriate modules.
 2. **Add authentication** to GraphQL WebSocket (validate JWT on connection).
 3. **Add logging** (WebSocket connection events).
+
+---
+
+## 12. Implementation Spec
+
+### Domain Layer
+
+```typescript
+/**
+ * Technical policy object for GraphQL WebSocket connection requirements.
+ * // TODO: No dedicated Prisma model currently stores WS policy state.
+ */
+class GraphqlWsPolicy {
+  constructor(
+    public readonly requireAuth: boolean,
+    public readonly closeCodeOnUnauthorized: number,
+  );
+
+  /**
+   * Validates that connection metadata has an auth token when requireAuth = true.
+   */
+  validateConnectionParams(params: Record<string, unknown>): void;
+}
+```
+
+### Repository Interface
+
+```typescript
+/**
+ * Configuration source abstraction for runtime websocket settings.
+ */
+interface IConfigRepository {
+  /**
+   * Returns GraphQL websocket configuration values.
+   */
+  getGraphqlWsPolicy(): Promise<GraphqlWsPolicy>;
+}
+```
+
+### Application Layer
+
+```typescript
+/**
+ * Handles websocket connection authentication checks.
+ */
+class ValidateWsConnectionCommandHandler {
+  /**
+   * Validates connection parameters against GraphqlWsPolicy.
+   */
+  execute(command: ValidateWsConnectionCommand): Promise<void>;
+}
+
+interface ValidateWsConnectionCommand {
+  connectionParams: Record<string, unknown>;
+}
+```
+
+### Domain Events
+
+```typescript
+/**
+ * Emitted when websocket client connection is accepted.
+ */
+class WsClientConnectedEvent {
+  constructor(
+    public readonly userId: string | null,
+    public readonly connectedAt: Date,
+  );
+}
+
+/**
+ * Emitted when websocket client connection is rejected.
+ */
+class WsClientRejectedEvent {
+  constructor(
+    public readonly reason: string,
+    public readonly rejectedAt: Date,
+  );
+}
+```
