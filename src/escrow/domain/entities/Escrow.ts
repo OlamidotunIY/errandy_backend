@@ -1,3 +1,4 @@
+import { AggregateRoot } from '@shared';
 import {
   EscrowId,
   EscrowStatus,

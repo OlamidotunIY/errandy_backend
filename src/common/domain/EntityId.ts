@@ -9,3 +9,5 @@ abstract class EntityId {
     return this.value;
   }
 }
+
+export { EntityId };

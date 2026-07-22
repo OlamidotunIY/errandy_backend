@@ -1,3 +1,6 @@
+import { DomainEvent } from './DomainEvent';
+import { EntityId } from './EntityId';
+
 abstract class AggregateRoot<T extends EntityId> {
   readonly id: T;
 
@@ -14,3 +17,5 @@ abstract class AggregateRoot<T extends EntityId> {
     return [];
   }
 }
+
+export { AggregateRoot };

@@ -1,6 +1,10 @@
-interface DomainEvent {
+import { EntityId } from './EntityId';
+
+interface DomainEvent<TId extends EntityId = EntityId> {
   readonly eventId: string;
   readonly occurredAt: Date;
-  readonly aggregateId: EntityId;
+  readonly aggregateId: TId;
   readonly eventName: string;
 }
+
+export { DomainEvent };

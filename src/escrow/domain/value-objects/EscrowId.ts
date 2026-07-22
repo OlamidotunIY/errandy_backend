@@ -1,3 +1,5 @@
+import { EntityId } from '@shared';
+
 class EscrowId extends EntityId {
   constructor(value: string) {
     super(value);
