@@ -64,7 +64,6 @@ Manages payment escrow for errand completion: funds are held when a client accep
 **Business logic in service**:
 
 - `acceptApplicationAndFundEscrow` (line 58-168) is a 110-line god method orchestrating:
-
   1. Fetch application + errand + client + payment method (data access)
   2. Validate business rules (errand status, application status, payment method verified)
   3. Calculate amounts (domain logic)
@@ -107,11 +106,10 @@ infrastructure/
 **Command/Event patterns** (critical for decoupling):
 
 1. **Replace direct method calls with events**:
-
    - Current: `ErrandsResolver.markErrandCompleted` → `EscrowService.markErrandCompleted` (direct call).
    - Proposed: `ErrandsResolver` → `CompleteErrandCommandHandler` → emits `ErrandCompleted` event → `EscrowEventHandler` listens and releases escrow.
-2. **Accept application as a Saga**:
 
+2. **Accept application as a Saga**:
    - Current: `acceptApplicationAndFundEscrow` orchestrates 7 steps inline (lines 58-168).
    - Proposed: Use NestJS CQRS Saga or event-driven process manager:
      ```
@@ -123,8 +121,8 @@ infrastructure/
          → Create wallet transaction (WalletDebitedEvent)
      ```
    - Each step is idempotent with compensation logic (e.g., if escrow creation fails after payment, auto-refund).
-3. **Retry / Dead Letter**:
 
+3. **Retry / Dead Letter**:
    - Payment gateway calls (line 148: `paymentGatewayService.chargeAuthorization`) can fail (network timeout, gateway down).
    - No retry logic — failure throws exception, client sees error.
    - Recommendation: Queue `ChargePendingEscrow` command to BullMQ, retry 3x with exponential backoff, send to dead-letter queue if all fail.
@@ -224,14 +222,13 @@ src/escrow/
 ### Aggregate Boundary Violations
 
 1. **EscrowService directly mutates Errand.status**
-
    - **Evidence**: `src/errands/errands.service.ts` (lines 198, 1799, 1941) calls `prisma.errand.update({ data: { status } })` directly.
    - **Schema gap**: `Escrow.errand` relation has no protection against direct updates from other modules.
    - **Impact**: Errand status can change without Errand aggregate's validation (e.g., cannot complete if not assigned).
    - **Fix priority**: PHASE 1 — replace with event: `EscrowReleased` → `ErrandEventHandler.updateStatus()`.
    - **Migration notes**: No schema change needed (code-only refactoring). Risk: MEDIUM (need saga to coordinate Errand + Escrow state changes).
-2. **EscrowService directly mutates Application.status**
 
+2. **EscrowService directly mutates Application.status**
    - **Evidence**: `EscrowService.acceptApplicationAndFundEscrow` (line ~90 in escrow.service.ts) updates application.status.
    - **Schema gap**: No cascade or constraint preventing this.
    - **Impact**: Application acceptance bypasses Application aggregate invariants.
@@ -240,7 +237,6 @@ src/escrow/
 ### Dangling Reference Risks
 
 1. **Escrow.errandId → Errand (Financial audit trail at risk)**
-
    - **Schema**: No cascade rule (`Escrow.errand` relation missing `onDelete`).
    - **Bug**: If errand deleted (admin cleanup or future soft-delete), escrow record becomes orphaned — cannot trace payment back to job.
    - **Impact**: **HIGH** — audit compliance violation (financial records must be traceable).
@@ -254,14 +250,14 @@ src/escrow/
    - **Migration**: `npx prisma db push` (additive, no backfill needed).
    - **Rollback**: Safe (can remove constraint if breaks admin features).
    - **Priority**: PHASE 1 (before errand deletion feature is built).
-2. **Escrow.clientId → Client**
 
+2. **Escrow.clientId → Client**
    - **Schema**: No cascade rule.
    - **Bug**: Deleting client orphans all their escrows.
    - **Impact**: MEDIUM (client deletion unlikely, but user account deletion might be needed for GDPR).
    - **Fix**: Add `onDelete: Restrict` (prevent client deletion if escrows exist).
-3. **Escrow.workerId → Provider**
 
+3. **Escrow.workerId → Provider**
    - **Schema**: No cascade rule.
    - **Bug**: Deleting provider orphans all their escrows.
    - **Impact**: MEDIUM (same as client).
@@ -287,15 +283,15 @@ src/escrow/
 **Phase 1 changes for Escrow**:
 
 1. **Add cascade constraints** (errandId, clientId, workerId):
-
    - Migration: `npx prisma db push`
    - Rollback: Safe (remove constraints)
    - Risk: LOW
-2. **Extract Escrow aggregate + events** (code-only):
 
+2. **Extract Escrow aggregate + events** (code-only):
    - Migration: Code deployment
    - Rollback: Code revert
    - Risk: MEDIUM (need dual-write during transition if using feature flags)
+
 3. **No backfill scripts needed** (no data migration).
 
 **Risk revised from MEDIUM-HIGH to MEDIUM**: Schema analysis shows no complex migrations needed (only additive constraints). Main risk is event-driven refactoring coordination with Errands/Application modules.
@@ -463,9 +459,6 @@ class Escrow extends AggregateRoot<EscrowId> {
    * @emits EscrowReleasingEvent
    */
   beginRelease(): void;
-    this._status = EscrowStatus.RELEASING;
-    this.addDomainEvent(new EscrowReleasingEvent(this));
-  }
 
   /**
    * Completes release (RELEASING → RELEASED) after funds are credited to worker wallet.
@@ -473,17 +466,7 @@ class Escrow extends AggregateRoot<EscrowId> {
    * @throws InvalidStatusTransitionError when status is not RELEASING
    * @emits EscrowReleasedEvent
    */
-  completeRelease(releasedAt: Date): void {
-    if (this._status !== EscrowStatus.RELEASING) {
-      throw new InvalidStatusTransitionError(
-        this._status,
-        EscrowStatus.RELEASED,
-      );
-    }
-    this._status = EscrowStatus.RELEASED;
-    this._releasedAt = releasedAt;
-    this.addDomainEvent(new EscrowReleasedEvent(this));
-  }
+  completeRelease(releasedAt: Date): void;
 
   /**
    * Begins refund process (HELD → REFUNDING) when errand is cancelled or disputed.
@@ -491,16 +474,7 @@ class Escrow extends AggregateRoot<EscrowId> {
    * @throws InvalidStatusTransitionError when status is not HELD
    * @emits EscrowRefundingEvent
    */
-  beginRefund(reason: RefundReason): void {
-    if (this._status !== EscrowStatus.HELD) {
-      throw new InvalidStatusTransitionError(
-        this._status,
-        EscrowStatus.REFUNDING,
-      );
-    }
-    this._status = EscrowStatus.REFUNDING;
-    this.addDomainEvent(new EscrowRefundingEvent(this, reason));
-  }
+  beginRefund(reason: RefundReason): void;
 
   /**
    * Completes refund (REFUNDING → REFUNDED) after funds are returned to client.
@@ -508,42 +482,21 @@ class Escrow extends AggregateRoot<EscrowId> {
    * @throws InvalidStatusTransitionError when status is not REFUNDING
    * @emits EscrowRefundedEvent
    */
-  completeRefund(refundedAt: Date): void {
-    if (this._status !== EscrowStatus.REFUNDING) {
-      throw new InvalidStatusTransitionError(
-        this._status,
-        EscrowStatus.REFUNDED,
-      );
-    }
-    this._status = EscrowStatus.REFUNDED;
-    this._refundedAt = refundedAt;
-    this.addDomainEvent(new EscrowRefundedEvent(this));
-  }
+  completeRefund(refundedAt: Date): void;
 
   /**
    * Freezes escrow (HELD → DISPUTED) when a dispute is opened.
    * @throws InvalidStatusTransitionError when status is not HELD
    * @emits EscrowDisputedEvent
    */
-  dispute(): void {
-    if (this._status !== EscrowStatus.HELD) {
-      throw new InvalidStatusTransitionError(
-        this._status,
-        EscrowStatus.DISPUTED,
-      );
-    }
-    this._status = EscrowStatus.DISPUTED;
-    this.addDomainEvent(new EscrowDisputedEvent(this));
-  }
+  dispute(): void;
 
   /**
    * Checks if escrow hold period has expired (current time > holdUntil).
    * Used by scheduled job to auto-release funds to worker after hold period.
    * @returns true if funds can be auto-released to worker
    */
-  isHoldExpired(): boolean {
-    return this._status === EscrowStatus.HELD && new Date() > this._holdUntil;
-  }
+  isHoldExpired(): boolean;
 
   // Getters
   get amountGross(): Money {
@@ -558,7 +511,7 @@ class Escrow extends AggregateRoot<EscrowId> {
   get status(): EscrowStatus {
     return this._status;
   }
-  get holdUntil(): Date {
+  get holdUntil(): Date | null {
     return this._holdUntil;
   }
   get releasedAt(): Date | null {
@@ -568,17 +521,7 @@ class Escrow extends AggregateRoot<EscrowId> {
     return this._refundedAt;
   }
 
-  // Domain event support (mixin pattern)
-  private domainEvents: any[] = [];
-  private addDomainEvent(event: any): void {
-    this.domainEvents.push(event);
-  }
-  getDomainEvents(): any[] {
-    return this.domainEvents;
-  }
-  clearDomainEvents(): void {
-    this.domainEvents = [];
-  }
+  // Domain event management is inherited from AggregateRoot<TId>.
 }
 
 /**
@@ -865,10 +808,7 @@ class FundEscrowCommandHandler {
     }
     clientWallet.hold(escrow.amountGross, `Escrow ${escrow.id}`);
 
-    // 6. Transition escrow to HELD
-    escrow.hold();
-
-    // 7. Persist escrow + wallet (publishes EscrowFunded event)
+    // 6. Persist escrow + wallet (publishes EscrowFunded event)
     await this.escrowRepository.save(escrow);
     await this.walletRepository.save(clientWallet);
 
@@ -1095,7 +1035,11 @@ class RefundFailedError extends Error {}
  * - NotificationEventHandler (notifies client "Payment successful")
  * - AcceptApplicationSaga (proceeds to step 3: assign errand)
  */
-class EscrowFundedEvent {
+class EscrowFundedEvent implements DomainEvent {
+  readonly eventId: string;
+  readonly aggregateId: EscrowId;
+  readonly eventName: string;
+
   constructor(
     public readonly escrowId: EscrowId,
     public readonly errandId: ErrandId,
@@ -1104,8 +1048,8 @@ class EscrowFundedEvent {
     public readonly amountGross: Money,
     public readonly platformFee: Money,
     public readonly amountNetWorker: Money,
-    public readonly fundedAt: Date,
-  ) {}
+    public readonly occurredAt: Date,
+  );
 
   static fromAggregate(escrow: Escrow): EscrowFundedEvent {
     return new EscrowFundedEvent(
@@ -1126,14 +1070,18 @@ class EscrowFundedEvent {
  * Consumed by:
  * - WalletEventHandler (prepares to credit worker — already handled in ReleaseEscrowCommandHandler)
  */
-class EscrowReleasingEvent {
+class EscrowReleasingEvent implements DomainEvent {
+  readonly eventId: string;
+  readonly aggregateId: EscrowId;
+  readonly eventName: string;
+
   constructor(
     public readonly escrowId: EscrowId,
     public readonly errandId: ErrandId,
     public readonly workerId: ProviderId,
     public readonly amount: Money,
-    public readonly releasingAt: Date,
-  ) {}
+    public readonly occurredAt: Date,
+  );
 
   static fromAggregate(escrow: Escrow): EscrowReleasingEvent {
     return new EscrowReleasingEvent(
@@ -1152,14 +1100,18 @@ class EscrowReleasingEvent {
  * - NotificationEventHandler (notifies worker "Payment received")
  * - RatingEventHandler (sends rating request to both client and worker)
  */
-class EscrowReleasedEvent {
+class EscrowReleasedEvent implements DomainEvent {
+  readonly eventId: string;
+  readonly aggregateId: EscrowId;
+  readonly eventName: string;
+
   constructor(
     public readonly escrowId: EscrowId,
     public readonly errandId: ErrandId,
     public readonly workerId: ProviderId,
     public readonly amount: Money,
-    public readonly releasedAt: Date,
-  ) {}
+    public readonly occurredAt: Date,
+  );
 
   static fromAggregate(escrow: Escrow): EscrowReleasedEvent {
     return new EscrowReleasedEvent(
@@ -1177,15 +1129,19 @@ class EscrowReleasedEvent {
  * Consumed by:
  * - PaymentGatewayEventHandler (initiates Paystack refund — already handled in command)
  */
-class EscrowRefundingEvent {
+class EscrowRefundingEvent implements DomainEvent {
+  readonly eventId: string;
+  readonly aggregateId: EscrowId;
+  readonly eventName: string;
+
   constructor(
     public readonly escrowId: EscrowId,
     public readonly errandId: ErrandId,
     public readonly clientId: ClientId,
     public readonly amount: Money,
     public readonly reason: RefundReason,
-    public readonly refundingAt: Date,
-  ) {}
+    public readonly occurredAt: Date,
+  );
 
   static fromAggregate(
     escrow: Escrow,
@@ -1207,14 +1163,18 @@ class EscrowRefundingEvent {
  * Consumed by:
  * - NotificationEventHandler (notifies client "Refund processed")
  */
-class EscrowRefundedEvent {
+class EscrowRefundedEvent implements DomainEvent {
+  readonly eventId: string;
+  readonly aggregateId: EscrowId;
+  readonly eventName: string;
+
   constructor(
     public readonly escrowId: EscrowId,
     public readonly errandId: ErrandId,
     public readonly clientId: ClientId,
     public readonly amount: Money,
-    public readonly refundedAt: Date,
-  ) {}
+    public readonly occurredAt: Date,
+  );
 
   static fromAggregate(escrow: Escrow): EscrowRefundedEvent {
     return new EscrowRefundedEvent(
@@ -1233,12 +1193,16 @@ class EscrowRefundedEvent {
  * - DisputeEventHandler (creates Dispute aggregate)
  * - NotificationEventHandler (notifies admin team)
  */
-class EscrowDisputedEvent {
+class EscrowDisputedEvent implements DomainEvent {
+  readonly eventId: string;
+  readonly aggregateId: EscrowId;
+  readonly eventName: string;
+
   constructor(
     public readonly escrowId: EscrowId,
     public readonly errandId: ErrandId,
-    public readonly disputedAt: Date,
-  ) {}
+    public readonly occurredAt: Date,
+  );
 
   static fromAggregate(escrow: Escrow): EscrowDisputedEvent {
     return new EscrowDisputedEvent(escrow.id, escrow.errandId, new Date());
@@ -1255,7 +1219,7 @@ class EscrowDisputedEvent {
  *
  * Flow:
  * 1. Application accepted → funds escrow (charges payment)
- * 2. Escrow funded → holds client wallet funds
+ * 2. Escrow funded
  * 3. Wallet funds held → assigns errand to worker
  * 4. Errand assigned → cancels other pending applications
  * 5. Applications cancelled → notifies workers

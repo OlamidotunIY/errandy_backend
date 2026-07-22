@@ -28,22 +28,15 @@ abstract class EntityId {
 }
 
 /**
- * Base class for all domain events emitted by aggregates.
+ * Contract for all domain events emitted by aggregates.
  * Events are immutable facts that happened in the domain and are published
  * after successful persistence.
  */
-abstract class DomainEvent {
+interface DomainEvent {
   readonly eventId: string;
   readonly occurredAt: Date;
   readonly aggregateId: EntityId;
   readonly eventName: string;
-
-  protected constructor(
-    eventId: string,
-    occurredAt: Date,
-    aggregateId: EntityId,
-    eventName: string,
-  );
 }
 
 /**
