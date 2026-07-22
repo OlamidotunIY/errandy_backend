@@ -1,3 +1,5 @@
+import { EntityId } from '@shared';
+
 class ErrandId extends EntityId {
   constructor(value: string) {
     super(value);

@@ -1,3 +1,5 @@
+import { EntityId } from '@shared';
+
 class PaymentMethodId extends EntityId {
   constructor(value: string) {
     super(value);

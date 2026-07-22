@@ -1,4 +1,5 @@
-import { Escrow } from '../entities';
+import { DomainEvent, EntityId } from '@shared';
+import { Escrow, EscrowId, Money } from '../';
 
 class EscrowReleasedEvent implements DomainEvent {
   readonly eventId: string;
