@@ -8,6 +8,14 @@ import {
   InsufficientAvailableBalanceError,
   InsufficientPendingBalanceError,
 } from '../errors';
+import {
+  ActiveErrandCredited,
+  ActiveErrandReversed,
+  ClientRefunded,
+  MovedToPending,
+  ReleasedToAvailable,
+  WithdrawalRecorded,
+} from '../events';
 
 class Wallet extends AggregateRoot<WalletId> {
   private constructor(
@@ -53,7 +61,7 @@ class Wallet extends AggregateRoot<WalletId> {
     escrowId: EscrowId,
     gatewayReference: string,
   ): LedgerEntry {
-    return LedgerEntry.create({
+    const entrie = LedgerEntry.create({
       walletId: this.id,
       userId: this.userId,
       type: LedgerEntryType.ACTIVE_ERRAND_CREDIT,
@@ -62,6 +70,12 @@ class Wallet extends AggregateRoot<WalletId> {
       escrowId,
       gatewayReference,
     });
+
+    this.addDomainEvent(
+      new ActiveErrandCredited(this.id, this.userId, escrowId, amountKobo),
+    );
+
+    return entrie;
   }
 
   moveActiveToPending(
@@ -93,6 +107,11 @@ class Wallet extends AggregateRoot<WalletId> {
       escrowId,
       gatewayReference: null,
     });
+
+    this.addDomainEvent(
+      new MovedToPending(this.id, this.userId, escrowId, amountKobo),
+    );
+
     return [debitEntry, creditEntry];
   }
 
@@ -107,7 +126,8 @@ class Wallet extends AggregateRoot<WalletId> {
         `Insufficient pending balance to move ${amountKobo} kobo to available`,
       );
     }
-    return LedgerEntry.create({
+
+    const entry = LedgerEntry.create({
       walletId: this.id,
       userId: this.userId,
       type: LedgerEntryType.AVAILABLE_CREDIT,
@@ -116,6 +136,12 @@ class Wallet extends AggregateRoot<WalletId> {
       escrowId,
       gatewayReference: null,
     });
+
+    this.addDomainEvent(
+      new ReleasedToAvailable(this.id, this.userId, escrowId, amountKobo),
+    );
+
+    return entry;
   }
 
   recordWithdrawal(
@@ -129,7 +155,8 @@ class Wallet extends AggregateRoot<WalletId> {
         `Insufficient available balance to record withdrawal of ${amountKobo} kobo`,
       );
     }
-    return LedgerEntry.create({
+
+    const entry = LedgerEntry.create({
       walletId: this.id,
       userId: this.userId,
       type: LedgerEntryType.WITHDRAWAL_DEBIT,
@@ -138,6 +165,17 @@ class Wallet extends AggregateRoot<WalletId> {
       escrowId: null,
       gatewayReference,
     });
+
+    this.addDomainEvent(
+      new WithdrawalRecorded(
+        this.id,
+        this.userId,
+        amountKobo,
+        gatewayReference,
+      ),
+    );
+
+    return entry;
   }
 
   recordActiveErrandReversal(
@@ -152,7 +190,7 @@ class Wallet extends AggregateRoot<WalletId> {
         `Insufficient active balance to record reversal of ${amountKobo} kobo`,
       );
     }
-    return LedgerEntry.create({
+    const entry = LedgerEntry.create({
       walletId: this.id,
       userId: this.userId,
       type: LedgerEntryType.ACTIVE_ERRAND_REVERSAL,
@@ -161,6 +199,10 @@ class Wallet extends AggregateRoot<WalletId> {
       escrowId,
       gatewayReference,
     });
+    this.addDomainEvent(
+      new ActiveErrandReversed(this.id, this.userId, escrowId, amountKobo),
+    );
+    return entry;
   }
 
   recordClientRefund(
@@ -172,7 +214,8 @@ class Wallet extends AggregateRoot<WalletId> {
     if (currency !== this.currency) {
       throw new CurrencyMismatchError(this.currency, currency);
     }
-    return LedgerEntry.create({
+
+    const entry = LedgerEntry.create({
       walletId: this.id,
       userId: this.userId,
       type: LedgerEntryType.REFUND_CREDIT,
@@ -181,6 +224,16 @@ class Wallet extends AggregateRoot<WalletId> {
       escrowId,
       gatewayReference,
     });
+    this.addDomainEvent(
+      new ClientRefunded(
+        this.id,
+        this.userId,
+        escrowId,
+        amountKobo,
+        gatewayReference,
+      ),
+    );
+    return entry;
   }
 }
 
