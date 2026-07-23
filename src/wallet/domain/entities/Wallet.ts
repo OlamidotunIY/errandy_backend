@@ -120,17 +120,27 @@ class Wallet extends AggregateRoot<WalletId> {
     currency: Currency,
     escrowId: EscrowId,
     computedPendingBalanceKobo: number,
-  ): LedgerEntry {
+  ): LedgerEntry[] {
     if (computedPendingBalanceKobo < amountKobo) {
       throw new InsufficientPendingBalanceError(
         `Insufficient pending balance to move ${amountKobo} kobo to available`,
       );
     }
 
-    const entry = LedgerEntry.create({
+    const creditEntry = LedgerEntry.create({
       walletId: this.id,
       userId: this.userId,
       type: LedgerEntryType.AVAILABLE_CREDIT,
+      amountKobo,
+      currency,
+      escrowId,
+      gatewayReference: null,
+    });
+
+    const debitEntry = LedgerEntry.create({
+      walletId: this.id,
+      userId: this.userId,
+      type: LedgerEntryType.PENDING_REVERSAL,
       amountKobo,
       currency,
       escrowId,
@@ -141,7 +151,7 @@ class Wallet extends AggregateRoot<WalletId> {
       new ReleasedToAvailable(this.id, this.userId, escrowId, amountKobo),
     );
 
-    return entry;
+    return [debitEntry, creditEntry];
   }
 
   recordWithdrawal(

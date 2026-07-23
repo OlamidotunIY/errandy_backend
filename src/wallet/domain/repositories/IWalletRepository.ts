@@ -3,7 +3,7 @@ import { Wallet, WalletId } from '../';
 
 interface IWalletRepository {
   findById(id: WalletId): Promise<Wallet | null>;
-  save(wallet: Wallet): Promise<void>;
+  findByUserId(userId: UserId): Promise<Wallet | null>;
 }
 
 export { IWalletRepository };

@@ -1,6 +1,6 @@
 class WalletNotFoundError extends Error {
-  constructor(walletId: string) {
-    super(`Wallet with ID ${walletId} not found`);
+  constructor() {
+    super(`Wallet not found`);
     this.name = 'WalletNotFoundError';
   }
 }
