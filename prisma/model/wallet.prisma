@@ -1,46 +1,48 @@
 model Wallet {
-    id        String    @id @default(uuid()) @map("_id")
-    ownerId   String   
-    ownerType UserRole // CLIENT | PROVIDER
-    // Stored in minor units (kobo) to avoid Float/Decimal issues on Mongo connector
-    available Int      @default(0) // Can withdraw (kobo)
-    held      Int      @default(0) // Pending release (kobo)
-    currency  String?
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+  id String @id @map("_id")
+  userId String
+  currency String?
+  createdAt DateTime
+  updatedAt DateTime
 
-    @@unique([ownerId, ownerType])
-    @@map("wallets")
+  @@unique([userId]) // backs: WalletAlreadyExistsError
 }
 
-model Transaction {
-    id        String    @id @default(uuid()) @map("_id")
-    ownerId   String   
-    ownerType UserRole
-    errandId  String?  
-    // Stored in minor units (kobo)
-    amount    Int
-    type      TxType
-    status    TxStatus
-    reference String   @unique
-    metadata  Json? // e.g. { jobId: "...", workerId: "...", fee: 20 }
-    createdAt DateTime @default(now())
+model LedgerEntry {
+  id String @id @map("_id")
+  walletId String
+  userId String
+  type LedgerEntryType
+  amountKobo Int
+  currency String
+  escrowId String?
+  gatewayReference String?
+  idempotencyKey String
+  metadata Json?
+  createdAt DateTime
 
-    @@index([ownerId, ownerType])
-    @@index([errandId])
-    @@map("transactions")
+  @@index([walletId, createdAt]) // serves: findByWalletId
+  @@index([escrowId]) // serves: findByEscrowId
+  @@index([gatewayReference]) // serves: findByGatewayReference
+  @@unique([idempotencyKey]) // backs: DuplicateLedgerEntryError
 }
 
-enum TxType {
-    FUND
-    ESCROW_HOLD
-    ESCROW_PENDING_CREDIT
-    ESCROW_RELEASE
-    WITHDRAWAL
+model WalletBalanceSnapshot {
+  id                  String @id @map("_id")
+  walletId            String @unique
+  activeErrandBalance Int
+  pendingBalance      Int
+  availableBalance    Int
+  lastSequence        Int      // monotonic counter, not a timestamp — see Gap 2 fix below
+  updatedAt           DateTime @updatedAt
 }
 
-enum TxStatus {
-    PENDING
-    SUCCESS
-    FAILED
+enum LedgerEntryType {
+  ACTIVE_ERRAND_CREDIT
+  ACTIVE_ERRAND_REVERSAL
+  PENDING_CREDIT
+  PENDING_REVERSAL
+  AVAILABLE_CREDIT
+  WITHDRAWAL_DEBIT
+  REFUND_CREDIT
 }
