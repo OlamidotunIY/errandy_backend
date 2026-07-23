@@ -1,13 +1,27 @@
 import { UserId } from '@user';
 import { WalletId } from '../value-objects';
 import { EscrowId } from '@escrow';
+import { DomainEvent } from '@shared';
+class ClientRefunded implements DomainEvent {
+  readonly eventId: string;
+  readonly eventName: string;
+  readonly occurredAt: Date;
 
-class ClientRefunded {
   constructor(
     public readonly walletId: WalletId,
     public readonly userId: UserId,
     public readonly escrowId: EscrowId,
     public readonly amountKobo: number,
     public readonly gatewayReference: string,
-  ) {}
+  ) {
+    this.eventName = ClientRefunded.name;
+    this.occurredAt = new Date();
+    this.eventId = crypto.randomUUID();
+  }
+
+  get aggregateId(): WalletId {
+    return this.walletId;
+  }
 }
+
+export { ClientRefunded };

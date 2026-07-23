@@ -3,7 +3,7 @@ import { Escrow, EscrowId } from '../';
 
 class EscrowDisputedEvent implements DomainEvent {
   readonly eventId: string;
-  readonly aggregateId: EntityId;
+  readonly aggregateId: EscrowId;
   readonly eventName: string;
 
   constructor(
