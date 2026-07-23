@@ -160,6 +160,46 @@ src/auth/
 - If Auth module only contains guards/decorators, merge them into a `src/common/auth/` folder.
 - User registration events can be emitted directly from Users module.
 
+## Persistence Model (Derived from Domain)
+
+```prisma
+model AuthIdentity {
+  id String @id @map("_id")
+  userId String
+  email String?
+  phoneNumber String?
+  emailVerified Boolean
+  phoneNumberVerified Boolean?
+  createdAt DateTime
+
+  @@unique([userId]) // backs: AuthIdentityAlreadyExistsError
+  @@unique([email]) // backs: DuplicateLoginEmailError
+}
+
+model AuthSession {
+  id String @id @map("_id")
+  token String
+  userId String
+  expiresAt DateTime
+
+  @@unique([token]) // backs: DuplicateSessionTokenError
+  @@index([userId, expiresAt]) // serves: session cleanup/read models
+}
+
+model AuthVerification {
+  id String @id @map("_id")
+  identifier String
+  value String
+  expiresAt DateTime
+
+  @@unique([identifier]) // backs: DuplicateVerificationIdentifierError
+}
+```
+
+Reference fields are scalar IDs only: `userId`. Cleanup owner: `UserDeletedPolicyHandler` revokes sessions and identities through `IAuthRepository`; expired verification cleanup is owned by `ExpireAuthVerificationHandler`. `userId` serves `findIdentityByUserId`, unique `email` serves `findIdentityByEmail`, unique `token` serves `findSessionByToken`, and `identifier` supports `saveVerification` idempotency.
+
+---
+
 ## 10. Migration Risk & Priority
 
 **Risk**: **LOW**

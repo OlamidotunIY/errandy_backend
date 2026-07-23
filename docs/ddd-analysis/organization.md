@@ -141,6 +141,36 @@ src/organization/
       OrganizationResolver.ts
 ```
 
+## Persistence Model (Derived from Domain)
+
+```prisma
+model Organization {
+  id String @id @map("_id")
+  name String
+  type OrgType
+  ownerId String
+  createdAt DateTime
+
+  @@index([ownerId]) // serves: findByOwnerId
+}
+
+model OrgMember {
+  id String @id @map("_id")
+  orgId String
+  userId String
+  role OrgRole
+  active Boolean
+
+  @@index([userId, active]) // serves: findByMemberUserId
+  @@index([orgId]) // serves: aggregate reconstitution by findById/findByOwnerId
+  @@unique([orgId, userId]) // backs: OrganizationMemberAlreadyExistsError
+}
+```
+
+`Organization` is the aggregate root; `OrgMember` has membership lifecycle but is reachable only through `IOrganizationRepository`. References are scalar IDs only: `ownerId`, `orgId`, `userId`. Cleanup owners: `UserDeletedPolicyHandler` transfers ownership, deactivates memberships, or prevents deletion through Organization commands; no other module writes membership state. `id` serves `findById`, owner/member indexes map to repository methods, and the org/user unique constraint enforces one membership per user per organization.
+
+---
+
 ## 10. Migration Risk & Priority
 
 **Risk**: **LOW**

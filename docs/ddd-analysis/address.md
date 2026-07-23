@@ -156,6 +156,26 @@ src/users/
         GetUserAddressesHandler.ts
 ```
 
+## Persistence Model (Derived from Domain)
+
+```prisma
+model UserAddress {
+  id String @id @map("_id")
+  userId String
+  label String
+  address String
+  location Json
+  createdAt DateTime
+  updatedAt DateTime
+
+  @@index([userId, createdAt]) // serves: findByUserId
+}
+```
+
+`location` embeds the coordinate value object. Reference fields are scalar IDs only: `userId`. Cleanup owners: `UserDeletedPolicyHandler` deletes or archives addresses through `IUserAddressRepository`; `DeleteUserAddressCommandHandler` must emit/perform active-address cleanup in Users before deleting an address. `id` serves `findById`, and the user/date index serves `findByUserId`. No unique constraint is added because users may save multiple addresses with the same label or coordinates unless product rules change.
+
+---
+
 ## 10. Migration Risk & Priority
 
 **Risk**: **MEDIUM**

@@ -1,61 +1,67 @@
-# Wallet — DDD & EIP Analysis
+# Wallet - DDD & EIP Analysis
 
 ## 1. Current Responsibility
 
-**Intended to manage user wallet balances** (available funds + held funds) and transaction ledger. However:
+**Intended to manage user wallet balances through an immutable ledger.** Updated: this module was previously described with mutable stored balance fields (`available`, `held`). The target design is now ledger-only: every balance movement is an append-only `LedgerEntry`, and active, pending, and available balances are computed from ledger entries.
 
 - `WalletService` is a **stub** with placeholder methods returning strings like `'This action adds a new wallet'`.
 - `WalletResolver` has CRUD scaffolding but no real implementation.
 - Actual wallet logic is **scattered across other modules**:
-  - `EscrowService` creates wallet transactions (`this.prisma.transaction.create`, line ~150 in escrow.service.ts).
-  - `PaymentGatewayService` updates wallet balance during refund fallback (`this.prisma.wallet.update`, line ~150 in payment-gateway.service.ts).
+  - `EscrowService` creates wallet transactions (`this.prisma.transaction.create`, line ~150 in `escrow.service.ts`).
+  - `PaymentGatewayService` updates wallet balance during refund fallback (`this.prisma.wallet.update`, line ~150 in `payment-gateway.service.ts`).
   - No centralized service for wallet operations.
 
 **Files**: `wallet.service.ts` (stub), `wallet.resolver.ts` (stub), `wallet.module.ts`.
 
 ## 2. Bounded Context Assessment
 
-**This SHOULD be a real bounded context** for "Wallet & Ledger Management", but it's currently **degenerate** — the domain logic lives elsewhere.
+**This SHOULD be a real bounded context** for "Wallet & Ledger Management", but it is currently **degenerate** - the domain logic lives elsewhere.
 
 **Overlaps**:
 
-- **Escrow**: Creates `ESCROW_HOLD` and `ESCROW_RELEASE` transactions, updates wallet balances during escrow flow.
-- **Payment-Gateway**: Credits wallet as fallback when Paystack refunds fail.
-- **Errands** (indirectly): Errand completion triggers wallet credit via escrow release.
+- **Escrow**: Escrow lifecycle should produce wallet ledger entries for worker active balance, worker pending balance, worker available balance, active reversal, and client refunds.
+- **Payment-Gateway**: Paystack charges/refunds are the ground truth for external money movement; wallet entries must be traceable to gateway references when they represent an external payment event.
+- **Errands** (indirectly): Errand completion triggers worker balance movement from active to pending.
+- **Dispute** (future): Dispute resolution will eventually own refunding escrows already in `COMPLETED_PENDING_PAYOUT`; this is explicitly deferred.
 
-**Verdict**: Wallet is a missing bounded context — the domain exists in the Prisma schema (`Wallet`, `Transaction` models), but the domain logic is **leaking into Escrow and Payment-Gateway modules**.
+**Verdict**: Wallet is a missing bounded context - the domain exists in the Prisma schema (`Wallet`, `Transaction` models), but the target design requires replacing the mutable balance model with a ledger-only aggregate and a `LedgerEntry` model.
 
 ## 3. Domain Model Audit
 
+Updated: the prior audit assumed `Wallet.available` and `Wallet.held` were authoritative balance fields. They are now deprecated implementation details and must not be used as source-of-truth balances.
+
 **Anemic models**:
 
-- `Wallet` (Prisma model): Has fields `available`, `held`, `currency`, but no behavior.
-  - Missing methods: `debit()`, `credit()`, `hold()`, `release()`, `canWithdraw()`.
-- `Transaction` (Prisma model): Ledger entry with `type`, `status`, `amount`, but no behavior.
-  - Missing invariants: Cannot have negative amount, status must transition `PENDING` → `SUCCESS` | `FAILED`.
+- `Wallet` (Prisma model): currently has `available`, `held`, and `currency`, but no behavior. In the target model, `available` and `held` are removed/deprecated; a wallet has identity and ownership only.
+- `Transaction` (Prisma model): currently acts as a partial ledger with `ownerId`, `ownerType`, `errandId`, `amount`, `type`, `status`, and `reference`, but the target model is a new immutable `LedgerEntry` with `walletId`, `escrowId`, `gatewayReference`, and the explicit ledger entry types needed for the three-bucket worker model.
 
 **Aggregate boundaries**:
 
-- **`Wallet`** should be the aggregate root, owning:
-  - `Transaction` (child entities — ledger is an append-only log of wallet operations).
-  - Invariants: `available >= 0`, `held >= 0`, `available + held` matches sum of transactions.
-- **Wallet operations as methods**:
-  - `creditAvailable(amount, reference)` → creates `FUND` transaction, increments `available`.
-  - `debitAvailable(amount, reference)` → creates `WITHDRAWAL` transaction, decrements `available`.
-  - `holdFunds(amount, reference)` → creates `ESCROW_HOLD` transaction, decrements `available`, increments `held`.
-  - `releaseFunds(amount, reference)` → creates `ESCROW_RELEASE` transaction, decrements `held`, credits target wallet.
+- **`Wallet`** should be the aggregate root with no stored balance fields.
+- **`LedgerEntry`** is append-only and immutable. It records each balance movement and is never updated after creation.
+- Worker balances are three separate computed buckets:
+  - Active errand balance: escrow-funded work in progress; visible, not withdrawable.
+  - Pending balance: completed work inside the 3-day clearance window; visible, not withdrawable.
+  - Available balance: cleared funds; visible and withdrawable.
+- Normal worker flow is one-way: `ACTIVE_ERRAND_CREDIT` -> `PENDING_CREDIT` -> `AVAILABLE_CREDIT`.
+- Clients do not have wallet-tracked escrow holds. Client spending is computed from `Escrow` records, not from wallet balances. Clients only receive wallet credits via refunds.
 
 **Invariants currently unenforced**:
 
-1. **Balance integrity**:
-   - Escrow service manually updates wallet (line ~150 in escrow): `prisma.wallet.update({ data: { available: { increment: refundAmountKobo } } })` — no check that increment doesn't overflow or cause negative balance.
-   - Payment-gateway service does the same (line ~150 in payment-gateway.service.ts).
-   - No guard preventing concurrent updates (race condition: two escrow releases could double-credit).
-2. **Transaction uniqueness**:
-   - Transactions use `reference` field as unique key (e.g., `ESCROW_HOLD:${errandId}`), but uniqueness is enforced at DB level, not domain level.
-   - No domain logic preventing duplicate transaction creation (relies on Prisma unique constraint to throw).
-3. **Ledger immutability**:
-   - Transactions are append-only in theory, but Prisma allows `update` and `delete` on `Transaction` model — no domain guard.
+1. **Ledger-only balance integrity**:
+   - Current code mutates `Wallet.available` directly. Target behavior computes active, pending, and available balances by summing `LedgerEntry` rows.
+   - Balance snapshots may exist only as read-model/materialized-view optimization, never as source of truth.
+2. **Bucket movement rules**:
+   - Active balance can move to pending only when escrow reaches completed pending payout.
+   - Pending balance can move to available only after the 3-day clearance window elapses.
+   - Pending/available funds do not move back to active under normal operation.
+3. **Client wallet scope**:
+   - Client escrow spending must not appear as a wallet hold or debit. `amount spent` belongs to an Escrow read model.
+   - Client wallet entries are refund credits only, unless future top-up/withdrawal product requirements are introduced.
+4. **Refund gap**:
+   - Refunds from `COMPLETED_PENDING_PAYOUT` would reverse a pending-balance credit and are out of scope until the Dispute module exists.
+5. **Gateway reconciliation**:
+   - Every ledger entry caused by a Paystack charge/refund must carry the Paystack reference that caused it so duplicate webhooks can be ignored and reconciliation can compare ledger state to Paystack records.
 
 ## 4. Layering Violations
 
@@ -71,7 +77,7 @@
   })
   ```
 
-  This is wallet domain logic (ledger creation) in the escrow module.
+  Updated: this must become a Wallet command that appends `LedgerEntry` rows. Escrow should not know wallet schema details.
 
 - Payment-gateway module updates wallet balance:
   ```typescript
@@ -80,11 +86,11 @@
     data: { available: { increment: refundAmountKobo } },
   });
   ```
-  This is a wallet debit/credit operation in the payment module.
+  Updated: this must become a `RecordClientRefundCommandHandler` call that appends a `REFUND_CREDIT` ledger entry with the Paystack refund reference.
 
 **Persistence leaking**:
 
-- Other modules directly call `this.prisma.wallet.*` and `this.prisma.transaction.*` — bypassing any wallet service.
+- Other modules directly call `this.prisma.wallet.*` and `this.prisma.transaction.*` - bypassing any wallet service.
 
 ## 5. Repository Pattern Gap
 
@@ -94,82 +100,66 @@
 
 ```
 domain/
-  IWalletRepository (interface)
-    - findByOwner(ownerId, ownerType): Wallet | null
-    - save(wallet): void
-    - findTransactionByReference(reference): Transaction | null
+  IWalletRepository
+  ILedgerEntryRepository
 infrastructure/
-  PrismaWalletRepository (implementation)
+  PrismaWalletRepository
+  PrismaLedgerEntryRepository
 ```
 
-**Consolidation**: All `prisma.wallet.*` and `prisma.transaction.*` calls in Escrow and Payment-Gateway modules are replaced with calls to `WalletService` (which uses repository internally).
+**Consolidation**: All `prisma.wallet.*` and `prisma.transaction.*` calls in Escrow and Payment-Gateway modules are replaced with wallet command handlers that append ledger entries and publish wallet domain events.
 
 ## 6. EIP Opportunities
 
-**Command/Event patterns** (critical for consistency):
+Updated: the ledger itself is now the central integration pattern.
 
-1. **Wallet operations as events**:
-   - Current: Escrow directly mutates wallet in a transaction (line ~150).
-   - Proposed: Escrow emits `FundsHeld` event → Wallet module listens → creates `ESCROW_HOLD` transaction → updates balance.
-   - Benefits: Wallet module owns its own consistency, escrow doesn't need to know wallet schema.
-
-2. **Idempotency via Command pattern**:
-   - Current: `upsert` on transaction table (line ~150 in escrow) tries to ensure idempotency, but logic is scattered.
-   - Proposed: `HoldFundsCommand` with unique `reference` → handler checks if transaction exists before creating.
-
-3. **Eventual consistency**:
-   - Escrow release and wallet credit could be asynchronous:
-     - Escrow emits `EscrowReleased` event.
-     - Wallet listens, credits worker wallet.
-     - If wallet update fails (DB down), event is retried from queue.
-
-**Dead Letter Channel / Retry**:
-
-- Current: If wallet update fails (e.g., DB timeout during escrow release), the escrow is marked `RELEASED` but wallet balance is NOT updated — **money is lost in the system**.
-- No compensation or retry.
-- Recommendation: Wallet operations as queued commands (BullMQ), retried 5x before dead-letter.
-
-**Aggregator**:
-
-- Wallet balance is an aggregation of transaction history: `available = SUM(transactions where status=SUCCESS)`.
-- Currently recalculated on the fly via Prisma increment/decrement.
-- Better: Use event sourcing for wallet — rebuild balance from transaction log (audit-friendly, no race conditions).
+1. **Event Sourcing / Append-Only Log**:
+   - The wallet ledger is the authoritative fact stream for balance movements.
+   - Wallet balances are projections of the ledger, not mutable fields.
+2. **Materialized View**:
+   - Active, pending, and available balance snapshots can be maintained for read-heavy queries.
+   - Snapshots are rebuildable from the ledger and must not be treated as authoritative.
+3. **Idempotent Receiver**:
+   - Gateway webhook-driven operations must use `gatewayReference` plus `type`/`walletId` uniqueness to prevent duplicate ledger entries.
+4. **Reconciliation / Audit**:
+   - A scheduled job compares ledger entries with Paystack transaction/refund records by gateway reference.
+5. **Dead Letter Channel / Retry**:
+   - Wallet entry posting after a successful external payment event must be queued, retried, and dead-lettered with alerting if persistence repeatedly fails.
 
 ## 7. Cross-Cutting Concerns
 
 **Validation**:
 
-- No validation of wallet operations (e.g., can debit more than available balance if Prisma increment goes negative).
-- Amount validation is missing (can create transaction with `amount = 0` or `amount < 0`).
+- Amount validation is missing. Ledger entries must reject `amountKobo <= 0`.
+- Wallet operations must check computed balances before creating reversal, pending release, available release, and withdrawal entries.
 
 **Transactions**:
 
-- Wallet updates are done inside transactions started by other modules (Escrow's `prisma.$transaction`), meaning wallet consistency depends on escrow logic correctness.
-- Should be: Wallet module owns its own transactions, triggered by events from other modules.
+- Wallet updates are currently done inside transactions started by other modules.
+- Target behavior: Wallet owns appending ledger entries. Cross-module workflows use events/sagas and idempotent command handlers.
 
 **Error handling**:
 
-- If wallet update fails, error bubbles up to escrow/payment-gateway caller (e.g., GraphQL resolver sees `500 Internal Server Error`).
-- No domain exception for `InsufficientFunds`, `WalletNotFound`.
+- Current code lacks domain errors for insufficient active, pending, and available balances.
+- Target behavior: domain errors are explicit, typed, and separate from infrastructure failures.
 
 ## 8. GraphQL-Specific Notes
 
 **No real GraphQL exposure**:
 
-- `WalletResolver` exists but is a stub (returns placeholder strings).
-- Wallet is not exposed to clients directly — clients see wallet balance via `User` or `Client` queries (if implemented).
+- `WalletResolver` exists but is a stub.
 
 **Should there be a resolver?**
 
-- Potentially yes, for queries like:
-  - `myWalletBalance` → returns available + held funds.
-  - `myTransactionHistory(pagination)` → ledger query.
-  - `withdrawFunds(amount)` → mutation to request withdrawal.
+- Yes, for queries such as:
+  - `myWalletBalances` -> returns active, pending, and available balances.
+  - `myLedgerHistory(pagination)` -> ledger query.
+  - `withdrawFunds(amount)` -> mutation to request withdrawal against available balance.
 
 **Authorization**:
 
-- No auth implemented yet (stub service).
-- When implemented, must enforce: users can only query/mutate their own wallet.
+- Users can only query/mutate their own wallet.
+- Admin/audit access must be separately authorized and logged.
 
 ## 9. Target Structure
 
@@ -177,178 +167,88 @@ infrastructure/
 src/wallet/
   domain/
     entities/
-      Wallet.ts                     # Aggregate root with credit(), debit(), hold(), release()
-      Transaction.ts                # Child entity (ledger entry)
+      Wallet.ts
+      LedgerEntry.ts
     value-objects/
-      Money.ts                      # Shared with Escrow
-      TransactionReference.ts       # Unique reference for idempotency
+      WalletId.ts
+      LedgerEntryId.ts
+      LedgerEntryType.ts
     repositories/
-      IWalletRepository.ts          # Interface: findByOwner, save, findTransactionByReference
+      IWalletRepository.ts
+      ILedgerEntryRepository.ts
     events/
-      FundsHeld.ts
-      FundsReleased.ts
-      FundsCredited.ts
-      FundsDebited.ts
+      ActiveErrandCredited.ts
+      MovedToPending.ts
+      ReleasedToAvailable.ts
+      WithdrawalRecorded.ts
+      ActiveErrandReversed.ts
+      ClientRefunded.ts
+    errors/
+      InsufficientActiveBalanceError.ts
+      InsufficientPendingBalanceError.ts
+      InsufficientAvailableBalanceError.ts
+      InvalidLedgerAmountError.ts
+      UnsupportedPendingRefundError.ts
 
   application/
     commands/
-      CreditWallet/
-        CreditWalletCommand.ts
-        CreditWalletHandler.ts
-      HoldFunds/
-        HoldFundsCommand.ts
-        HoldFundsHandler.ts
-      ReleaseFunds/
-        ReleaseFundsCommand.ts
-        ReleaseFundsHandler.ts
-      WithdrawFunds/
-        WithdrawFundsCommand.ts
-        WithdrawFundsHandler.ts
+      CreditActiveErrand/
+      MoveActiveToPending/
+      ReleaseToAvailable/
+      RecordWithdrawal/
+      ReverseActiveErrand/
+      RecordClientRefund/
     queries/
-      GetWalletBalance/
-        GetWalletBalanceQuery.ts
-        GetWalletBalanceHandler.ts
-      GetTransactionHistory/
-        GetTransactionHistoryQuery.ts
-        GetTransactionHistoryHandler.ts
-    event-handlers/
-      OnEscrowFundedHoldFunds.ts    # Listens to EscrowFunded → holds funds in client wallet
-      OnEscrowReleasedCreditWorker.ts  # Listens to EscrowReleased → credits worker wallet
+      GetWalletBalances/
+      GetLedgerHistory/
+    jobs/
+      RebuildWalletBalanceSnapshotJob.ts
+      ReconcileLedgerWithPaystackJob.ts
 
   infrastructure/
     repositories/
-      PrismaWalletRepository.ts     # Implements IWalletRepository
+      PrismaWalletRepository.ts
+      PrismaLedgerEntryRepository.ts
 
   presentation/
     resolvers/
-      WalletResolver.ts             # Queries: myWalletBalance, myTransactionHistory
-                                    # Mutations: withdrawFunds
-    types/
-      WalletType.ts
-      TransactionType.ts
+      WalletResolver.ts
 ```
 
----
+## Persistence Model (Derived from Domain)
 
-## 10. Schema Findings
+```prisma
+model Wallet {
+  id String @id @map("_id")
+  userId String
+  currency String?
+  createdAt DateTime
+  updatedAt DateTime
 
-**Context**: Analysis of `prisma/model/wallet.prisma` and cross-module references.
+  @@unique([userId]) // backs: WalletAlreadyExistsError
+}
 
-### Aggregate Boundary Violations
+model LedgerEntry {
+  id String @id @map("_id")
+  walletId String
+  userId String
+  type LedgerEntryType
+  amountKobo Int
+  currency String
+  escrowId String?
+  gatewayReference String?
+  idempotencyKey String
+  metadata Json?
+  createdAt DateTime
 
-1. **EscrowService creates Transactions directly**
-   - **Evidence**: `src/escrow/escrow.service.ts` (~line 150) calls `prisma.transaction.create()` directly (creates `ESCROW_HOLD` transactions).
-   - **Schema gap**: `Transaction` model has no ownership constraint enforcing that only Wallet module can create transactions.
-   - **Impact**: **CRITICAL** — wallet balance can become inconsistent if transactions created outside Wallet aggregate (no invariant enforcement: balance = SUM(transactions)).
-   - **Fix priority**: PHASE 1 — `EscrowFunded` event → `WalletEventHandler.holdFunds()` → creates transaction.
-   - **Migration notes**: Requires dual-write during transition (emit events AND create transaction directly) to ensure no data loss during rollout.
+  @@index([walletId, createdAt]) // serves: findByWalletId
+  @@index([escrowId]) // serves: findByEscrowId
+  @@index([gatewayReference]) // serves: findByGatewayReference
+  @@unique([idempotencyKey]) // backs: DuplicateLedgerEntryError
+}
+```
 
-2. **PaymentGatewayService updates Wallet.available directly**
-   - **Evidence**: `src/payment-gateway/payment-gateway.service.ts` (line 180) calls `prisma.wallet.update({ data: { available: { increment } } })` directly.
-   - **Schema gap**: No constraint preventing direct wallet mutations.
-   - **Impact**: **CRITICAL** — balance updates bypass Wallet aggregate's invariants (available >= 0, ledger immutability).
-   - **Fix priority**: PHASE 1 — `RefundFailed` event → `WalletEventHandler.creditRefund()`.
-
-### Dangling Reference Risks
-
-1. **Transaction.errandId → Errand (Financial audit trail at risk)**
-   - **Schema**: `Transaction.errandId` is nullable `String? @db.ObjectId`, no cascade rule.
-   - **Bug**: If errand deleted, all wallet transactions for that errand become orphaned — **cannot trace payment back to job**.
-   - **Impact**: **CRITICAL** — audit compliance violation (financial records must link to originating transaction).
-   - **Current cleanup**: None.
-   - **Fix**: Add constraint to Errand schema (prevent errand deletion if transactions exist):
-     ```prisma
-     // In errand.prisma, add this check via code (Prisma doesn't support FK checks on nullable fields)
-     // Or add event handler: ErrandDeleting → check if transactions exist → reject if found
-     ```
-   - **Alternative**: Use `onDelete: SetNull` to preserve transaction but clear errand link (acceptable for audit — transaction still shows amount/date).
-   - **Migration**: Code-level check (no Prisma schema change possible for nullable FK).
-   - **Priority**: PHASE 1 (before errand deletion feature built).
-
-2. **Transaction.ownerId → Client/Provider (polymorphic relation risk)**
-   - **Schema**: `Transaction.ownerId` + `ownerType` enum (CLIENT | PROVIDER) — polymorphic relation, no cascade rules.
-   - **Bug**: Deleting client or provider orphans all their transactions.
-   - **Impact**: **CRITICAL** — financial audit trail broken (cannot show user's payment history).
-   - **Current cleanup**: None.
-   - **Fix**: Add code-level check (prevent user deletion if wallet transactions exist) OR soft-delete users (mark inactive, preserve data).
-   - **Priority**: PHASE 1 (coordinate with Users module — user deletion feature).
-
-### Missing Indexes
-
-**All critical indexes already present** (analysis confirmed):
-
-- `@@unique([ownerId, ownerType])` on Wallet ✅
-- `@@index([ownerId, ownerType])` on Transaction ✅
-- `@@index([errandId])` on Transaction ✅
-- `@@unique([reference])` on Transaction ✅
-
-**No additional indexes needed** — Wallet/Transaction queries covered.
-
-### Embed vs. Reference Decisions
-
-**Not applicable** — Wallet has no denormalization proposals. Wallet balance is computed from transaction ledger (event sourcing pattern — rebuild from log).
-
-**Note on balance integrity**:
-
-- Current schema stores `Wallet.available` and `Wallet.held` as denormalized fields (updated on each transaction).
-- **Risk**: If transaction creation succeeds but wallet update fails, balance becomes inconsistent.
-- **Alternative**: Remove `available`/`held` fields, compute balance from `SUM(transactions)` on-demand.
-- **Tradeoff**: Read performance vs. consistency.
-- **Decision**: Keep current approach (denormalized balance) but add domain invariant: `Wallet.updateBalance()` method MUST be called inside same transaction as `Transaction.create()`.
-
-### Migration / Rollback Strategy
-
-**Phase 1 changes for Wallet**:
-
-1. **Add cascade protections for transactions** (code-level):
-   - Add event handler: `ErrandDeleting` → check if transactions exist → reject if found.
-   - Add event handler: `UserDeleting` → check if wallet exists → reject if found (or soft-delete user).
-   - Migration: Code deployment (no schema change).
-   - Rollback: Code revert.
-   - Risk: LOW.
-
-2. **Extract Wallet aggregate + events** (code-only):
-   - Create `Wallet.credit()`, `Wallet.debit()`, `Wallet.hold()`, `Wallet.release()` methods.
-   - Emit events: `FundsCredited`, `FundsDebited`, `FundsHeld`, `FundsReleased`.
-   - Migration: Code deployment.
-   - Rollback: Code revert.
-   - Risk: **MEDIUM** — requires dual-write during transition (emit events AND direct Prisma) to avoid breaking Escrow/Payment-Gateway.
-
-3. **No schema changes needed** (no indexes/constraints to add).
-
-4. **No backfill scripts needed** (existing wallet/transaction data is valid).
-
-**Risk revised from LOW-MEDIUM to MEDIUM**: Dual-write complexity for coordinating Wallet aggregate with Escrow/Payment-Gateway makes this moderately risky. Requires feature flag + gradual rollout.
-
-**Mitigation**: Use BullMQ queue for wallet operations (retry on failure) + monitoring (alert if transaction created but balance not updated).
-
----
-
-## 11. Migration Risk & Priority
-
-**Risk**: **LOW-MEDIUM**
-
-- Wallet is currently a stub, so no existing functionality breaks if we implement it from scratch.
-- However, wallet data is already in production DB (created by Escrow and Payment-Gateway modules), so migration must preserve existing transactions.
-
-**Priority**: **PHASE 1 (parallel with Escrow)**
-**Rationale**:
-
-1. Wallet refactoring UNBLOCKS Escrow refactoring (escrow should emit events instead of mutating wallet directly).
-2. Implementing wallet properly prevents money loss bugs (currently wallet updates can fail silently).
-3. Low-risk because current implementation is a stub — we're adding functionality, not changing it.
-
-**Migration steps**:
-
-1. **Implement Wallet aggregate** with `credit()`, `debit()`, `hold()`, `release()` methods.
-2. **Create WalletService** with use case methods: `creditWallet()`, `holdFunds()`, `releaseFunds()`.
-3. **Extract wallet mutation calls from Escrow and Payment-Gateway** → replace with `WalletService` calls.
-4. **Introduce event-driven wallet updates**:
-   - Escrow emits `EscrowFunded` → Wallet listens → holds funds.
-   - Escrow emits `EscrowReleased` → Wallet listens → releases funds + credits worker.
-5. **Add GraphQL resolver** for wallet queries (balance, transaction history).
-6. **Queue wallet operations** in BullMQ for retry on failure.
-7. **Audit existing wallet transactions** in DB for consistency (sum of transactions should match wallet balances).
+`Wallet` is the aggregate root; `LedgerEntry` has its own append-only lifecycle but is reachable only through `IWalletRepository`/`ILedgerEntryRepository`. References are scalar IDs: `userId`, `walletId`, `escrowId`. Cleanup owners: `UserDeletedPolicyHandler` must soft-delete users with wallet history; `WalletDeletionPolicyHandler` prevents wallet deletion when ledger entries exist; `EscrowDeletedPolicyHandler` prevents deletion of escrow records referenced by ledger entries. `id` serves `findById` implicitly where needed, `userId` serves `findByUserId`, and all ledger indexes map 1:1 to ledger repository methods. `idempotencyKey` is generated by the application command from wallet/type/escrow/gateway context and backs webhook/command idempotency without relying on nullable compound unique fields.
 
 ---
 
@@ -358,468 +258,491 @@ src/wallet/
 
 ```typescript
 /**
- * Wallet aggregate root managing user balances and fund movements.
- * Core invariants:
- * - available + held must always equal the sum of all ledger entries
- * - available and held balances must never go negative
- * - All balance changes must be recorded as immutable Transaction entities
- * - One wallet per user (ownerId + ownerType composite is unique)
+ * Strongly typed wallet identifier backed by the shared EntityId base.
+ * The EntityId constructor rejects empty or whitespace-only values, so WalletId.from()
+ * cannot rehydrate an invalid persisted ID.
  */
 class WalletId extends EntityId {
   /**
-   * Private constructor. Use WalletId.new() or WalletId.from().
-   */
-  private constructor(value: string);
-
-  /**
-   * Creates a new WalletId.
+   * Creates a new wallet identifier.
    */
   static new(): WalletId;
 
   /**
-   * Rehydrates WalletId from persisted value.
+   * Rehydrates a wallet identifier from the persisted Prisma Wallet.id field.
    */
   static from(value: string): WalletId;
 }
 
 /**
- * Wallet aggregate root managing user balances and fund movements.
+ * Strongly typed ledger entry identifier backed by the shared EntityId base.
+ * The EntityId constructor rejects empty or whitespace-only values, so LedgerEntryId.from()
+ * cannot rehydrate an invalid persisted ID.
+ */
+class LedgerEntryId extends EntityId {
+  /**
+   * Creates a new ledger entry identifier.
+   */
+  static new(): LedgerEntryId;
+
+  /**
+   * Rehydrates a ledger entry identifier from the persisted Prisma LedgerEntry.id field.
+   */
+  static from(value: string): LedgerEntryId;
+}
+
+/**
+ * Immutable ledger entry categories for the wallet three-bucket model.
+ * Worker money moves one way in normal operation: active errand balance to pending balance
+ * to available balance. Clients do not receive escrow holds in wallet; their wallet credits
+ * are refunds only. Reversals are represented by explicit entries rather than mutation.
+ */
+enum LedgerEntryType {
+  ACTIVE_ERRAND_CREDIT = 'ACTIVE_ERRAND_CREDIT',
+  ACTIVE_ERRAND_REVERSAL = 'ACTIVE_ERRAND_REVERSAL',
+  PENDING_CREDIT = 'PENDING_CREDIT',
+  AVAILABLE_CREDIT = 'AVAILABLE_CREDIT',
+  WITHDRAWAL_DEBIT = 'WITHDRAWAL_DEBIT',
+  REFUND_CREDIT = 'REFUND_CREDIT',
+}
+
+/**
+ * Immutable append-only wallet ledger entry.
+ * This is not an aggregate root: Wallet is the aggregate root, and LedgerEntry is the
+ * child entity/log record produced by Wallet behavior and persisted append-only.
+ * Maps to the proposed Prisma LedgerEntry model fields:
+ * id, walletId, userId, type, amountKobo, currency, escrowId, gatewayReference,
+ * metadata, createdAt.
+ */
+class LedgerEntry {
+  /**
+   * Private constructor. Use LedgerEntry.create() so amount validation and audit fields
+   * are consistently enforced before persistence.
+   */
+  private constructor(
+    public readonly id: LedgerEntryId,
+    public readonly walletId: WalletId,
+    public readonly userId: UserId,
+    public readonly type: LedgerEntryType,
+    public readonly amountKobo: number,
+    public readonly currency: string,
+    public readonly escrowId: EscrowId | null,
+    public readonly gatewayReference: string | null,
+    public readonly metadata: Record<string, unknown> | null,
+    public readonly createdAt: Date,
+  );
+
+  /**
+   * Creates a new immutable ledger entry and rejects zero or negative amounts.
+   * Entries tied to Paystack charge/refund events must include gatewayReference so the
+   * ledger can be reconciled against Paystack and duplicate webhooks can be ignored.
+   */
+  static create(params: CreateLedgerEntryParams): LedgerEntry;
+}
+
+/**
+ * Parameters used to create a LedgerEntry.
+ */
+interface CreateLedgerEntryParams {
+  walletId: WalletId;
+  userId: UserId;
+  type: LedgerEntryType;
+  amountKobo: number;
+  currency: string;
+  escrowId: EscrowId | null;
+  gatewayReference: string | null;
+  metadata: Record<string, unknown> | null;
+}
+
+/**
+ * Wallet aggregate root. It owns no stored balance fields; active, pending, and available
+ * balances are computed from LedgerEntry rows supplied by ILedgerEntryRepository or a
+ * trusted materialized read model rebuilt from those rows.
  */
 class Wallet extends AggregateRoot<WalletId> {
   /**
-   * Private constructor - use Wallet.create() factory or load from repository.
-   * @param id Unique wallet identifier (from schema: id String @id)
-   * @param ownerId User ID who owns wallet (from schema: ownerId String)
-   * @param ownerType Owner type enum (from schema: ownerType OwnerType)
-   * @param available Available balance in kobo (from schema: available Int)
-   * @param held Held balance in kobo (from schema: held Int)
-   * @param transactions Immutable ledger of all balance changes (from schema: Transaction[])
-   * @param createdAt Creation timestamp
-   * @param updatedAt Last update timestamp
+   * Private constructor. Use Wallet.create() for brand-new wallets and Wallet.reconstitute()
+   * for records loaded from the Prisma Wallet model.
    */
   private constructor(
     public readonly id: WalletId,
-    public readonly ownerId: UserId | ProviderId | ClientId,
-    public readonly ownerType: OwnerType,
-    private available: number,
-    private held: number,
-    private readonly transactions: Transaction[],
+    public readonly userId: UserId,
+    public readonly currency: string | null,
     public readonly createdAt: Date,
     public readonly updatedAt: Date,
   );
 
   /**
-   * Factory method to create new wallet with zero balances.
-   * @param ownerId User ID
-   * @param ownerType USER | PROVIDER | CLIENT
-   * @returns New Wallet instance with available=0, held=0
+   * Creates a brand-new wallet with no stored balance. The wallet starts at zero because
+   * no LedgerEntry rows exist yet.
    */
-  static create(ownerId: UserId | ProviderId | ClientId, ownerType: OwnerType): Wallet;
+  static create(userId: UserId, currency: string | null): Wallet;
 
   /**
-   * Reconstitutes Wallet aggregate from persistence.
+   * Reconstitutes a wallet from persistence. Loading a wallet does not load a mutable
+   * balance column; any balance check must be supplied by computed ledger totals.
    */
   static reconstitute(
     id: WalletId,
-    ownerId: UserId | ProviderId | ClientId,
-    ownerType: OwnerType,
-    available: number,
-    held: number,
-    transactions: Transaction[],
+    userId: UserId,
+    currency: string | null,
     createdAt: Date,
     updatedAt: Date,
   ): Wallet;
 
   /**
-   * Increases available balance and creates CREDIT transaction.
-   * Must enforce non-negative balance invariant.
-   * @param amount Amount to credit in kobo (must be > 0)
-   * @param source Transaction source (e.g., "escrow_release", "refund", "topup")
-   * @param reference External reference (e.g., escrow ID, payment reference)
-   * @param errandId Optional errand ID if credit is errand-related
-   * @throws InvalidAmountError when amount <= 0
-   * @throws InsufficientFundsError if this would cause available < 0 (defensive check)
-   * @emits WalletCreditedEvent
+   * Records worker active errand balance when an escrow is funded and work is in progress.
+   * Produces ACTIVE_ERRAND_CREDIT. Depends on idempotency checks by escrowId/gatewayReference
+   * to prevent duplicate credits for the same Paystack-funded escrow.
    */
-  credit(
-    amount: Money,
-    source: string,
-    reference: string,
-    errandId: ErrandId | null,
-  ): void;
+  recordActiveErrandCredit(
+    amountKobo: number,
+    currency: string,
+    escrowId: EscrowId,
+    gatewayReference: string,
+  ): LedgerEntry;
 
   /**
-   * Decreases available balance and creates DEBIT transaction.
-   * Must enforce non-negative balance invariant.
-   * @param amount Amount to debit in kobo (must be > 0)
-   * @param destination Transaction destination (e.g., "withdrawal", "escrow_hold")
-   * @param reference External reference
-   * @param errandId Optional errand ID if debit is errand-related
-   * @throws InvalidAmountError when amount <= 0
-   * @throws InsufficientFundsError when available balance < amount
-   * @emits WalletDebitedEvent
+   * Moves worker funds from active errand balance to pending balance after completion.
+   * Produces ACTIVE_ERRAND_REVERSAL and PENDING_CREDIT. Requires computed active balance
+   * for this wallet/escrow to be greater than or equal to amount before entries are produced.
    */
-  debit(
-    amount: Money,
-    destination: string,
-    reference: string,
-    errandId: ErrandId | null,
-  ): void;
+  moveActiveToPending(
+    amountKobo: number,
+    currency: string,
+    escrowId: EscrowId,
+    computedActiveBalanceKobo: number,
+  ): LedgerEntry[];
 
   /**
-   * Moves funds from available to held (for escrow).
-   * Creates ESCROW_HOLD transaction. Held funds cannot be withdrawn.
-   * @param amount Amount to hold in kobo (must be > 0)
-   * @param reference External reference (typically escrow ID)
-   * @param errandId Errand ID this hold is for
-   * @throws InvalidAmountError when amount <= 0
-   * @throws InsufficientFundsError when available balance < amount
-   * @emits FundsHeldEvent
+   * Releases worker funds from pending balance to available balance after the 3-day
+   * clearance window elapses. Produces AVAILABLE_CREDIT. Requires computed pending balance
+   * for this wallet/escrow to be greater than or equal to amount before the entry is produced.
    */
-  hold(amount: Money, reference: string, errandId: ErrandId): void;
+  moveToAvailable(
+    amountKobo: number,
+    currency: string,
+    escrowId: EscrowId,
+    computedPendingBalanceKobo: number,
+  ): LedgerEntry;
 
   /**
-   * Moves funds from held back to available (escrow cancelled/refunded).
-   * Creates ESCROW_RELEASE transaction.
-   * @param amount Amount to release in kobo (must be > 0)
-   * @param reference External reference (typically escrow ID)
-   * @param errandId Errand ID this release is for
-   * @throws InvalidAmountError when amount <= 0
-   * @throws InsufficientFundsError when held balance < amount
-   * @emits FundsReleasedEvent
+   * Records a withdrawal from available balance. Produces WITHDRAWAL_DEBIT. Requires
+   * computed available balance to be greater than or equal to amount before the entry is
+   * produced.
    */
-  releaseHold(amount: Money, reference: string, errandId: ErrandId): void;
+  recordWithdrawal(
+    amountKobo: number,
+    currency: string,
+    gatewayReference: string,
+    computedAvailableBalanceKobo: number,
+  ): LedgerEntry;
 
   /**
-   * Transfers held funds to another wallet (escrow payout to worker).
-   * Decreases this wallet's held balance and creates ESCROW_PAYOUT transaction.
-   * The recipient wallet.credit() must be called separately.
-   * @param amount Amount to transfer in kobo (must be > 0)
-   * @param reference External reference (typically escrow ID)
-   * @param errandId Errand ID this payout is for
-   * @throws InvalidAmountError when amount <= 0
-   * @throws InsufficientFundsError when held balance < amount
-   * @emits FundsTransferredEvent
+   * Reverses worker active errand balance before completion, typically when an escrow is
+   * cancelled/refunded before work completes. Produces ACTIVE_ERRAND_REVERSAL. Requires
+   * computed active balance for this wallet/escrow to be greater than or equal to amount.
    */
-  transferHeld(amount: Money, reference: string, errandId: ErrandId): void;
+  recordActiveErrandReversal(
+    amountKobo: number,
+    currency: string,
+    escrowId: EscrowId,
+    gatewayReference: string,
+    computedActiveBalanceKobo: number,
+  ): LedgerEntry;
 
   /**
-   * Returns current available balance (queryable).
+   * Records a client-side refund credit. Produces REFUND_CREDIT. Clients do not have
+   * wallet-tracked escrow holds, so this is the only client escrow-related wallet credit.
    */
-  getAvailableBalance(): Money;
-
-  /**
-   * Returns current held balance (queryable).
-   */
-  getHeldBalance(): Money;
-
-  /**
-   * Returns total balance (available + held).
-   */
-  getTotalBalance(): Money;
-
-  /**
-   * Validates wallet integrity by ensuring available + held equals sum of all transactions.
-   * Should be called periodically by background audit job.
-   * @throws WalletIntegrityError when balance doesn't match ledger
-   */
-  validateIntegrity(): void;
+  recordClientRefund(
+    amountKobo: number,
+    currency: string,
+    escrowId: EscrowId,
+    gatewayReference: string,
+  ): LedgerEntry;
 }
 
 /**
- * Immutable ledger entry recording a balance change.
- * Child entity of Wallet aggregate. Cannot be modified after creation.
+ * Thrown when a ledger entry amount is zero or negative.
  */
-class Transaction {
-  /**
-   * @param id Unique transaction identifier (from schema: id String @id)
-   * @param walletId Parent wallet ID (from schema: walletId String)
-   * @param type Transaction type enum (from schema: type TransactionType)
-   * @param amount Amount in kobo (from schema: amount Int)
-   * @param reference External reference (from schema: reference String @unique)
-   * @param status Transaction status (from schema: status TransactionStatus)
-   * @param errandId Optional errand ID (from schema: errandId String?)
-   * @param ownerId Owner ID (from schema: ownerId String)
-   * @param ownerType Owner type (from schema: ownerType OwnerType)
-   * @param createdAt Creation timestamp
-   */
-  constructor(
-    public readonly id: string,
-    public readonly walletId: WalletId,
-    public readonly type: TransactionType,
-    public readonly amount: number,
-    public readonly reference: string,
-    public readonly status: TransactionStatus,
-    public readonly errandId: ErrandId | null,
-    public readonly ownerId: UserId | ProviderId | ClientId,
-    public readonly ownerType: OwnerType,
-    public readonly createdAt: Date,
-  );
-}
+class InvalidLedgerAmountError extends Error {}
 
 /**
- * Value object representing monetary amount in kobo.
- * Immutable - all operations return new Money instances.
+ * Thrown when an active-balance reversal or active-to-pending move exceeds the computed
+ * active errand balance.
  */
-class Money {
-  /**
-   * @param amountKobo Amount in kobo (1 Naira = 100 kobo)
-   * @throws InvalidAmountError when amountKobo < 0
-   */
-  constructor(public readonly amountKobo: number);
+class InsufficientActiveBalanceError extends Error {}
 
-  /**
-   * Adds two money values.
-   * @param other Money to add
-   * @returns New Money instance with sum
-   */
-  add(other: Money): Money;
+/**
+ * Thrown when pending-to-available release exceeds the computed pending balance.
+ */
+class InsufficientPendingBalanceError extends Error {}
 
-  /**
-   * Subtracts another money value.
-   * @param other Money to subtract
-   * @returns New Money instance with difference
-   * @throws InvalidAmountError when result would be negative
-   */
-  subtract(other: Money): Money;
+/**
+ * Thrown when withdrawal exceeds computed available balance.
+ */
+class InsufficientAvailableBalanceError extends Error {}
 
-  /**
-   * Splits amount into platform fee and net amount.
-   * @param feeRateBasisPoints Fee rate as basis points (500 = 5%)
-   * @returns Tuple [platformFee, netAmount] where gross = fee + net
-   */
-  splitFee(feeRateBasisPoints: number): [Money, Money];
-
-  /**
-   * Formats as Naira with 2 decimal places (e.g., "₦1,234.56").
-   */
-  toNairaString(): string;
-}
-
-/** Thrown when amount is negative or zero in contexts requiring positive amount. */
-class InvalidAmountError extends Error {}
-
-/** Thrown when wallet balance is insufficient for debit/hold/transfer operation. */
-class InsufficientFundsError extends Error {}
-
-/** Thrown when wallet integrity check fails (balance doesn't match ledger). */
-class WalletIntegrityError extends Error {}
+/**
+ * Thrown when code attempts to refund an escrow already in COMPLETED_PENDING_PAYOUT.
+ * This path is intentionally deferred because it needs Dispute module rules to decide
+ * whether pending worker credit is reversed, partially reversed, or paid out.
+ */
+class UnsupportedPendingRefundError extends Error {}
 ```
 
 ### Repository Interface
 
 ```typescript
 /**
- * Persistence contract for Wallet aggregate.
- * Domain and application layers depend on this interface, not Prisma.
+ * Persistence contract for immutable ledger entries.
+ */
+interface ILedgerEntryRepository {
+  /**
+   * Appends one ledger entry atomically. Implementations must not update existing entries.
+   */
+  append(entry: LedgerEntry): Promise<void>;
+
+  /**
+   * Appends multiple ledger entries atomically for one wallet operation, such as
+   * active-to-pending movement.
+   */
+  appendMany(entries: LedgerEntry[]): Promise<void>;
+
+  /**
+   * Finds entries for a wallet so application/query handlers can compute active, pending,
+   * and available balances from the append-only log.
+   */
+  findByWalletId(walletId: WalletId): Promise<LedgerEntry[]>;
+
+  /**
+   * Finds entries related to an escrow for audit, dispute preparation, and reconciliation.
+   */
+  findByEscrowId(escrowId: EscrowId): Promise<LedgerEntry[]>;
+
+  /**
+   * Finds entries with a Paystack gateway reference for webhook idempotency and external
+   * reconciliation.
+   */
+  findByGatewayReference(gatewayReference: string): Promise<LedgerEntry[]>;
+}
+
+/**
+ * Persistence contract for Wallet aggregate identity and ownership only.
  */
 interface IWalletRepository {
   /**
-   * Finds wallet by unique ID.
-   * @param id Wallet ID
-   * @returns Wallet aggregate or null if not found
+   * Finds a wallet by user ID. Loading a Wallet means loading identity, then reconstructing
+   * computed balances from ILedgerEntryRepository or a ledger-backed materialized view.
    */
-  findById(id: WalletId): Promise<Wallet | null>;
+  findByUserId(userId: UserId): Promise<Wallet | null>;
 
   /**
-   * Finds wallet by owner (user, provider, or client).
-   * Each user has exactly one wallet.
-   * @param ownerId User/Provider/Client ID
-   * @param ownerType Owner type enum
-   * @returns Wallet aggregate or null if not found
-   */
-  findByOwner(
-    ownerId: UserId | ProviderId | ClientId,
-    ownerType: OwnerType,
-  ): Promise<Wallet | null>;
-
-  /**
-   * Persists wallet aggregate (insert if new, update if exists).
-   * Transactions are append-only - existing transactions are never modified.
-   * @param wallet Wallet aggregate with uncommitted transactions
+   * Saves wallet identity/ownership data. This does not persist balance fields.
+   * EIP Aggregator note: Wallet is the aggregate boundary that coordinates ledger entry
+   * creation, while the ledger is the child log used to compute aggregate state.
    */
   save(wallet: Wallet): Promise<void>;
-
-  /**
-   * Finds all wallets with balance discrepancies (for audit).
-   * Used by background integrity check job.
-   * @returns Wallets where available + held != sum of transactions
-   */
-  findWalletsWithDiscrepancies(): Promise<Wallet[]>;
 }
 ```
 
-### Application Layer
+### Application Layer (Command/Query Handlers)
 
 ```typescript
 /**
- * Creates new wallet for user during registration.
- * Wallets are created automatically when Provider or Client profiles are created.
+ * Called when Escrow funding succeeds and the worker has funds committed to in-progress
+ * work. Produces ACTIVE_ERRAND_CREDIT.
  */
-class CreateWalletCommandHandler {
+class CreditActiveErrandCommandHandler {
   /**
-   * @param command Contains ownerId and ownerType
-   * @throws WalletAlreadyExistsError when user already has a wallet
-   * @emits WalletCreatedEvent
+   * Executes the active errand credit use case.
    */
-  execute(command: CreateWalletCommand): Promise<void>;
-}
-
-interface CreateWalletCommand {
-  ownerId: UserId | ProviderId | ClientId;
-  ownerType: OwnerType;
+  execute(command: CreditActiveErrandCommand): Promise<void>;
 }
 
 /**
- * Credits wallet (top-up, refund, escrow release to worker).
- * Handles both manual top-ups and automatic credits from escrow releases.
+ * Input for CreditActiveErrandCommandHandler.
  */
-class CreditWalletCommandHandler {
-  /**
-   * @param command Credit details
-   * @throws WalletNotFoundError when wallet doesn't exist
-   * @throws InvalidAmountError when amount <= 0
-   * @emits WalletCreditedEvent
-   */
-  execute(command: CreditWalletCommand): Promise<void>;
-}
-
-interface CreditWalletCommand {
-  ownerId: UserId | ProviderId | ClientId;
-  ownerType: OwnerType;
-  amount: number; // kobo
-  source: string;
-  reference: string;
-  errandId: ErrandId | null;
+interface CreditActiveErrandCommand {
+  workerUserId: UserId;
+  escrowId: EscrowId;
+  amountKobo: number;
+  currency: string;
+  gatewayReference: string;
 }
 
 /**
- * Debits wallet (withdrawal, escrow hold).
- * Used when client pays for errand or user requests withdrawal.
+ * Called by MarkEscrowCompletedHandler when an escrow transitions to
+ * COMPLETED_PENDING_PAYOUT. Produces ACTIVE_ERRAND_REVERSAL and PENDING_CREDIT.
  */
-class DebitWalletCommandHandler {
+class MoveActiveToPendingCommandHandler {
   /**
-   * @param command Debit details
-   * @throws WalletNotFoundError when wallet doesn't exist
-   * @throws InsufficientFundsError when balance too low
-   * @throws InvalidAmountError when amount <= 0
-   * @emits WalletDebitedEvent
+   * Executes active-to-pending movement after verifying computed active balance.
    */
-  execute(command: DebitWalletCommand): Promise<void>;
-}
-
-interface DebitWalletCommand {
-  ownerId: UserId | ProviderId | ClientId;
-  ownerType: OwnerType;
-  amount: number; // kobo
-  destination: string;
-  reference: string;
-  errandId: ErrandId | null;
+  execute(command: MoveActiveToPendingCommand): Promise<void>;
 }
 
 /**
- * Holds funds in wallet for escrow (moves available → held).
- * Called by AcceptApplicationSaga after escrow is funded.
+ * Input for MoveActiveToPendingCommandHandler.
  */
-class HoldFundsCommandHandler {
-  /**
-   * @param command Hold details
-   * @throws WalletNotFoundError when wallet doesn't exist
-   * @throws InsufficientFundsError when available balance < amount
-   * @emits FundsHeldEvent
-   */
-  execute(command: HoldFundsCommand): Promise<void>;
-}
-
-interface HoldFundsCommand {
-  ownerId: UserId | ProviderId | ClientId;
-  ownerType: OwnerType;
-  amount: number; // kobo
-  reference: string; // escrow ID
-  errandId: ErrandId;
+interface MoveActiveToPendingCommand {
+  workerUserId: UserId;
+  escrowId: EscrowId;
+  amountKobo: number;
+  currency: string;
 }
 
 /**
- * Releases held funds back to available (escrow cancelled/refunded).
- * Called when errand is cancelled before completion.
+ * Called by the clearance job after the 3-day window elapses. Produces AVAILABLE_CREDIT.
  */
-class ReleaseHoldCommandHandler {
+class ReleaseToAvailableCommandHandler {
   /**
-   * @param command Release details
-   * @throws WalletNotFoundError when wallet doesn't exist
-   * @throws InsufficientFundsError when held balance < amount
-   * @emits FundsReleasedEvent
+   * Executes pending-to-available release after verifying computed pending balance.
    */
-  execute(command: ReleaseHoldCommand): Promise<void>;
-}
-
-interface ReleaseHoldCommand {
-  ownerId: UserId | ProviderId | ClientId;
-  ownerType: OwnerType;
-  amount: number; // kobo
-  reference: string; // escrow ID
-  errandId: ErrandId;
+  execute(command: ReleaseToAvailableCommand): Promise<void>;
 }
 
 /**
- * Transfers held funds from client to worker (escrow payout).
- * Called when errand completes and escrow is released.
- * This is a coordinated operation: debit client held + credit worker available.
+ * Input for ReleaseToAvailableCommandHandler.
  */
-class TransferHeldFundsCommandHandler {
-  /**
-   * @param command Transfer details
-   * @throws WalletNotFoundError when either wallet doesn't exist
-   * @throws InsufficientFundsError when sender held balance < amount
-   * @emits FundsTransferredEvent (from sender), WalletCreditedEvent (to recipient)
-   */
-  execute(command: TransferHeldFundsCommand): Promise<void>;
-}
-
-interface TransferHeldFundsCommand {
-  fromOwnerId: UserId | ProviderId | ClientId; // client ID
-  fromOwnerType: OwnerType; // CLIENT
-  toOwnerId: UserId | ProviderId | ClientId; // worker ID
-  toOwnerType: OwnerType; // PROVIDER
-  amount: number; // kobo
-  reference: string; // escrow ID
-  errandId: ErrandId;
+interface ReleaseToAvailableCommand {
+  workerUserId: UserId;
+  escrowId: EscrowId;
+  amountKobo: number;
+  currency: string;
 }
 
 /**
- * Query handler: Get wallet balance and transaction history.
+ * Called by withdrawal flow after withdrawal request validation. Produces WITHDRAWAL_DEBIT.
  */
-class GetWalletQueryHandler {
+class RecordWithdrawalCommandHandler {
   /**
-   * @param query Owner identification
-   * @returns Wallet details with balance and recent transactions
-   * @throws WalletNotFoundError when wallet doesn't exist
+   * Executes withdrawal recording after verifying computed available balance.
    */
-  execute(query: GetWalletQuery): Promise<WalletDTO>;
+  execute(command: RecordWithdrawalCommand): Promise<void>;
 }
 
-interface GetWalletQuery {
-  ownerId: UserId | ProviderId | ClientId;
-  ownerType: OwnerType;
+/**
+ * Input for RecordWithdrawalCommandHandler.
+ */
+interface RecordWithdrawalCommand {
+  userId: UserId;
+  amountKobo: number;
+  currency: string;
+  gatewayReference: string;
 }
 
-interface WalletDTO {
-  id: WalletId;
-  ownerId: UserId | ProviderId | ClientId;
-  ownerType: OwnerType;
-  availableBalance: number; // kobo
-  heldBalance: number; // kobo
-  totalBalance: number; // kobo
-  recentTransactions: TransactionDTO[];
+/**
+ * Called when an active escrow is refunded/cancelled before completion. Produces
+ * ACTIVE_ERRAND_REVERSAL.
+ */
+class ReverseActiveErrandCommandHandler {
+  /**
+   * Executes active errand reversal after verifying computed active balance.
+   */
+  execute(command: ReverseActiveErrandCommand): Promise<void>;
 }
 
-interface TransactionDTO {
-  id: string;
-  type: TransactionType;
-  amount: number; // kobo
-  reference: string;
-  status: TransactionStatus;
-  errandId: ErrandId | null;
+/**
+ * Input for ReverseActiveErrandCommandHandler.
+ */
+interface ReverseActiveErrandCommand {
+  workerUserId: UserId;
+  escrowId: EscrowId;
+  amountKobo: number;
+  currency: string;
+  gatewayReference: string;
+}
+
+/**
+ * Called when Paystack refund succeeds for a client. Produces REFUND_CREDIT. Does not
+ * create or reverse a client escrow hold because clients have no wallet-tracked holds.
+ */
+class RecordClientRefundCommandHandler {
+  /**
+   * Executes client refund credit recording.
+   */
+  execute(command: RecordClientRefundCommand): Promise<void>;
+}
+
+/**
+ * Input for RecordClientRefundCommandHandler.
+ */
+interface RecordClientRefundCommand {
+  clientUserId: UserId;
+  escrowId: EscrowId;
+  amountKobo: number;
+  currency: string;
+  gatewayReference: string;
+}
+
+/**
+ * Query handler for current wallet balances. This is where entry summation happens.
+ * Advanced EIP Opportunity: maintain a materialized balance snapshot updated on each
+ * appended ledger entry, and rebuild it from the ledger if the snapshot is suspected stale.
+ */
+class GetWalletBalancesQueryHandler {
+  /**
+   * Returns active, pending, and available balances computed from the ledger or from a
+   * ledger-backed materialized view.
+   */
+  execute(query: GetWalletBalancesQuery): Promise<WalletBalancesDTO>;
+}
+
+/**
+ * Input for GetWalletBalancesQueryHandler.
+ */
+interface GetWalletBalancesQuery {
+  userId: UserId;
+}
+
+/**
+ * Balance DTO returned by the wallet query side.
+ */
+interface WalletBalancesDTO {
+  activeKobo: number;
+  pendingKobo: number;
+  availableKobo: number;
+  currency: string;
+}
+
+/**
+ * Query handler for paginated wallet transaction history display.
+ */
+class GetLedgerHistoryQueryHandler {
+  /**
+   * Returns paginated ledger entries for the wallet owner.
+   */
+  execute(query: GetLedgerHistoryQuery): Promise<LedgerHistoryPageDTO>;
+}
+
+/**
+ * Input for GetLedgerHistoryQueryHandler.
+ */
+interface GetLedgerHistoryQuery {
+  userId: UserId;
+  cursor: string | null;
+  limit: number;
+}
+
+/**
+ * Paginated ledger history DTO.
+ */
+interface LedgerHistoryPageDTO {
+  entries: LedgerEntryDTO[];
+  nextCursor: string | null;
+}
+
+/**
+ * User-facing ledger entry DTO.
+ */
+interface LedgerEntryDTO {
+  id: LedgerEntryId;
+  type: LedgerEntryType;
+  amountKobo: number;
+  currency: string;
+  escrowId: EscrowId | null;
   createdAt: Date;
 }
 ```
@@ -828,126 +751,107 @@ interface TransactionDTO {
 
 ```typescript
 /**
- * Emitted when new wallet is created (during user registration).
- * Consumed by: Notification module (welcome message)
+ * Emitted when worker active errand balance is credited. Consumed by notification module
+ * and audit logging.
  */
-class WalletCreatedEvent {
+class ActiveErrandCredited {
+  /**
+   * Creates the event.
+   */
   constructor(
     public readonly walletId: WalletId,
-    public readonly ownerId: UserId | ProviderId | ClientId,
-    public readonly ownerType: OwnerType,
-  ) {}
+    public readonly userId: UserId,
+    public readonly escrowId: EscrowId,
+    public readonly amountKobo: number,
+  );
 }
 
 /**
- * Emitted when wallet is credited.
- * Consumed by: Notification module (balance update notification)
+ * Emitted when active errand balance moves to pending. Consumed by notification module
+ * and audit logging.
  */
-class WalletCreditedEvent {
+class MovedToPending {
+  /**
+   * Creates the event.
+   */
   constructor(
     public readonly walletId: WalletId,
-    public readonly ownerId: UserId | ProviderId | ClientId,
-    public readonly amount: number, // kobo
-    public readonly source: string,
-    public readonly reference: string,
-    public readonly errandId: ErrandId | null,
-  ) {}
+    public readonly userId: UserId,
+    public readonly escrowId: EscrowId,
+    public readonly amountKobo: number,
+  );
 }
 
 /**
- * Emitted when wallet is debited.
- * Consumed by: Notification module (balance update notification)
+ * Emitted when pending balance clears to available. Consumed by notification module and
+ * audit logging.
  */
-class WalletDebitedEvent {
+class ReleasedToAvailable {
+  /**
+   * Creates the event.
+   */
   constructor(
     public readonly walletId: WalletId,
-    public readonly ownerId: UserId | ProviderId | ClientId,
-    public readonly amount: number, // kobo
-    public readonly destination: string,
-    public readonly reference: string,
-    public readonly errandId: ErrandId | null,
-  ) {}
+    public readonly userId: UserId,
+    public readonly escrowId: EscrowId,
+    public readonly amountKobo: number,
+  );
 }
 
 /**
- * Emitted when funds are held for escrow.
- * Consumed by: AcceptApplicationSaga (next step after funding)
+ * Emitted when available balance is debited for withdrawal. Consumed by notification
+ * module and audit logging.
  */
-class FundsHeldEvent {
+class WithdrawalRecorded {
+  /**
+   * Creates the event.
+   */
   constructor(
     public readonly walletId: WalletId,
-    public readonly ownerId: UserId | ProviderId | ClientId,
-    public readonly amount: number, // kobo
-    public readonly reference: string, // escrow ID
-    public readonly errandId: ErrandId,
-  ) {}
+    public readonly userId: UserId,
+    public readonly amountKobo: number,
+    public readonly gatewayReference: string,
+  );
 }
 
 /**
- * Emitted when held funds are released back to available.
- * Consumed by: Notification module (refund notification)
+ * Emitted when active errand balance is reversed. Consumed by notification module and
+ * audit logging.
  */
-class FundsReleasedEvent {
+class ActiveErrandReversed {
+  /**
+   * Creates the event.
+   */
   constructor(
     public readonly walletId: WalletId,
-    public readonly ownerId: UserId | ProviderId | ClientId,
-    public readonly amount: number, // kobo
-    public readonly reference: string, // escrow ID
-    public readonly errandId: ErrandId,
-  ) {}
+    public readonly userId: UserId,
+    public readonly escrowId: EscrowId,
+    public readonly amountKobo: number,
+  );
 }
 
 /**
- * Emitted when held funds are transferred from one wallet to another.
- * Consumed by: Notification module (payment received notification)
+ * Emitted when a client receives a refund credit. Consumed by notification module and
+ * audit logging.
  */
-class FundsTransferredEvent {
+class ClientRefunded {
+  /**
+   * Creates the event.
+   */
   constructor(
-    public readonly fromWalletId: WalletId,
-    public readonly toWalletId: WalletId,
-    public readonly amount: number, // kobo
-    public readonly reference: string, // escrow ID
-    public readonly errandId: ErrandId,
-  ) {}
+    public readonly walletId: WalletId,
+    public readonly userId: UserId,
+    public readonly escrowId: EscrowId,
+    public readonly amountKobo: number,
+    public readonly gatewayReference: string,
+  );
 }
 ```
 
-### Event Handlers (React to other module events)
+## EIP Patterns Applied
 
-```typescript
-/**
- * Listens to EscrowFundedEvent and holds funds in client wallet.
- * Part of AcceptApplicationSaga workflow.
- */
-class OnEscrowFundedHoldFundsHandler {
-  /**
-   * @listens EscrowFundedEvent
-   * Calls HoldFundsCommandHandler to move client's available → held
-   */
-  handle(event: EscrowFundedEvent): Promise<void>;
-}
-
-/**
- * Listens to EscrowReleasedEvent and transfers held funds to worker.
- * Part of CompleteErrandSaga workflow.
- */
-class OnEscrowReleasedTransferFundsHandler {
-  /**
-   * @listens EscrowReleasedEvent
-   * Calls TransferHeldFundsCommandHandler to pay worker
-   */
-  handle(event: EscrowReleasedEvent): Promise<void>;
-}
-
-/**
- * Listens to EscrowRefundedEvent and releases held funds back to client.
- * Part of RefundErrandSaga workflow.
- */
-class OnEscrowRefundedReleaseFundsHandler {
-  /**
-   * @listens EscrowRefundedEvent
-   * Calls ReleaseHoldCommandHandler to return funds to client
-   */
-  handle(event: EscrowRefundedEvent): Promise<void>;
-}
-```
+- **Event Sourcing / Append-Only Log**: `LedgerEntry` is the authoritative wallet record. Balances are projections of entries, so audit can replay the ledger instead of trusting mutable columns.
+- **Materialized View**: `WalletBalancesDTO` can be served from a `WalletBalanceSnapshot` read model updated on each new entry. If stale, rebuild from `LedgerEntry`.
+- **Idempotent Receiver**: Paystack webhooks can fire more than once. `gatewayReference` plus uniqueness constraints prevent duplicate ledger rows for the same external payment event.
+- **Reconciliation / Audit pattern**: A scheduled job compares Paystack charge/refund records to ledger entries by `gatewayReference` and reports missing, duplicate, or amount-mismatched entries.
+- **Dead Letter Channel**: If an external payment succeeds but the wallet ledger append fails, the operation is retried through the existing BullMQ queue infrastructure. After retries are exhausted, the job moves to a DLQ with enough payload to append the missing `LedgerEntry`; it must never be silently dropped.

@@ -115,6 +115,30 @@ src/verification/
       VerificationResolver.ts
 ```
 
+## Persistence Model (Derived from Domain)
+
+```prisma
+model ProviderVerification {
+  id String @id @map("_id")
+  identifier String
+  value String
+  providerId String
+  type VerificationType
+  status VerificationStatus
+  metadata Json?
+  verifiedAt DateTime?
+  expiresAt DateTime?
+  createdAt DateTime
+
+  @@unique([providerId, type]) // backs: DuplicateVerificationTypeError
+  @@index([status, expiresAt]) // serves: expiry jobs/read models
+}
+```
+
+`metadata` is embedded. Reference fields are scalar IDs only: `providerId`. Cleanup owner: `ProviderDeletedPolicyHandler` archives verification records or deletes pending records through `IVerificationRepository`; verified history should be retained for audit. `id` serves `findById`, and the unique provider/type pair serves `findByProviderAndType` while enforcing one current verification of each type per provider.
+
+---
+
 ## 10. Migration Risk & Priority
 
 **Risk**: **LOW**

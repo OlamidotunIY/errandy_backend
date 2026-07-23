@@ -212,6 +212,28 @@ src/provider/
       ProviderDiscoveryResponse.ts
 ```
 
+## Persistence Model (Derived from Domain)
+
+```prisma
+model Provider {
+  id String @id @map("_id")
+  userId String
+  bio String?
+  skills String[]
+  verified Boolean
+  averageRating Float?
+  createdAt DateTime
+  updatedAt DateTime
+
+  @@unique([userId]) // backs: ProviderAlreadyExistsError
+  @@index([skills, verified]) // serves: findBySkills
+}
+```
+
+Reference fields are scalar IDs only: `userId`. Cleanup owner: `UserDeletedPolicyHandler` deactivates or soft-deletes the Provider aggregate through `IProviderRepository`; no other module writes Provider fields. `id` serves `findById`, unique `userId` serves `findByUserId` and enforces one provider profile per user, and the skills/verified index serves provider discovery.
+
+---
+
 ## 10. Migration Risk & Priority
 
 **Risk**: **MEDIUM**

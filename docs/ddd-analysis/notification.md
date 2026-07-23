@@ -162,6 +162,26 @@ src/common/notification/  # OR src/infrastructure/notification/
 
 **Alternative**: If notification history is not needed, remove domain layer entirely (pure infrastructure).
 
+## Persistence Model (Derived from Domain)
+
+```prisma
+model NotificationHistory {
+  id String @id @map("_id")
+  recipientUserId String
+  templateKey String
+  channels String[]
+  payload Json?
+  sentAt DateTime
+
+  @@index([recipientUserId, sentAt]) // serves: notification history reads/audit
+  @@index([templateKey, sentAt]) // serves: template delivery audit
+}
+```
+
+`channels` and `payload` are embedded values from `NotificationRequest`. Reference fields are scalar IDs only: `recipientUserId`. Cleanup owner: `UserDeletedPolicyHandler` anonymizes or purges notification history according to retention policy through `INotificationHistoryRepository`. The repository currently exposes only `save`; indexes are for the audit/history reads implied by keeping this model and should be wired when those query methods are added. No unique constraint is needed because repeated notifications are allowed.
+
+---
+
 ## 10. Migration Risk & Priority
 
 **Risk**: **LOW**

@@ -246,150 +246,28 @@ src/application/
 
 ---
 
-## 10. Schema Findings
-
-**Context**: Analysis of `prisma/model/application.prisma`.
-
-### Aggregate Boundary Violations
-
-1. **EscrowService directly mutates Application.status**
-   - **Evidence**: `src/escrow/escrow.service.ts` (line ~90) calls `prisma.application.update({ data: { status: 'ACCEPTED' } })` within Escrow module.
-   - **Schema gap**: No protection preventing other modules from bypassing Application aggregate.
-   - **Impact**: Application status can change without triggering domain logic (state transition validation, event emission).
-   - **Fix priority**: PHASE 1 — Escrow emits `EscrowFunded` event → `ApplicationEventHandler.handleEscrowFunded()` calls `Application.accept()`.
-   - **Migration notes**: Code-only refactoring (no schema change). Risk: MEDIUM (need to coordinate Application + Escrow event flow).
-
-### Dangling Reference Risks
-
-1. **Application.errandId → Errand** (CRITICAL)
-
-   - **Schema**: `Application.errand` relation has `@@unique([errandId, workerId])` constraint but no `onDelete` cascade rule.
-   - **Bug**: Deleting errand orphans all applications for that errand.
-   - **Impact**: **CRITICAL** — application records remain in database forever, cannot link to errand, worker history incomplete.
-   - **Current cleanup**: None (errand deletion not implemented yet).
-   - **Fix**: Add `onDelete: Cascade` to `Application.errand` relation.
-   - **Justification**: Application is a child of Errand aggregate (no value without parent errand).
-   - **Schema change**:
-     ```prisma
-     model Application {
-       errand Errand @relation(fields: [errandId], references: [id], onDelete: Cascade)
-     }
-     ```
-   - **Migration**: `npx prisma db push` (additive).
-   - **Rollback**: Safe (remove cascade rule).
-   - **Priority**: **PHASE 1** (before errand deletion feature).
-2. **Application.workerId → Provider**
-
-   - **Schema**: No cascade rule.
-   - **Bug**: Deleting provider orphans all applications from that worker.
-   - **Impact**: MEDIUM — errand's application history incomplete.
-   - **Fix options**:
-     - **Option A**: Add `onDelete: Restrict` (prevent provider deletion if applications exist) — RECOMMENDED.
-     - **Option B**: Add `onDelete: SetNull` (preserve application record, mark worker as deleted) — requires workerId to be nullable.
-   - **Recommendation**: Option A (prevent deletion, soft-delete provider instead).
-   - **Priority**: PHASE 2 (provider deletion not implemented yet).
-3. **Application.errandSnapshot (Json field)**
-
-   - **Note**: This is a denormalized copy of errand data at time of application.
-   - **No dangling reference risk** (JSON blob, not a foreign key).
-   - **Impact**: If errand changes after application, snapshot remains stale (expected behavior).
-
-### Missing Indexes
-
-**Critical indexes MISSING** (HIGH priority):
-
-1. **Application.errandId** (CRITICAL for performance)
-
-   - **Current**: Only `@@unique([errandId, workerId])` composite constraint exists.
-   - **Bug**: Composite unique constraint is NOT an efficient index for single-column query on `errandId`.
-   - **Query pattern**: `ApplicationService.errandApplications` (line 106) queries `where: { errandId }`.
-   - **Impact**: Full collection scan when fetching applications for an errand (common query in client dashboard).
-   - **Fix**: Add explicit `@@index([errandId])`.
-   - **Priority**: **PHASE 1** (CRITICAL performance issue).
-2. **Application.workerId** (HIGH for provider dashboard)
-
-   - **Query pattern**: Provider dashboard showing "My Applications" (future feature).
-   - **Impact**: Full collection scan when fetching applications by worker.
-   - **Fix**: Add `@@index([workerId])`.
-   - **Priority**: PHASE 2.
-3. **Application.status** (MEDIUM for filtering)
-
-   - **Query pattern**: Filtering applications by status (`where: { status: 'PENDING' }`).
-   - **Impact**: Full collection scan when filtering by status.
-   - **Fix**: Add `@@index([status])`.
-   - **Priority**: PHASE 2.
-
-**Schema changes needed**:
+## Persistence Model (Derived from Domain)
 
 ```prisma
 model Application {
-  // ... existing fields ...
+  id String @id @map("_id")
+  errandId String
+  workerId String
+  status ApplicationStatus
+  coverLetter String?
+  proposedRateKobo Int?
+  acceptedAt DateTime?
+  rejectedAt DateTime?
+  cancelledAt DateTime?
+  createdAt DateTime
 
-  @@unique([errandId, workerId])
-  @@index([errandId])        // CRITICAL: Add this
-  @@index([workerId])        // HIGH: Add this
-  @@index([status])          // MEDIUM: Add this
-  @@map("applications")
+  @@unique([errandId, workerId]) // backs: WorkerAlreadyAppliedException
+  @@index([errandId, status]) // serves: findByErrand, countByStatus
+  @@index([workerId, status]) // serves: findByWorker
 }
 ```
 
-**Migration**: `npx prisma db push` (additive, no backfill).
-**Rollback**: Safe (drop indexes).
-
-### Embed vs. Reference Decisions
-
-**Application.errandSnapshot (Json field)** — denormalization already implemented ✅:
-
-- **Current**: Application stores snapshot of errand data at time of application (embedded as JSON).
-- **Justification**: Preserve errand details even if errand is updated/deleted later (audit trail).
-- **No schema change needed** — already correctly denormalized.
-
-### Migration / Rollback Strategy
-
-**Phase 1 changes for Application** (URGENT):
-
-1. **Add cascade rule for Application.errandId** (dangling ref fix):
-
-   - Add `onDelete: Cascade` to `Application.errand` relation.
-   - Migration: `npx prisma db push`.
-   - Rollback: Safe (remove cascade).
-   - Risk: LOW.
-2. **Add CRITICAL missing index** (Application.errandId):
-
-   - Migration: `npx prisma db push`.
-   - Rollback: Safe (drop index).
-   - Risk: LOW.
-3. **Refactor EscrowService aggregate violation** (code-only):
-
-   - Escrow emits `EscrowFunded` → `ApplicationEventHandler.handleEscrowFunded()` calls `Application.accept()`.
-   - Migration: Code deployment.
-   - Rollback: Code revert.
-   - Risk: MEDIUM (need to coordinate with Escrow module event flow).
-
-**Phase 2 changes for Application**:
-
-1. **Add cascade/restrict for Application.workerId** (dangling ref fix):
-
-   - Recommendation: `onDelete: Restrict` (prevent provider deletion if applications exist).
-   - Migration: `npx prisma db push`.
-   - Rollback: Safe (remove cascade).
-   - Risk: LOW.
-2. **Add remaining indexes** (workerId, status):
-
-   - Migration: `npx prisma db push`.
-   - Rollback: Safe (drop indexes).
-   - Risk: LOW.
-3. **Extract Application aggregate** (code-only):
-
-   - Create `Application.submit()`, `Application.accept()`, `Application.reject()` methods.
-   - Emit events: `ApplicationSubmitted`, `ApplicationAccepted`, `ApplicationRejected`.
-   - Migration: Code deployment.
-   - Rollback: Code revert.
-   - Risk: MEDIUM (coordinate with Escrow + Errand modules).
-
-**Risk revised from MEDIUM to MEDIUM**: Schema changes are low-risk (additive indexes, cascade rules), but code refactoring requires coordinating 3 modules (Application, Escrow, Errand).
-
-**Mitigation**: Fix missing indexes immediately (Phase 1), defer aggregate extraction to Phase 2 after Escrow refactored.
+Reference fields are scalar IDs only: `errandId`, `workerId`. Cleanup owners: `ErrandDeletedPolicyHandler` cancels/removes applications through `IApplicationRepository`; `ProviderDeletedPolicyHandler` cancels pending applications and preserves accepted/completed audit history. `id` serves `findById`, the unique pair serves `findByErrandAndWorker` and enforces one application per worker per errand, and the status indexes serve list/count repository methods.
 
 ---
 

@@ -194,6 +194,25 @@ src/client/
       DashboardRequirementType.ts
 ```
 
+## Persistence Model (Derived from Domain)
+
+```prisma
+model Client {
+  id String @id @map("_id")
+  userId String
+  verified Boolean
+  averageRating Float?
+  createdAt DateTime
+  updatedAt DateTime
+
+  @@unique([userId]) // backs: ClientAlreadyExistsError
+}
+```
+
+Reference fields are scalar IDs only: `userId`. Cleanup owner: `UserDeletedPolicyHandler` deactivates or soft-deletes the Client aggregate through `IClientRepository`; Errand/Escrow history keeps scalar `clientId` values for audit. `id` serves `findById`; unique `userId` serves `findByUserId` and enforces one client profile per user.
+
+---
+
 ## 10. Migration Risk & Priority
 
 **Risk**: **LOW-MEDIUM**

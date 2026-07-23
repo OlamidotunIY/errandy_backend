@@ -177,6 +177,36 @@ src/client/
 
 **Recommendation**: Merge Trusted-Circle into Client module (as part of client domain).
 
+## Persistence Model (Derived from Domain)
+
+```prisma
+model TrustedCircle {
+  id String @id @map("_id")
+  clientId String
+  name String?
+  createdAt DateTime
+
+  @@unique([clientId]) // backs: TrustedCircleAlreadyExistsError
+}
+
+model TrustedCircleMember {
+  id String @id @map("_id")
+  trustedCircleId String
+  providerId String
+  addedAt DateTime
+  source CircleSource
+  status TrustedCircleMemberStatus
+
+  @@index([trustedCircleId]) // serves: aggregate reconstitution by findById/findByClientId
+  @@index([providerId, status]) // serves: provider deletion cleanup
+  @@unique([trustedCircleId, providerId]) // backs: TrustedCircleMemberAlreadyExistsError
+}
+```
+
+`TrustedCircle` is the aggregate root; `TrustedCircleMember` has membership lifecycle but is reachable only through `ITrustedCircleRepository`. References are scalar IDs only: `clientId`, `trustedCircleId`, `providerId`. Cleanup owners: `ClientDeletedPolicyHandler` deletes or archives the circle through `ITrustedCircleRepository`; `ProviderDeletedPolicyHandler` removes/deactivates member entries through TrustedCircle commands. `id` serves `findById`, unique `clientId` serves `findByClientId`, and member indexes support reconstitution and cleanup.
+
+---
+
 ## 10. Migration Risk & Priority
 
 **Risk**: **LOW**

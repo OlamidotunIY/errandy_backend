@@ -17,12 +17,12 @@ This document synthesizes the analysis of all 27 modules in the Errandy Backend 
 **Phase 1 (Critical Money Flows)**:
 
 1. **Escrow** — Process manager disguised as domain service. Orchestrates errand acceptance + payment + wallet updates. **110-line god method, layering violations, missing events**. Priority: PHASE 1, Medium-High risk.
-2. **Wallet** — Missing domain (stub service). Logic scattered in Escrow/Payment-Gateway. **Balance integrity unenforced**. Priority: PHASE 1, Low-Medium risk.
+2. **Wallet** — Missing ledger domain (stub service). Logic scattered in Escrow/Payment-Gateway. **Ledger-only balance model required; stored balance fields deprecated; Paystack reconciliation and backfill required**. Priority: PHASE 1, Medium-High risk.
 3. **Application** — Sub-domain of Errands. Acceptance logic in wrong module (Escrow). **Anemic model, no state transitions**. Priority: PHASE 1, Medium risk.
 
 **Phase 2 (Core Marketplace)**: 4. **Errands** — God Module (1100+ lines). Direct Prisma, MongoDB-specific queries, status transitions unenforced. **Escrow coupling via direct calls**. Priority: PHASE 2, High risk. 5. **Users** — Shared kernel. **URGENT BUG: Dangling activeAddressId on address deletion**. GlobalEventEmitter usage (inconsistent). Priority: PHASE 2, High risk. 6. **Provider** — Worker discovery sub-domain. Read-heavy (CQRS opportunity). **Enrichment pattern, discovery feeds**. Priority: PHASE 2, Medium risk. 7. **Client** — Client dashboard sub-domain. Parallel to Provider. **Requirements validation missing in domain**. Priority: PHASE 2, Low-Medium risk. 8. **Rating** — Reputation bounded context. Read-heavy aggregations. **Denormalization opportunity for performance**. Priority: PHASE 2, Low-Medium risk. 9. **Chat** — Messaging bounded context. **File upload + PubSub orchestration in service layer**. Priority: PHASE 3, Medium risk.
 
-**Phase 3 (Supporting Domains)**: 10. **Trusted-Circle** — Sub-domain of Client. **Merge recommendation: integrate into Client module**. Priority: PHASE 2-3, Low risk. 11. **Service** — Shared kernel (skills catalog). Read-only reference data. **Caching opportunity**. Priority: PHASE 3, Low risk. 12. **Address** — Split: Google Places adapter (infrastructure) + User addresses (Users domain). Priority: PHASE 2, Medium risk. 13. **Verification** — Empty service (stub). **Implement before MVP launch (security risk)**. Priority: PHASE 2, Low risk. 14. **Organization** — Underdeveloped (1 query method). **Defer or implement fully in Phase 3**. Priority: PHASE 3 or DEFER, Low risk. 15. **Dispute** — Empty service (stub). **Defer until MVP stable (complex saga pattern)**. Priority: PHASE 3 or DEFER, Low risk.
+**Phase 3 (Supporting Domains)**: 10. **Trusted-Circle** — Sub-domain of Client. **Merge recommendation: integrate into Client module**. Priority: PHASE 2-3, Low risk. 11. **Service** — Shared kernel (skills catalog). Read-only reference data. **Caching opportunity**. Priority: PHASE 3, Low risk. 12. **Address** — Split: Google Places adapter (infrastructure) + User addresses (Users domain). Priority: PHASE 2, Medium risk. 13. **Verification** — Empty service (stub). **Implement before MVP launch (security risk)**. Priority: PHASE 2, Low risk. 14. **Organization** — Underdeveloped (1 query method). **Defer or implement fully in Phase 3**. Priority: PHASE 3 or DEFER, Low risk. 15. **Dispute** — Empty service (stub). **Deferred dependency for reversing COMPLETED_PENDING_PAYOUT refunds and deciding whether pending worker credit is reversed, partially reversed, or paid out**. Priority: PHASE 3 or DEFER, Low-Medium risk.
 
 ### Infrastructure (Cross-Cutting Concerns)
 
@@ -161,7 +161,7 @@ infrastructure/
 **Priority Modules**:
 
 1. **Payment-Gateway**: Queue refunds in BullMQ (CRITICAL: prevent financial loss if refund fails). Extract `PaymentMethodAdded` event.
-2. **Wallet**: Implement Wallet aggregate with `credit()`, `debit()`, `hold()`, `release()` methods. Create `IWalletRepository`.
+2. **Wallet**: Implement ledger-only Wallet aggregate with append-only `LedgerEntry` records, `IWalletRepository`, and `ILedgerEntryRepository`. Worker balances are computed as active, pending, and available; clients only receive refund credits.
 3. **Escrow**: Extract Escrow aggregate with `fund()`, `release()`, `refund()` methods. Create `IEscrowRepository`.
 4. **Application**: Extract Application aggregate with `accept()`, `reject()` methods. Create saga: `AcceptApplicationSaga` (orchestrates Application → Escrow → Errand via events).
 5. **Users**: **URGENT: Fix dangling activeAddressId bug** (deleteAddress → nullify activeAddressId if deleting active). Run backfill script to fix existing dangling references in production.
@@ -190,12 +190,12 @@ infrastructure/
 **Events**:
 
 - `ApplicationAccepted` → `EscrowFunded` → `ErrandAssigned`.
-- `ErrandCompleted` → `EscrowReleased` → `WalletCredited`.
+- `ErrandCompleted` → `EscrowCompletedPendingPayout` → `Wallet.MovedToPending`; after 3-day clearance → `Wallet.ReleasedToAvailable`.
 
 **Outcomes**:
 
 - ✅ Payment refund failures are retried (BullMQ).
-- ✅ Wallet balance integrity enforced (domain invariants).
+- ✅ Wallet balance integrity enforced through append-only ledger entries and computed active/pending/available balances.
 - ✅ Escrow state transitions explicit (domain methods).
 - ✅ Acceptance flow decoupled (saga orchestration instead of direct calls).
 - ✅ **Dangling-reference bugs fixed** (Users.activeAddressId, ChatRoom.lastMessageId).
@@ -206,7 +206,7 @@ infrastructure/
 - High (money flows). Extensive testing required (unit + integration + end-to-end).
 - **Schema migration risk**: LOW (all changes additive, rollback path exists).
 - **Backfill risk**: LOW (backfill scripts idempotent, can re-run if fails).
-- **Dual-write complexity**: MEDIUM (Wallet aggregate requires careful transition — emit events AND direct Prisma during rollout).
+- **Ledger migration complexity**: MEDIUM-HIGH (Wallet aggregate requires backfilling stored balances into opening ledger entries, dual-read validation, Paystack reconciliation, and careful cutover away from `Wallet.available`/`held`).
 
 ---
 
@@ -431,8 +431,12 @@ EscrowReleased { escrowId, errandId, amount, providerId }
 EscrowRefunded { escrowId, errandId, amount, clientId }
 
 // Wallet
-WalletCredited { walletId, userId, amount, source }
-WalletDebited { walletId, userId, amount, destination }
+ActiveErrandCredited { walletId, userId, escrowId, amount }
+MovedToPending { walletId, userId, escrowId, amount }
+ReleasedToAvailable { walletId, userId, escrowId, amount }
+WithdrawalRecorded { walletId, userId, amount, gatewayReference }
+ActiveErrandReversed { walletId, userId, escrowId, amount }
+ClientRefunded { walletId, userId, escrowId, amount, gatewayReference }
 
 // Payment
 PaymentMethodAdded { userId, paymentMethodId }
@@ -462,20 +466,21 @@ EmailVerified { userId, email }
 1. ApplicationAccepted event emitted
 2. Saga listens → funds escrow (EscrowFunded event)
 3. Saga listens → charges payment (PaymentCharged event)
-4. Saga listens → debits wallet (WalletDebited event)
+4. Saga listens → appends worker active errand ledger credit
 5. Saga listens → assigns errand (ErrandAssigned event)
 6. Saga listens → notifies provider (NotificationSent event)
 
 // Compensation (if any step fails):
-- If payment charge fails → reject application, refund wallet hold.
-- If errand assignment fails → refund escrow, refund wallet hold.
+- If payment charge fails → reject application; no wallet entry is appended.
+- If errand assignment fails after wallet entry append → refund escrow and append active errand reversal.
 
 // CompleteErrandSaga (future)
 1. ErrandCompleted event emitted
-2. Saga listens → releases escrow (EscrowReleased event)
-3. Saga listens → credits wallet (WalletCredited event)
+2. Saga listens → marks escrow completed pending payout
+3. Saga listens → moves wallet active balance to pending
 4. Saga listens → requests ratings (RatingRequested event)
 5. Saga listens → notifies client/provider (NotificationSent event)
+6. Clearance job moves pending balance to available after 3 days
 ```
 
 ---
@@ -643,10 +648,12 @@ ReleaseEscrowCommandHandler
 RefundEscrowCommandHandler
 
 // Wallet
-CreditWalletCommandHandler
-DebitWalletCommandHandler
-HoldFundsCommandHandler
-ReleaseFundsCommandHandler
+CreditActiveErrandCommandHandler
+MoveActiveToPendingCommandHandler
+ReleaseToAvailableCommandHandler
+RecordWithdrawalCommandHandler
+ReverseActiveErrandCommandHandler
+RecordClientRefundCommandHandler
 
 // Rating
 CreateRatingCommandHandler
@@ -686,9 +693,9 @@ This section documents critical schema-level issues found by analyzing `prisma/m
    - **Violating code**:
      - `src/escrow/escrow.service.ts` (~line 150) calls `prisma.transaction.create()` directly (creates `ESCROW_HOLD` transactions).
      - `src/payment-gateway/payment-gateway.service.ts` (line 180) calls `prisma.wallet.update({ data: { available: { increment } } })` directly.
-   - **Schema evidence**: `Wallet` and `Transaction` models have no ownership constraints enforcing that only WalletService can mutate them.
-   - **Impact**: Wallet balance can become inconsistent (race conditions, no invariant enforcement, ledger immutability violated).
-   - **Fix**: Escrow and Payment-Gateway emit events (`FundsHeld`, `FundsRefunded`) → WalletEventHandler updates wallet via `Wallet.hold()`, `Wallet.credit()` methods.
+   - **Schema evidence**: `Wallet` and `Transaction` models have no ownership constraints enforcing that only WalletService can append immutable ledger entries.
+   - **Impact**: Wallet balance can become inconsistent because mutable columns can drift from the ledger and gateway records.
+   - **Fix**: Escrow and Payment-Gateway call wallet command handlers that append `LedgerEntry` rows (`ACTIVE_ERRAND_CREDIT`, `PENDING_CREDIT`, `AVAILABLE_CREDIT`, `ACTIVE_ERRAND_REVERSAL`, `REFUND_CREDIT`) with Paystack references where applicable.
 
 3. **Application aggregate bypassed by EscrowService**
    - **Violating code**: `src/escrow/escrow.service.ts` (line ~90) updates `application.status` and cancels pending applications directly.
@@ -1091,7 +1098,8 @@ This section provides a comprehensive reference of all key domain interfaces, co
 | Module              | Repository Interface             | Key Methods                                                                                                                                                  | Purpose                                            |
 | ------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
 | **Escrow**          | `IEscrowRepository`              | `findById(id: EscrowId)`, `findByErrandId(errandId: ErrandId)`, `save(escrow: Escrow)`                                                                       | Persistence contract for Escrow aggregate          |
-| **Wallet**          | `IWalletRepository`              | `findById(id: WalletId)`, `findByOwner(ownerId: UserId \| ProviderId \| ClientId)`, `save(wallet: Wallet)`                                                   | Wallet aggregate persistence + integrity audit     |
+| **Wallet**          | `IWalletRepository`              | `findByUserId(userId: UserId)`, `save(wallet: Wallet)`                                                                                                         | Wallet identity persistence; balances come from ledger entries |
+| **Wallet**          | `ILedgerEntryRepository`         | `append(entry: LedgerEntry)`, `appendMany(entries: LedgerEntry[])`, `findByWalletId(walletId: WalletId)`, `findByEscrowId(escrowId: EscrowId)`, `findByGatewayReference(reference: string)` | Append-only ledger persistence + Paystack reconciliation |
 | **Application**     | `IApplicationRepository`         | `findById(id: ApplicationId)`, `findByErrandAndWorker(errandId: ErrandId, workerId: ProviderId)`, `save(application: Application)`                           | Application aggregate persistence + queries        |
 | **Errands**         | `IErrandRepository`              | `findById(id: ErrandId)`, `findByClientId(clientId: ClientId)`, `save(errand: Errand)`                                                                       | Errand aggregate persistence + geospatial queries  |
 | **Users**           | `IUserRepository`                | `findById(id: UserId)`, `findByEmail(email: string)`, `findAddresses(userId: UserId)`, `save(user: User)`                                                    | Shared kernel user aggregate persistence           |
@@ -1127,12 +1135,12 @@ This section provides a comprehensive reference of all key domain interfaces, co
 | **Escrow**          | `FundEscrowCommandHandler`              | Payment charged                  | Funds escrow via payment gateway            | `EscrowFundedEvent`                 |
 | **Escrow**          | `ReleaseEscrowCommandHandler`           | Errand completed                 | Releases escrow funds to worker             | `EscrowReleasedEvent`               |
 | **Escrow**          | `RefundEscrowCommandHandler`            | Errand cancelled                 | Refunds escrow to client                    | `EscrowRefundedEvent`               |
-| **Wallet**          | `CreateWalletCommandHandler`            | User registration                | Creates wallet for user                     | `WalletCreatedEvent`                |
-| **Wallet**          | `CreditWalletCommandHandler`            | Top-up, refund, payout           | Credits wallet balance                      | `WalletCreditedEvent`               |
-| **Wallet**          | `DebitWalletCommandHandler`             | Withdrawal, payment              | Debits wallet balance                       | `WalletDebitedEvent`                |
-| **Wallet**          | `HoldFundsCommandHandler`               | Escrow funded                    | Holds funds in wallet (available → held)    | `FundsHeldEvent`                    |
-| **Wallet**          | `ReleaseHoldCommandHandler`             | Escrow cancelled                 | Releases held funds (held → available)      | `FundsReleasedEvent`                |
-| **Wallet**          | `TransferHeldFundsCommandHandler`       | Escrow released                  | Transfers held funds to worker wallet       | `FundsTransferredEvent`             |
+| **Wallet**          | `CreditActiveErrandCommandHandler`      | Escrow funded                    | Appends worker `ACTIVE_ERRAND_CREDIT`       | `ActiveErrandCredited`              |
+| **Wallet**          | `MoveActiveToPendingCommandHandler`     | Escrow completed pending payout  | Moves worker active balance to pending      | `MovedToPending`                    |
+| **Wallet**          | `ReleaseToAvailableCommandHandler`      | 3-day clearance elapsed          | Moves worker pending balance to available   | `ReleasedToAvailable`               |
+| **Wallet**          | `RecordWithdrawalCommandHandler`        | Withdrawal requested             | Appends available-balance withdrawal debit  | `WithdrawalRecorded`                |
+| **Wallet**          | `ReverseActiveErrandCommandHandler`     | Active escrow refunded/cancelled | Reverses worker active errand balance       | `ActiveErrandReversed`              |
+| **Wallet**          | `RecordClientRefundCommandHandler`      | Paystack refund succeeded        | Appends client-only refund credit           | `ClientRefunded`                    |
 | **Application**     | `SubmitApplicationCommandHandler`       | Worker applies to errand         | Creates application                         | `ApplicationSubmittedEvent`         |
 | **Application**     | `AcceptApplicationCommandHandler`       | Client accepts worker            | Accepts application (triggers saga)         | `ApplicationAcceptedEvent`          |
 | **Application**     | `RejectApplicationCommandHandler`       | Client rejects worker            | Rejects application                         | `ApplicationRejectedEvent`          |
@@ -1194,13 +1202,15 @@ This section provides a comprehensive reference of all key domain interfaces, co
 | `ErrandAssignedEvent`      | Errands     | Escrow, Application, Notification                         | Worker assigned to errand                           | No                              |
 | `ErrandCompletedEvent`     | Errands     | **Escrow** (release funds), Rating (prompt), Notification | **CRITICAL: Triggers escrow release**               | No (CompleteErrandSaga listens) |
 | `ErrandCancelledEvent`     | Errands     | **Escrow** (refund), Application (cancel), Notification   | **CRITICAL: Triggers escrow refund if IN_PROGRESS** | No (RefundErrandSaga listens)   |
-| `EscrowFundedEvent`        | Escrow      | **Wallet** (hold funds), Application saga                 | Escrow payment successful                           | No                              |
-| `EscrowReleasedEvent`      | Escrow      | **Wallet** (transfer to worker), Notification             | Escrow funds released to worker                     | No                              |
-| `EscrowRefundedEvent`      | Escrow      | **Wallet** (release to client), Notification              | Escrow funds refunded to client                     | No                              |
-| `WalletCreditedEvent`      | Wallet      | Notification                                              | Wallet balance credited                             | No                              |
-| `WalletDebitedEvent`       | Wallet      | Notification                                              | Wallet balance debited                              | No                              |
-| `FundsHeldEvent`           | Wallet      | AcceptApplicationSaga (next step)                         | Funds held in client wallet                         | No                              |
-| `FundsTransferredEvent`    | Wallet      | Notification                                              | Funds transferred between wallets                   | No                              |
+| `EscrowFundedEvent`        | Escrow      | **Wallet** (worker active credit), Application saga       | Escrow payment successful                           | No                              |
+| `EscrowCompletedPendingPayoutEvent` | Escrow | **Wallet** (active to pending), Notification              | Escrow completed but inside 3-day clearance window  | No                              |
+| `EscrowRefundedEvent`      | Escrow      | **Wallet** (client refund credit or active reversal), Notification | Escrow funds refunded before pending payout  | No                              |
+| `ActiveErrandCredited`     | Wallet      | Notification, Audit                                       | Worker active errand balance credited               | No                              |
+| `MovedToPending`           | Wallet      | Notification, Audit                                       | Worker active balance moved to pending              | No                              |
+| `ReleasedToAvailable`      | Wallet      | Notification, Audit                                       | Worker pending balance moved to withdrawable available | No                           |
+| `WithdrawalRecorded`       | Wallet      | Notification, Audit                                       | Available balance withdrawal recorded               | No                              |
+| `ActiveErrandReversed`     | Wallet      | Notification, Audit                                       | Active errand balance reversed                      | No                              |
+| `ClientRefunded`           | Wallet      | Notification, Audit                                       | Client refund credit recorded                       | No                              |
 | `RatingCreatedEvent`       | Rating      | **Provider/Client** (update averageRating), Notification  | **CRITICAL: Triggers denormalization**              | No                              |
 | `MessageSentEvent`         | Chat        | **PubSub** (broadcast), Notification                      | **CRITICAL: Triggers real-time broadcast**          | No                              |
 | `ProviderCreatedEvent`     | Provider    | **Users** (add PROVIDER role)                             | Provider profile created                            | No                              |
@@ -1212,9 +1222,9 @@ This section provides a comprehensive reference of all key domain interfaces, co
 
 | Saga                          | Trigger Event                                        | Module      | Steps                                                                                                                                                                      | Rollback Strategy                             | Risk Level                              |
 | ----------------------------- | ---------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- | --------------------------------------- |
-| **AcceptApplicationSaga**     | `ApplicationAcceptedEvent`                           | Application | 1. Reject other applications<br>2. Update errand status to ASSIGNED<br>3. Create escrow<br>4. Charge payment<br>5. Hold funds in wallet<br>6. Update errand to IN_PROGRESS | Revert application to PENDING, errand to OPEN | **HIGH** (money flow)                   |
-| **CompleteErrandSaga**        | `ErrandCompletedEvent`                               | Errands     | 1. Release escrow<br>2. Transfer held funds to worker<br>3. Prompt rating<br>4. Send notifications                                                                         | N/A (completion is terminal)                  | **MEDIUM** (money flow, but idempotent) |
-| **RefundErrandSaga**          | `ErrandCancelledEvent` (when status was IN_PROGRESS) | Errands     | 1. Refund escrow<br>2. Release held funds to client<br>3. Cancel applications<br>4. Send notifications                                                                     | N/A (refund is terminal)                      | **MEDIUM** (money flow, but idempotent) |
+| **AcceptApplicationSaga**     | `ApplicationAcceptedEvent`                           | Application | 1. Reject other applications<br>2. Update errand status to ASSIGNED<br>3. Create escrow<br>4. Charge payment<br>5. Append worker active errand credit<br>6. Update errand to IN_PROGRESS | Revert application to PENDING, errand to OPEN; reverse active entry if already appended | **HIGH** (money flow) |
+| **CompleteErrandSaga**        | `ErrandCompletedEvent`                               | Errands     | 1. Mark escrow completed pending payout<br>2. Move wallet active balance to pending<br>3. Prompt rating<br>4. Send notifications<br>5. Clearance job releases pending to available after 3 days | N/A (completion starts clearance)             | **MEDIUM-HIGH** (money flow, ledger cutover) |
+| **RefundErrandSaga**          | `ErrandCancelledEvent` (when status was IN_PROGRESS) | Errands     | 1. Refund escrow through Paystack<br>2. Reverse worker active errand balance if credited<br>3. Record client refund credit<br>4. Cancel applications<br>5. Send notifications | N/A (refund is terminal before pending payout) | **MEDIUM-HIGH** (money flow, idempotency required) |
 | **CreateErrandSaga** (future) | `ErrandPublishedEvent`                               | Errands     | 1. Notify nearby providers<br>2. Index in search<br>3. Update recommendation engine                                                                                        | N/A (informational only)                      | **LOW**                                 |
 
 ### Value Objects (Shared Domain Concepts)
@@ -1241,7 +1251,7 @@ This section provides a comprehensive reference of all key domain interfaces, co
    b. Calls AssignWorkerCommand → emits ErrandAssignedEvent
    c. Calls CreateEscrowCommand → emits EscrowCreatedEvent
    d. Calls FundEscrowCommand → emits EscrowFundedEvent
-   e. OnEscrowFundedHoldFundsHandler calls HoldFundsCommand → emits FundsHeldEvent
+   e. CreditActiveErrandCommandHandler appends ACTIVE_ERRAND_CREDIT → emits ActiveErrandCredited
    f. Calls UpdateErrandStatusCommand (IN_PROGRESS)
 4. Notifications sent to worker (accepted) and client (charged)
 ```
@@ -1251,8 +1261,8 @@ This section provides a comprehensive reference of all key domain interfaces, co
 ```
 1. Client/Worker calls CompleteErrandCommandHandler
 2. Errand.complete() → emits ErrandCompletedEvent
-3. OnErrandCompletedReleaseEscrowHandler calls ReleaseEscrowCommand → emits EscrowReleasedEvent
-4. OnEscrowReleasedTransferFundsHandler calls TransferHeldFundsCommand → emits FundsTransferredEvent + WalletCreditedEvent
+3. MarkEscrowCompletedHandler marks escrow COMPLETED_PENDING_PAYOUT
+4. MoveActiveToPendingCommandHandler appends ACTIVE_ERRAND_REVERSAL + PENDING_CREDIT → emits MovedToPending
 5. OnErrandCompletedPromptRatingHandler sends rating prompts to client and worker
 6. Notifications sent to worker (payment received) and client (errand complete)
 ```

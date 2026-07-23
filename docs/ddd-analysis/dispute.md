@@ -127,6 +127,27 @@ src/dispute/
       DisputeResolver.ts
 ```
 
+## Persistence Model (Derived from Domain)
+
+```prisma
+model Dispute {
+  id String @id @map("_id")
+  errandId String
+  clientId String
+  workerId String
+  status DisputeStatus
+  reason String
+  createdAt DateTime
+
+  @@index([errandId]) // serves: findByErrandId
+  @@index([errandId, status]) // serves: findPendingByErrandId
+}
+```
+
+Reference fields are scalar IDs only: `errandId`, `clientId`, `workerId`. Cleanup owners: `ErrandDeletedPolicyHandler` prevents hard deletion when disputes exist; `ClientDeletedPolicyHandler` and `ProviderDeletedPolicyHandler` soft-delete/anonymize parties while preserving dispute history. `id` serves `findById`; the errand/status indexes map to dispute repository methods. No unique constraint is added because the domain allows history of resolved disputes unless a future invariant restricts one open dispute per errand.
+
+---
+
 ## 10. Migration Risk & Priority
 
 **Risk**: **LOW** (module is empty, no existing functionality to break).

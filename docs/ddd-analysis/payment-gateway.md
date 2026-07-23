@@ -209,6 +209,43 @@ src/infrastructure/payment/  # OR src/common/payment/
       PaymentMethodType.ts
 ```
 
+## Persistence Model (Derived from Domain)
+
+```prisma
+model PaymentMethod {
+  id String @id @map("_id")
+  userId String
+  provider String
+  providerRef String
+  type String
+  cardBrand String?
+  last4 String?
+  expMonth Int?
+  expYear Int?
+  isDefault Boolean
+  verified Boolean
+  createdAt DateTime
+
+  @@unique([provider, providerRef]) // backs: DuplicatePaymentMethodError
+  @@index([userId]) // serves: findByUserId
+  @@index([userId, isDefault]) // serves: findDefaultByUserId
+}
+
+model PaystackCustomer {
+  id String @id @map("_id")
+  userId String
+  customerCode String
+  customerId String
+
+  @@unique([userId]) // backs: DuplicatePaystackCustomerError
+  @@unique([customerCode]) // backs: DuplicatePaystackCustomerCodeError
+}
+```
+
+Reference fields are scalar IDs only: `userId`. Cleanup owner: `UserDeletedPolicyHandler` disables payment methods and customer mappings through `IPaymentMethodRepository`; gateway-side deletion is an infrastructure adapter concern triggered by the same handler. `id` serves `findById`, user/default indexes serve payment method repository reads, and provider/customer uniqueness constraints back idempotent provider mapping invariants.
+
+---
+
 ## 10. Migration Risk & Priority
 
 **Risk**: **HIGH**

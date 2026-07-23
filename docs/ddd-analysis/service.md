@@ -130,6 +130,31 @@ src/service/
       ServiceResolver.ts
 ```
 
+## Persistence Model (Derived from Domain)
+
+```prisma
+model ServiceCategory {
+  id String @id @map("_id")
+  name String
+  type ServiceCategoryType
+
+  @@index([type]) // serves: findAllCategories grouping/filtering
+}
+
+model Service {
+  id String @id @map("_id")
+  categoryId String
+  name String
+  type ServiceCategoryType
+
+  @@index([categoryId]) // serves: findServicesByCategoryId
+}
+```
+
+`ServiceCategoryAggregate` is the aggregate root for catalog grouping; `Service` is a catalog child reachable only through `IServiceRepository`. References are scalar IDs only: `categoryId`. Cleanup owner: `ServiceCatalogAdminHandler` updates categories and services through `IServiceRepository`; Errand cleanup is handled by `ServiceRetiredHandler` in the Errands module before any service is removed. `ServiceCategory.id` serves `findAllCategories`, `Service.id` serves `findServiceById`, and `categoryId` serves `findServicesByCategoryId`.
+
+---
+
 ## 10. Migration Risk & Priority
 
 **Risk**: **LOW**
