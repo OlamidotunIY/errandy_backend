@@ -32,7 +32,7 @@ class CreditActiveErrandCommandHandler {
     const wallet = await this.walletRepository.findById(command.walletId);
 
     if (!wallet) {
-      throw new WalletNotFoundError(command.walletId.toString());
+      throw new WalletNotFoundError();
     }
 
     const entry = wallet.recordActiveErrandCredit(
