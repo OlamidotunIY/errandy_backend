@@ -3,18 +3,20 @@ import { EntityId } from './EntityId';
 
 abstract class AggregateRoot<T extends EntityId> {
   readonly id: T;
+  private _domainEvents: DomainEvent[] = [];
 
   protected constructor(id: T) {
     this.id = id;
   }
 
   protected addDomainEvent(event: DomainEvent): void {
-    // Implementation for adding a domain event to the aggregate root
+    this._domainEvents.push(event);
   }
 
-  protected pullDomainEvents(): DomainEvent[] {
-    // Implementation for retrieving and clearing domain events from the aggregate root
-    return [];
+  public pullDomainEvents(): DomainEvent[] {
+    const events = this._domainEvents;
+    this._domainEvents = [];
+    return events;
   }
 }
 
