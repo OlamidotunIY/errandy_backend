@@ -1,3 +1,0 @@
-enum OwnerType {}
-
-export { OwnerType };
