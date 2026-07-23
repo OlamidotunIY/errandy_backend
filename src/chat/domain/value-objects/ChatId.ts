@@ -1,16 +1,16 @@
-import { EntityId } from "@shared";
+import { EntityId } from '@shared';
 
-class ChatId extends EntityId{
-    constructor(value: string){
-        super(value);
-    }
+class ChatId extends EntityId {
+  constructor(value: string) {
+    super(value);
+  }
 
-    static create(): ChatId {
-        return new ChatId(crypto.randomUUID());
-    }
+  static create(): ChatId {
+    return new ChatId(crypto.randomUUID());
+  }
 
-    static fromString(value: string): ChatId{
-        return new ChatId(value);
-    }
+  static fromString(value: string): ChatId {
+    return new ChatId(value);
+  }
 }
-export{ ChatId }
+export { ChatId };
