@@ -5,3 +5,4 @@ export * from './UnsupportedPendingRefundError';
 export * from './InsufficientPendingBalanceError';
 export * from './DuplicateLedgerEntryError';
 export * from './WalletNotFoundError';
+export * from './InsufficientBalanceError';
