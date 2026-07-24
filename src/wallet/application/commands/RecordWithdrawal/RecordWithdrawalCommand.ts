@@ -1,11 +1,15 @@
 import { Currency } from '@escrow';
 import { UserId } from '@user';
+import { Command } from '@nestjs/cqrs';
 
-interface RecordWithdrawalCommand {
-  userId: UserId;
-  amountKobo: number;
-  currency: Currency;
-  gatewayReference: string;
+class RecordWithdrawalCommand extends Command<void> {
+  constructor(
+    public readonly userId: UserId,
+    public readonly amountKobo: number,
+    public readonly currency: Currency,
+    public readonly gatewayReference: string,
+  ) {
+    super();
+  }
 }
-
 export { RecordWithdrawalCommand };
