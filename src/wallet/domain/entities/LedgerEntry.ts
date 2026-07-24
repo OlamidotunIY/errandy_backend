@@ -4,7 +4,7 @@ import {
   LedgerEntryId,
   LedgerEntryType,
   WalletId,
-} from '../value-objects';
+} from '@wallet';
 import { UserId } from '@user';
 import { InvalidLedgerAmountError } from '../errors';
 import { Json } from '@shared';
@@ -22,6 +22,7 @@ class LedgerEntry {
     public readonly metadata: Json | null,
     public readonly createdAt: Date,
     public readonly idempotencyKey: string,
+    public sequence: number | null = null,
   ) {}
 
   static create(params: CreateLedgerEntryParams): LedgerEntry {
@@ -48,6 +49,7 @@ class LedgerEntry {
       params.metadata ?? null,
       new Date(),
       params.idempotencyKey,
+      null,
     );
   }
 
@@ -63,6 +65,7 @@ class LedgerEntry {
     metadata: Json | null;
     createdAt: Date;
     idempotencyKey: string;
+    sequence: number;
   }): LedgerEntry {
     return new LedgerEntry(
       params.id,
@@ -76,7 +79,13 @@ class LedgerEntry {
       params.metadata,
       params.createdAt,
       params.idempotencyKey,
+      params.sequence,
     );
+  }
+
+  assignSequence(sequence: number): LedgerEntry {
+    this.sequence = sequence;
+    return this;
   }
 }
 

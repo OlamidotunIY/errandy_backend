@@ -25,6 +25,7 @@ class LedgerEntryMapper {
       type: row.type as LedgerEntryType,
       createdAt: row.createdAt,
       idempotencyKey: row.idempotencyKey,
+      sequence: row.sequence,
     });
   }
 
@@ -41,6 +42,7 @@ class LedgerEntryMapper {
       type: entry.type,
       createdAt: entry.createdAt,
       idempotencyKey: entry.idempotencyKey,
+      sequence: entry.sequence ?? 0,
     };
   }
 }
