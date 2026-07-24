@@ -62,7 +62,7 @@ class Wallet extends AggregateRoot<WalletId> {
     gatewayReference: string,
   ): LedgerEntry {
     const idempotencyKey = `${LedgerEntryType.ACTIVE_ERRAND_CREDIT}_${escrowId.toString()}`;
-    const entrie = LedgerEntry.create({
+    const entries = LedgerEntry.create({
       walletId: this.id,
       userId: this.userId,
       type: LedgerEntryType.ACTIVE_ERRAND_CREDIT,
@@ -77,7 +77,7 @@ class Wallet extends AggregateRoot<WalletId> {
       new ActiveErrandCredited(this.id, this.userId, escrowId, amountKobo),
     );
 
-    return entrie;
+    return entries;
   }
 
   moveActiveToPending(

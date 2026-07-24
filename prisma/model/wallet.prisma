@@ -18,6 +18,7 @@ model LedgerEntry {
   escrowId String?
   gatewayReference String?
   idempotencyKey String
+  sequence Int
   metadata Json?
   createdAt DateTime
 
@@ -45,4 +46,10 @@ enum LedgerEntryType {
   AVAILABLE_CREDIT
   WITHDRAWAL_DEBIT
   REFUND_CREDIT
+}
+
+model WalletLedgerSequence {
+  id String @id @map("_id")
+  walletId String @unique
+  sequence Int
 }
