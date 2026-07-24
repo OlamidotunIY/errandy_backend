@@ -1,7 +1,10 @@
 import { UserId } from '@user';
+import { Query } from '@nestjs/cqrs';
 
-interface GetWalletBalancesQuery {
-  userId: UserId;
+class GetWalletBalancesQuery extends Query<WalletBalancesDTO> {
+  constructor(public readonly userId: UserId) {
+    super();
+  }
 }
 
 interface WalletBalancesDTO {

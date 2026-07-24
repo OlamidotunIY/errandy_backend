@@ -4,8 +4,9 @@ import {
   WalletNotFoundError,
 } from '@wallet';
 import { GetWalletBalancesQuery, WalletBalancesDTO } from './';
+import { IQueryHandler } from '@nestjs/cqrs';
 
-class GetWalletBalancesHandler {
+class GetWalletBalancesHandler implements IQueryHandler<GetWalletBalancesQuery> {
   constructor(
     private readonly walletBalanceRepository: IWalletBalanceRepository,
     private readonly walletRepository: IWalletRepository,
