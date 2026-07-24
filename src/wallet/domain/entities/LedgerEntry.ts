@@ -7,6 +7,7 @@ import {
 } from '../value-objects';
 import { UserId } from '@user';
 import { InvalidLedgerAmountError } from '../errors';
+import { Json } from '@shared';
 
 class LedgerEntry {
   private constructor(
@@ -18,8 +19,9 @@ class LedgerEntry {
     public readonly currency: string,
     public readonly escrowId: EscrowId | null,
     public readonly gatewayReference: string | null,
-    public readonly metadata: Record<string, unknown> | null,
+    public readonly metadata: Json | null,
     public readonly createdAt: Date,
+    public readonly idempotencyKey: string,
   ) {}
 
   static create(params: CreateLedgerEntryParams): LedgerEntry {
@@ -45,6 +47,35 @@ class LedgerEntry {
       params.gatewayReference ?? null,
       params.metadata ?? null,
       new Date(),
+      params.idempotencyKey,
+    );
+  }
+
+  static reconstitute(params: {
+    id: LedgerEntryId;
+    walletId: WalletId;
+    userId: UserId;
+    type: LedgerEntryType;
+    amountKobo: number;
+    currency: string;
+    escrowId: EscrowId | null;
+    gatewayReference: string | null;
+    metadata: Json | null;
+    createdAt: Date;
+    idempotencyKey: string;
+  }): LedgerEntry {
+    return new LedgerEntry(
+      params.id,
+      params.walletId,
+      params.userId,
+      params.type,
+      params.amountKobo,
+      params.currency,
+      params.escrowId,
+      params.gatewayReference,
+      params.metadata,
+      params.createdAt,
+      params.idempotencyKey,
     );
   }
 }
