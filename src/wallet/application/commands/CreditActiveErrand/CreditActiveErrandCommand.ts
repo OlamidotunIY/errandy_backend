@@ -1,14 +1,19 @@
 import { Currency, EscrowId } from '@escrow';
 import { UserId } from '@user';
 import { WalletId } from '@wallet';
+import { Command } from '@nestjs/cqrs';
 
-interface CreditActiveErrandCommand {
-  workerUserId: UserId;
-  escrowId: EscrowId;
-  walletId: WalletId;
-  amountKobo: number;
-  currency: Currency;
-  gatewayReference: string;
+class CreditActiveErrandCommand extends Command<void> {
+  constructor(
+    public readonly workerUserId: UserId,
+    public readonly escrowId: EscrowId,
+    public readonly walletId: WalletId,
+    public readonly amountKobo: number,
+    public readonly currency: Currency,
+    public readonly gatewayReference: string,
+  ) {
+    super();
+  }
 }
 
 export { CreditActiveErrandCommand };
