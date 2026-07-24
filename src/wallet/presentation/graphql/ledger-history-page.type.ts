@@ -6,7 +6,7 @@ class LedgerHistoryPageType {
   @Field(() => [LedgerEntryGraphQLType])
   entries: LedgerEntryGraphQLType[];
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   nextCursor: string | null;
 }
 

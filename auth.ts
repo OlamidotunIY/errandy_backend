@@ -6,10 +6,11 @@ import {
   phoneNumber,
   emailOTP,
 } from 'better-auth/plugins';
-import { betterAuth } from 'better-auth';
+import { betterAuth, BetterAuthOptions } from 'better-auth';
 import { expo } from '@better-auth/expo';
 import { sendOTP } from './src/utils/otp.utils';
 import { globalEventEmitter } from './src/utils/event-emitter.utils';
+import 'dotenv/config';
 
 const client = new PrismaClient();
 
@@ -85,7 +86,7 @@ export const auth = betterAuth({
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID as string,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
-      mapProfileToUser: async (profile) => {
+      mapProfileToUser: (profile) => {
         return {
           username:
             profile.email.split('@')[0] +
@@ -104,38 +105,38 @@ export const auth = betterAuth({
   hooks: {},
   databaseHooks: {
     user: {
-      create: {
-        after: async (user) => {
-          // This fires ONLY when a new user is created (email, Google, Apple, etc.)
-          // NOT when an existing user signs in
-          globalEventEmitter.emit('user.created', {
-            userId: user.id,
-            email: user.email,
-            firstName: user.name?.split(' ')[0],
-            lastName: user.name?.split(' ').slice(1).join(' '),
-            phone: user.phoneNumber,
-          });
-        },
-      },
-      update: {
-        after: async (user) => {
-          console.log('User update database hook triggered');
-          console.log('User ID:', user.id);
-          console.log('Phone:', user.phoneNumber);
-          console.log('Phone Verified:', user.phoneNumberVerified);
-
-          // Emit user.updated event when phone is set/verified
-          if (user.phoneNumber && user.phoneNumberVerified) {
-            console.log('Emitting user.updated from database hook');
-            globalEventEmitter.emit('user.updated', {
-              userId: user.id,
-              firstName: user.name?.split(' ')[0],
-              lastName: user.name?.split(' ').slice(1).join(' '),
-              phone: user.phoneNumber,
-            });
-          }
-        },
-      },
+      // create: {
+      //   after: async (user) => {
+      //     // This fires ONLY when a new user is created (email, Google, Apple, etc.)
+      //     // NOT when an existing user signs in
+      //     await globalEventEmitter.emit('user.created', {
+      //       userId: user.id,
+      //       email: user.email,
+      //       firstName: user.name?.split(' ')[0],
+      //       lastName: user.name?.split(' ').slice(1).join(' '),
+      //       phone: user.phoneNumber,
+      //     });
+      //   },
+      // },
+      // update: {
+      //   after: async (user) => {
+      //     console.log('User update database hook triggered');
+      //     console.log('User ID:', user.id);
+      //     console.log('Phone:', user.phoneNumber);
+      //     console.log('Phone Verified:', user.phoneNumberVerified);
+      //
+      //     // Emit user.updated event when phone is set/verified
+      //     if (user.phoneNumber && user.phoneNumberVerified) {
+      //       console.log('Emitting user.updated from database hook');
+      //       globalEventEmitter.emit('user.updated', {
+      //         userId: user.id,
+      //         firstName: user.name?.split(' ')[0],
+      //         lastName: user.name?.split(' ').slice(1).join(' '),
+      //         phone: user.phoneNumber,
+      //       });
+      //     }
+      //   },
+      // },
     },
   },
-});
+} satisfies BetterAuthOptions);

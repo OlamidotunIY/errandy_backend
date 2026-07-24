@@ -1,13 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Resend } from 'resend';
 import { SendEmailOptions } from './email.interface';
+import { ConfigService } from '@nestjs/config';
 
 export type EmailType = 'promotional' | 'transactional';
+
+const resend = new Resend(process.env.RESEND_API);
 
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
-  private resend: Resend;
 
   // Sender emails (must be verified in Resend)
   private readonly PROMOTIONAL_FROM =
@@ -15,7 +17,6 @@ export class EmailService {
   private readonly TRANSACTIONAL_FROM = 'Errandy <no-reply@errandy.com.ng>';
 
   constructor() {
-    this.resend = new Resend(process.env.RESEND_API);
     this.logger.log('EmailService initialized with Resend');
   }
 
@@ -48,7 +49,7 @@ export class EmailService {
           companyAddress: 'Lagos, Nigeria',
         };
 
-        const { data, error } = await this.resend.emails.send({
+        const { data, error } = await resend.emails.send({
           from,
           to,
           subject: options.subject,
@@ -59,16 +60,18 @@ export class EmailService {
               ...(options.context || {}),
             },
           },
-        } as Parameters<typeof this.resend.emails.send>[0]);
+        } as Parameters<typeof resend.emails.send>[0]);
 
         if (error) {
           this.logger.error(
-            `[${type}] Failed to send email to ${options.to}: ${error.message}`,
+            `[${type}] Failed to send email to ${options.to as string}: ${error.message}`,
           );
           throw new Error(error.message);
         }
 
-        this.logger.log(`[${type}] Email sent to ${options.to}: ${data?.id}`);
+        this.logger.log(
+          `[${type}] Email sent to ${options.to as string}: ${data?.id}`,
+        );
         return true;
       }
 
@@ -80,22 +83,24 @@ export class EmailService {
         html: options.html || '',
         ...(options.text && { text: options.text }),
         ...(options.replyTo && { replyTo: options.replyTo }),
-      } as Parameters<typeof this.resend.emails.send>[0];
+      } as Parameters<typeof resend.emails.send>[0];
 
-      const { data, error } = await this.resend.emails.send(emailPayload);
+      const { data, error } = await resend.emails.send(emailPayload);
 
       if (error) {
         this.logger.error(
-          `[${type}] Failed to send email to ${options.to}: ${error.message}`,
+          `[${type}] Failed to send email to ${options.to as string}: ${error.message}`,
         );
         throw new Error(error.message);
       }
 
-      this.logger.log(`[${type}] Email sent to ${options.to}: ${data?.id}`);
+      this.logger.log(
+        `[${type}] Email sent to ${options.to as string}: ${data?.id}`,
+      );
       return true;
     } catch (error: any) {
       this.logger.error(
-        `[${type}] Failed to send email to ${options.to}: ${error.message}`,
+        `[${type}] Failed to send email to ${options.to as string}: ${error.message as string}`,
       );
       throw error;
     }

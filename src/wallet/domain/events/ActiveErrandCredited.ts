@@ -1,7 +1,7 @@
 import { UserId } from '@user';
-import { WalletId } from '../value-objects';
 import { EscrowId } from '@escrow';
 import { DomainEvent } from '@shared';
+import { WalletId } from '@wallet';
 
 class ActiveErrandCredited implements DomainEvent {
   readonly eventId: string;

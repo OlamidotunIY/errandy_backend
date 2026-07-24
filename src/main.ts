@@ -12,12 +12,6 @@ async function bootstrap() {
     bodyParser: false,
   });
 
-  // Raw health endpoint BEFORE any auth middleware
-  const expressApp = app.getHttpAdapter().getInstance();
-  expressApp.get('/health', (_req: any, res: any) => {
-    res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
-  });
-
   const configService = app.get(ConfigService);
 
   const allowedOrigins = [
@@ -32,7 +26,7 @@ async function bootstrap() {
   ];
 
   app.enableCors({
-    origin: true,
+    origin: allowedOrigins,
     credentials: true,
     allowedHeaders: [
       'Accept',

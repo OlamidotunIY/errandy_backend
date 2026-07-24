@@ -4,7 +4,7 @@ import { LedgerEntryDTO, LedgerEntryType } from '@wallet';
 registerEnumType(LedgerEntryType, { name: 'LedgerEntryType' });
 
 @ObjectType()
-class LedgerEntryGraphQLType {
+class LedgerEntryGraphQLType implements LedgerEntryDTO {
   @Field()
   id: string;
 
@@ -17,10 +17,10 @@ class LedgerEntryGraphQLType {
   @Field()
   currency: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   escrowId: string | null;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   gatewayReference: string | null;
 
   @Field()

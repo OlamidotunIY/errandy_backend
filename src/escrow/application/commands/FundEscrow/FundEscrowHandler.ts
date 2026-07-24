@@ -4,13 +4,13 @@ import {
   IPlatformFeePolicy,
 } from '@escrow';
 import { ILogger } from '@shared';
-import { IWalletRepository } from '@wallet';
+import { WalletRepository } from '@wallet';
 import { FundEscrowResult } from './FundEscrowResult';
 
 class FundEscrowHandler {
   constructor(
     private readonly escrowRepository: IEscrowRepository,
-    private readonly walletRepository: IWalletRepository,
+    private readonly walletRepository: WalletRepository,
     private readonly feePolicy: IPlatformFeePolicy,
     private readonly logger: ILogger,
   ) {}

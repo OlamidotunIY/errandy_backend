@@ -5,7 +5,7 @@ import { Query } from '@nestjs/cqrs';
 
 class GetLedgerHistoryQuery extends Query<LedgerHistoryPageDTO> {
   constructor(
-    public readonly walletId: WalletId,
+    public readonly userId: UserId,
     public readonly cursor: string | null,
     public readonly limit: number,
   ) {
@@ -14,11 +14,11 @@ class GetLedgerHistoryQuery extends Query<LedgerHistoryPageDTO> {
 }
 
 interface LedgerEntryDTO {
-  id: LedgerEntryId;
+  id: string;
   type: LedgerEntryType;
   amountKobo: number;
   currency: string;
-  escrowId: EscrowId | null;
+  escrowId: string | null;
   gatewayReference: string | null;
   createdAt: Date;
 }
