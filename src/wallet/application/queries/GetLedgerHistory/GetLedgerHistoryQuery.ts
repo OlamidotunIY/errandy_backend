@@ -1,11 +1,16 @@
 import { EscrowId } from '@escrow';
 import { UserId } from '@user';
 import { LedgerEntryId, LedgerEntryType, WalletId } from '@wallet';
+import { Query } from '@nestjs/cqrs';
 
-interface GetLedgerHistoryQuery {
-  walletId: WalletId;
-  cursor: string | null;
-  limit: number;
+class GetLedgerHistoryQuery extends Query<LedgerHistoryPageDTO> {
+  constructor(
+    public readonly walletId: WalletId,
+    public readonly cursor: string | null,
+    public readonly limit: number,
+  ) {
+    super();
+  }
 }
 
 interface LedgerEntryDTO {
@@ -14,6 +19,7 @@ interface LedgerEntryDTO {
   amountKobo: number;
   currency: string;
   escrowId: EscrowId | null;
+  gatewayReference: string | null;
   createdAt: Date;
 }
 
