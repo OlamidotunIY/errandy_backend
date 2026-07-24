@@ -61,6 +61,7 @@ class Wallet extends AggregateRoot<WalletId> {
     escrowId: EscrowId,
     gatewayReference: string,
   ): LedgerEntry {
+    const idempotencyKey = `${LedgerEntryType.ACTIVE_ERRAND_CREDIT}_${escrowId.toString()}`;
     const entrie = LedgerEntry.create({
       walletId: this.id,
       userId: this.userId,
@@ -69,6 +70,7 @@ class Wallet extends AggregateRoot<WalletId> {
       currency,
       escrowId,
       gatewayReference,
+      idempotencyKey,
     });
 
     this.addDomainEvent(
@@ -89,6 +91,8 @@ class Wallet extends AggregateRoot<WalletId> {
         `Insufficient active balance to move ${amountKobo} kobo to pending`,
       );
     }
+    const debitIdempotencyKey = `${LedgerEntryType.ACTIVE_ERRAND_REVERSAL}_${escrowId.toString()}`;
+    const creditIdempotencyKey = `${LedgerEntryType.PENDING_CREDIT}_${escrowId.toString()}`;
     const debitEntry = LedgerEntry.create({
       walletId: this.id,
       userId: this.userId,
@@ -97,6 +101,7 @@ class Wallet extends AggregateRoot<WalletId> {
       currency,
       escrowId,
       gatewayReference: null,
+      idempotencyKey: debitIdempotencyKey,
     });
     const creditEntry = LedgerEntry.create({
       walletId: this.id,
@@ -106,6 +111,7 @@ class Wallet extends AggregateRoot<WalletId> {
       currency,
       escrowId,
       gatewayReference: null,
+      idempotencyKey: creditIdempotencyKey,
     });
 
     this.addDomainEvent(
@@ -127,6 +133,9 @@ class Wallet extends AggregateRoot<WalletId> {
       );
     }
 
+    const debitIdempotencyKey = `${LedgerEntryType.PENDING_REVERSAL}_${escrowId.toString()}`;
+    const creditIdempotencyKey = `${LedgerEntryType.AVAILABLE_CREDIT}_${escrowId.toString()}`;
+
     const creditEntry = LedgerEntry.create({
       walletId: this.id,
       userId: this.userId,
@@ -135,6 +144,7 @@ class Wallet extends AggregateRoot<WalletId> {
       currency,
       escrowId,
       gatewayReference: null,
+      idempotencyKey: creditIdempotencyKey,
     });
 
     const debitEntry = LedgerEntry.create({
@@ -145,6 +155,7 @@ class Wallet extends AggregateRoot<WalletId> {
       currency,
       escrowId,
       gatewayReference: null,
+      idempotencyKey: debitIdempotencyKey,
     });
 
     this.addDomainEvent(
@@ -166,6 +177,8 @@ class Wallet extends AggregateRoot<WalletId> {
       );
     }
 
+    const idempotencyKey = `${LedgerEntryType.WITHDRAWAL_DEBIT}_${gatewayReference}`;
+
     const entry = LedgerEntry.create({
       walletId: this.id,
       userId: this.userId,
@@ -174,6 +187,7 @@ class Wallet extends AggregateRoot<WalletId> {
       currency,
       escrowId: null,
       gatewayReference,
+      idempotencyKey,
     });
 
     this.addDomainEvent(
@@ -200,6 +214,9 @@ class Wallet extends AggregateRoot<WalletId> {
         `Insufficient active balance to record reversal of ${amountKobo} kobo`,
       );
     }
+
+    const debitIdempotencyKey = `${LedgerEntryType.ACTIVE_ERRAND_REVERSAL}_${escrowId.toString()}`;
+    // const creditIdempotencyKey = `${LedgerEntryType.ACTIVE_ERRAND_CREDIT}_${escrowId.toString()}`;
     const entry = LedgerEntry.create({
       walletId: this.id,
       userId: this.userId,
@@ -208,6 +225,7 @@ class Wallet extends AggregateRoot<WalletId> {
       currency,
       escrowId,
       gatewayReference,
+      idempotencyKey: debitIdempotencyKey,
     });
     this.addDomainEvent(
       new ActiveErrandReversed(this.id, this.userId, escrowId, amountKobo),
@@ -225,6 +243,8 @@ class Wallet extends AggregateRoot<WalletId> {
       throw new CurrencyMismatchError(this.currency, currency);
     }
 
+    const debitIdempotencyKey = `${LedgerEntryType.PENDING_REVERSAL}_${escrowId.toString()}`;
+    const creditIdempotencyKey = `${LedgerEntryType.REFUND_CREDIT}_${escrowId.toString()}`;
     const entry = LedgerEntry.create({
       walletId: this.id,
       userId: this.userId,
@@ -233,6 +253,7 @@ class Wallet extends AggregateRoot<WalletId> {
       currency,
       escrowId,
       gatewayReference,
+      idempotencyKey: creditIdempotencyKey,
     });
     this.addDomainEvent(
       new ClientRefunded(
