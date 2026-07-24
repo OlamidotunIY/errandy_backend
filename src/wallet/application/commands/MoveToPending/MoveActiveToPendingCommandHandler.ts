@@ -1,4 +1,5 @@
 import {
+  BucketType,
   DuplicateLedgerEntryError,
   ILedgerEntryRepository,
   IWalletBalanceRepository,
@@ -18,18 +19,6 @@ class MoveActiveToPendingCommandHandler {
   ) {}
 
   async execute(command: MoveActiveToPendingCommand): Promise<void> {
-    const alreadyExists = await this.ledgerEntryRepository.existsForEscrow(
-      command.escrowId,
-      LedgerEntryType.PENDING_CREDIT,
-    );
-
-    if (alreadyExists) {
-      throw new DuplicateLedgerEntryError(
-        command.escrowId.toString(),
-        LedgerEntryType.PENDING_CREDIT,
-      );
-    }
-
     const wallet = await this.walletRepository.findByUserId(
       command.workerUserId,
     );
@@ -48,7 +37,12 @@ class MoveActiveToPendingCommandHandler {
       currentActiveBalance,
     );
 
-    await this.ledgerEntryRepository.appendMany([debitEntry, creditEntry]);
+    await this.ledgerEntryRepository.appendManyIfBalanceSufficient(
+      wallet.id,
+      BucketType.ACTIVE,
+      currentActiveBalance,
+      [debitEntry, creditEntry],
+    );
 
     const events = wallet.pullDomainEvents();
     for (const event of events) {
