@@ -1,6 +1,5 @@
-import { EscrowId } from '@escrow';
 import { LedgerEntry } from '../entities';
-import { LedgerEntryType, WalletId } from '../value-objects';
+import { WalletId } from '../';
 
 enum BucketType {
   ACTIVE = 'active',
@@ -13,22 +12,24 @@ interface LedgerEntryPage {
   nextCursor: string | null;
 }
 
-interface ILedgerEntryRepository {
-  append(entry: LedgerEntry): Promise<void>;
-  findByWalletId(walletId: WalletId): Promise<LedgerEntry[]>;
-  // findByEscrowId(escrowId: EscrowId): Promise<LedgerEntry[]>;
-  findByGatewayReference(gatewayReference: string): Promise<LedgerEntry[]>;
-  findPageByWalletId(
+export abstract class LedgerEntryRepository {
+  abstract append(entry: LedgerEntry): Promise<LedgerEntry[]>;
+  abstract findByWalletId(walletId: WalletId): Promise<LedgerEntry[]>;
+  // abstract findByEscrowId(escrowId: EscrowId): Promise<LedgerEntry[]>;
+  abstract findByGatewayReference(
+    gatewayReference: string,
+  ): Promise<LedgerEntry[]>;
+  abstract findPageByWalletId(
     walletId: WalletId,
     cursor: string | null,
     limit: number,
   ): Promise<LedgerEntryPage>;
-  appendManyIfBalanceSufficient(
+  abstract appendManyIfBalanceSufficient(
     walletId: WalletId,
     bucket: BucketType,
     requiredAmountKobo: number,
     entries: LedgerEntry[],
-  ): Promise<void>;
+  ): Promise<LedgerEntry[]>;
 }
 
-export { ILedgerEntryRepository, BucketType, LedgerEntryPage };
+export { BucketType, LedgerEntryPage };

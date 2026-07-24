@@ -1,9 +1,7 @@
 import { UserId } from '@user';
 import { Wallet, WalletId } from '../';
 
-interface IWalletRepository {
-  findById(id: WalletId): Promise<Wallet | null>;
-  findByUserId(userId: UserId): Promise<Wallet | null>;
+export abstract class WalletRepository {
+  abstract findById(id: WalletId): Promise<Wallet | null>;
+  abstract findByUserId(userId: UserId): Promise<Wallet | null>;
 }
-
-export { IWalletRepository };

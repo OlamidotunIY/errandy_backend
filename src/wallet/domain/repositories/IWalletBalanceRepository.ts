@@ -1,11 +1,12 @@
 import { WalletBalancesDTO } from '@wallet/application';
-import { WalletId } from '../value-objects';
+import { LedgerEntry, WalletBalanceSnapshot, WalletId } from '@wallet';
+import { Currency } from '@escrow';
 
-interface IWalletBalanceRepository {
-  getActiveErrandBalance(walletId: WalletId): Promise<number>;
-  getPendingBalance(walletId: WalletId): Promise<number>;
-  getAvailableBalance(walletId: WalletId): Promise<number>;
-  getSnapshotForDisplay(walletId: WalletId): Promise<WalletBalancesDTO>;
+export abstract class WalletBalanceRepository {
+  abstract getSnapshotForDisplay(
+    walletId: WalletId,
+    currency?: Currency,
+  ): Promise<WalletBalancesDTO>;
+  abstract apply(walletId: WalletId, entries: LedgerEntry[]): Promise<void>;
+  abstract rebuild(walletId: WalletId): Promise<WalletBalanceSnapshot>;
 }
-
-export { IWalletBalanceRepository };
