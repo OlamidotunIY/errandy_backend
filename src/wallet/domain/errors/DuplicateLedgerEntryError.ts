@@ -1,5 +1,7 @@
 export class DuplicateLedgerEntryError extends Error {
-  constructor(escrowId: string, type: string) {
-    super(`A ${type} ledger entry already exists for escrow ${escrowId}`);
+  constructor(idempotencyKey: string) {
+    super(
+      `A ledger entry with idempotency key ${idempotencyKey} already exists`,
+    );
   }
 }
