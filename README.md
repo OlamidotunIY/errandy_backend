@@ -1,168 +1,162 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Errandy Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Errandy Backend powers an errand marketplace that connects clients who need tasks completed with providers who can fulfill them. The backend is a DDD and EIP-driven NestJS GraphQL monolith, backed by Prisma and MongoDB, with bounded modules for escrow, wallet, errands, applications, users, providers, clients, ratings, chat, and supporting domains.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Architecture
 
-## Description
+The domain layer contains aggregates, value objects, domain errors, repository interfaces, domain services, and domain events. It is persistence-ignorant: no Prisma models, GraphQL decorators, or adapter concerns leak into business rules.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+The application layer contains CQRS command handlers, query handlers, sagas, event handlers, and BullMQ jobs. Commands and queries are dispatched through NestJS `CommandBus` and `QueryBus`, while `EventBus` provides one-to-many publication for domain events after persistence succeeds.
 
-## Project setup
+The infrastructure layer implements repositories, mappers, and external adapters. Prisma repositories convert between persistence rows and domain aggregates, while adapters wrap Paystack, Firebase, Redis, BullMQ, email, and push integrations behind module-owned interfaces.
 
-```bash
-$ npm install
+The presentation layer exposes GraphQL resolvers and GraphQL object types. Resolvers inject buses rather than repositories, and presentation mappers convert application DTOs into GraphQL shapes, including typed aggregate IDs rendered as strings.
+
+```mermaid
+flowchart TD
+  A[WalletResolver] -->|QueryBus.execute| B[GetWalletBalancesQuery]
+  B --> C[GetWalletBalancesHandler]
+  C --> D[IWalletBalanceSnapshotRepository]
+  D --> E[PrismaWalletRepository / PrismaLedgerEntryRepository]
+  E --> F[(MongoDB)]
+  C --> G[WalletBalancesDTO]
+  G --> H[toWalletBalancesType]
+  H --> A
 ```
 
-## Compile and run the project
+## Core Domains
 
-```bash
-# development
-$ npm run start
+### Escrow
 
-# watch mode
-$ npm run start:dev
+Escrow owns the payment hold around an accepted errand. Its key rule is a two-phase hold: funds back active work first, then move through a post-completion clearance window before worker funds become available.
 
-# production mode
-$ npm run start:prod
+### Wallet
+
+Wallet owns all internal money movements after external payment outcomes are known. Balances come from append-only `LedgerEntry` records, with materialized snapshots used for fast reads and replayable audit.
+
+### Errands
+
+Errands owns task lifecycle: creation, publication, assignment, completion, cancellation, pricing, recurrence, and service references. Other modules react to errand lifecycle events instead of mutating errand state directly.
+
+### Application
+
+Application owns provider applications to errands, including submission, acceptance, rejection, cancellation, and uniqueness per worker per errand. Acceptance starts a saga that coordinates escrow funding, errand assignment, and cancellation of competing applications.
+
+### Users, Provider, And Client
+
+Users owns identity profile data and active address selection. Provider owns worker profile, verification, skills, discovery fields, and rating snapshots. Client owns requester profile and dashboard read models.
+
+### Rating
+
+Rating owns post-errand reviews, reactions, replies, and rating statistics. It enforces score bounds and one rating per rater per errand, then emits events that update Provider and Client rating snapshots.
+
+### Chat
+
+Chat owns rooms, participants, messages, read state, and message broadcast events. Messages are persisted before publication so subscriptions reflect durable conversation history.
+
+### Supporting Domains
+
+Address owns saved addresses and geocoding results. Dispute records evidence and resolution decisions, then routes outcomes to Escrow. Payment Gateway normalizes Paystack payment methods and webhooks. Notification translates domain events into channel-specific dispatches.
+
+## Key Design Decisions
+
+### Ledger-Based Wallet
+
+Wallet balances are derived from an append-only ledger rather than mutable balance fields. This makes each credit, debit, refund, and withdrawal replayable for audit and gives reconciliation jobs a durable source of truth.
+
+### Two-Phase Escrow Hold
+
+Escrow separates active-work funds from post-completion clearance. That protects clients during disputes while still giving providers a clear path from active balance to pending balance to available balance.
+
+### Strongly Typed Aggregate IDs
+
+IDs such as `EscrowId`, `WalletId`, `UserId`, and `ErrandId` are value objects, not interchangeable strings. This catches cross-aggregate ID mix-ups at compile time and keeps repository contracts explicit.
+
+### Persistence-Ignorant Domain
+
+Repositories are interfaces in the domain layer and Prisma implementations live in infrastructure. Aggregates express business behavior without knowing how they are stored, which keeps domain tests fast and adapter replacement contained.
+
+### Payment Idempotency
+
+Payment-adjacent operations use idempotency keys and database uniqueness constraints. Wallet ledger rows key escrow flows by escrow ID and withdrawals by gateway reference, so retries and replay cannot double-credit or double-debit an account.
+
+## Enterprise Integration Patterns
+
+- **Event Sourcing / Append-Only Log**: Wallet ledger entries are the authoritative money history.
+- **Materialized View**: Wallet balances, provider ratings, client dashboards, and rating stats use read models optimized for queries.
+- **Idempotent Receiver**: Payment webhooks, wallet ledger appends, applications, ratings, and verification attempts are protected by uniqueness constraints and command semantics.
+- **Reconciliation / Audit**: Wallet reconciliation compares Paystack transactions or stored webhook logs against ledger entries by gateway reference.
+- **Dead Letter Channel**: Payment-success/ledger-failure cases, failed notification dispatches, and exhausted queue jobs carry replayable payloads into DLQ handling.
+- **Saga / Process Manager**: Application acceptance, errand completion, cancellation, and dispute resolution coordinate multiple aggregates through commands and events.
+- **Content-Based Router**: Provider discovery, errand feeds, dispute outcomes, and chat queries route work based on business criteria.
+- **Publish-Subscribe Channel**: Domain events decouple modules and drive notifications, chat broadcasts, rating prompts, and read-model updates.
+
+## Tech Stack
+
+- NestJS
+- GraphQL with Apollo
+- Prisma
+- MongoDB
+- BullMQ
+- Redis
+- Paystack
+- Firebase storage and push infrastructure
+- Email and notification adapters
+
+## Project Structure
+
+Each bounded context follows the same module layout: `domain` for business rules, `application` for use cases and orchestration, `infrastructure` for Prisma/adapters, and `presentation` for GraphQL. The full DDD analysis lives in `docs/ddd-analysis/`.
+
+```text
+src/
+  escrow/
+    domain/
+    application/
+      commands/
+      queries/
+      event-handlers/
+      jobs/
+    infrastructure/
+      repositories/
+      mappers/
+      adapters/
+    presentation/
+      resolvers/
+      graphql/
+  wallet/
+    domain/
+      entities/
+      value-objects/
+      repositories/
+      events/
+    application/
+      commands/
+      queries/
+      jobs/
+    infrastructure/
+      repositories/
+      mappers/
+    presentation/
+      resolvers/
+      graphql/
+  errands/
+    domain/
+    application/
+    infrastructure/
+    presentation/
+  application/
+  users/
+  provider/
+  client/
+  rating/
+  chat/
+  dispute/
+  address/
+  auth/
+  service/
+  organization/
+  trusted-circle/
+  notification/
+  verification/
+  payment-gateway/
 ```
-
-## Run tests
-
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
-
-## Deployment
-
-### Deploying to a DigitalOcean Droplet (Docker Compose)
-
-This repo deploys the NestJS API and a dedicated BullMQ worker as separate containers on a persistent droplet.
-
-**What runs on the droplet**
-- `api`: NestJS HTTP server (serves `GET /health`)
-- `worker`: NestJS application context only (BullMQ processor + repeatable jobs)
-- `redis`: self-managed Redis (password required, AOF persistence, no public port)
-
-**One-time droplet setup**
-1. Provision a droplet and install Docker + Docker Compose plugin.
-2. Create the app directory:
-   ```bash
-   sudo mkdir -p /opt/errandy_backend
-   sudo chown -R $USER:$USER /opt/errandy_backend
-   ```
-3. Create `/opt/errandy_backend/.env` (do not commit this). It must include at least:
-   - `DATABASE_URL=...`
-   - `PORT=8080` (the API container maps host port `80` -> container `$PORT`)
-   - `REDIS_PASSWORD=...` (required)
-   - plus any existing secrets (JWT, payment gateway keys, etc.)
-
-**Cloudflare DNS**
-- Create an A record: `api.errandy.com.ng` -> `<droplet_public_ip>` (no automation required).
-
-**How GitHub Actions deploy works**
-- On every push to `main`, CI runs two jobs: **build** -> **deploy**.
-- Build job:
-  - Builds one image and pushes **only** the stable tag `:do-latest`
-  - Runs DOCR garbage collection to delete untagged/old manifests (prevents storage growth)
-- Deploy job:
-  - Uploads `docker-compose.prod.yml` to `/opt/errandy_backend`
-  - Saves the currently running image as a local rollback tag `:rollback` (best-effort)
-  - Runs `docker compose pull` + `docker compose up -d --remove-orphans`
-  - Runs `docker image prune -af` (safe only if the droplet is dedicated)
-  - Verifies `GET /health` inside the `api` container (prints logs on failure)
-
-**Required GitHub secrets**
-- Droplet:
-  - `DROPLET_HOST` (IP/hostname)
-  - `DROPLET_USER` (e.g. `root` or `deploy`)
-  - `DROPLET_SSH_KEY` (private key)
-- DigitalOcean:
-  - `DO_ACCESS_TOKEN` (used for registry login + garbage collection)
-  - `DO_REGISTRY_NAME` (DigitalOcean Container Registry name)
-
-**Rollback**
-- There is a manual workflow (`.github/workflows/rollback-do-droplet.yml`) that redeploys the last saved local image tag `:rollback`.
-- Rollback only works if at least one deploy has already saved a rollback image on the droplet.
-
-**Redis security posture**
-- Redis is not exposed publicly (no published `6379` port).
-- Password is required (`REDIS_PASSWORD`).
-- Persistence is enabled (AOF + named Docker volume).
-- To exec into Redis on the droplet:
-  ```bash
-  cd /opt/errandy_backend
-  docker compose -f docker-compose.prod.yml exec redis redis-cli -a "$REDIS_PASSWORD"
-  ```
-
-**Operational notes**
-- Droplet sysctl recommendation for Redis:
-  - `vm.overcommit_memory=1` (documented by Redis for better background save behavior)
-- View logs:
-  ```bash
-  cd /opt/errandy_backend
-  docker compose -f docker-compose.prod.yml logs -f api
-  docker compose -f docker-compose.prod.yml logs -f worker
-  ```
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).

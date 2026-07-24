@@ -1,400 +1,268 @@
-# Organization — DDD & EIP Analysis
+# Organization - DDD & EIP Analysis
 
-## 1. Current Responsibility
+## Current Responsibility
 
-Manages organizations (business entities) and their members:
+Organization owns team profiles and membership lifecycle for grouped clients or providers. Membership is part of the Organization aggregate and all member changes go through organization commands.
 
-- **Get my organization**: `getMyOrganization` (line 8-45) fetches organization where user is a member (or owner).
+## Domain Model
 
-**Files**: `organization.service.ts` (~45 lines), `organization.resolver.ts`, `organization.module.ts`.
+`Organization` is the aggregate root and `OrganizationId` is the strongly typed aggregate identifier. References to other bounded contexts are stored as scalar IDs or value objects; cross-module behavior is coordinated through `CommandBus`, `QueryBus`, and `EventBus` rather than direct repository access.
 
-## 2. Bounded Context Assessment
+Domain events are queued inside aggregates with `addDomainEvent()`. Application handlers call the repository first and publish events only after the write succeeds by iterating `aggregate.pullDomainEvents()` and calling `this.eventBus.publish(event)`.
 
-**This is a separate bounded context** for "Organization Management" (business accounts).
+## Target Structure
 
-- Organization is a **distinct aggregate** — a business entity with members, distinct from individual providers.
-- However, Organization is **underdeveloped** — only has one query method (likely placeholder for future features).
-
-**Overlaps**:
-
-- **Provider**: Provider can have `providerType === ORGANIZATION` (individual vs. organization worker).
-- **Users**: Organization has `ownerId` (user who created org) and `members` (OrgMember join table).
-
-**Verdict**: Organization is a **separate bounded context** if complex (billing, teams, roles). If simple (just group providers), merge into Provider module.
-
-## 3. Domain Model Audit
-
-**Anemic models**:
-
-- `Organization` (Prisma model) is a data bag with `name`, `ownerId`, `members`.
-  - No behavior: No `Organization.addMember()`, `Organization.removeMember()`, `Organization.assignRole()` methods.
-- `OrgMember` (Prisma model) is a data bag with `userId`, `orgId`, `role`, `active`.
-  - No behavior.
-
-**Aggregate boundaries**:
-
-- **`Organization`** should be the aggregate root, owning:
-  - `OrgMember` (child entity — members belong to organization).
-  - Invariants: Owner must exist, members must have valid roles, organization must have at least one owner.
-
-**Invariants currently unenforced**:
-
-1. **Role validation**:
-   - No validation that member role is valid (OWNER | ADMIN | MEMBER).
-2. **Owner requirement**:
-   - No validation that organization has at least one owner (if original owner leaves, org is orphaned).
-
-## 4. Layering Violations
-
-**Persistence leaking**:
-
-- Direct Prisma calls throughout (`this.prisma.organization.*`, `this.prisma.orgMember.*`).
-- No repository abstraction.
-
-**Incomplete implementation**:
-
-- `getMyOrganization` (line 8-45) is the ONLY method — no create, update, add member, remove member.
-- This suggests Organization is a placeholder (not fully implemented).
-
-## 5. Repository Pattern Gap
-
-**Current state**: No repository. Direct Prisma usage.
-
-**Proposed**:
-
-```
-domain/
-  IOrganizationRepository (interface)
-    - findById(id): Organization | null
-    - findByOwnerId(ownerId): Organization[]
-    - save(organization): void
-infrastructure/
-  PrismaOrganizationRepository (implementation)
-```
-
-## 6. EIP Opportunities
-
-**Command/Event patterns** (for future implementation):
-
-1. **OrganizationCreated event**:
-   - When user creates organization, emit event.
-   - Listeners:
-     - Notification sends "organization created" confirmation.
-     - Analytics tracks business accounts.
-
-2. **MemberAddedToOrganization event**:
-   - When user is added to org, emit event.
-   - Listeners:
-     - Notification sends "you've been added to X organization" email.
-
-## 7. Cross-Cutting Concerns
-
-**Validation**:
-
-- No validation in service (minimal implementation).
-
-**Transactions**:
-
-- No write operations in service.
-
-## 8. GraphQL-Specific Notes
-
-**Authorization**:
-
-- `getMyOrganization` should validate user can only view organizations they belong to.
-
-## 9. Target Structure
-
-```
+```text
 src/organization/
   domain/
     entities/
-      Organization.ts               # Aggregate root with addMember(), removeMember()
-      OrgMember.ts                  # Child entity
+      Organization.ts
     value-objects/
-      OrgRole.ts                    # OWNER | ADMIN | MEMBER
+      OrganizationId.ts
+    errors/
+      OrganizationInvariantError.ts
+    events/
+      OrganizationCreatedEvent.ts
+      MemberAddedToOrganizationEvent.ts
+      MemberRemovedFromOrganizationEvent.ts
     repositories/
       IOrganizationRepository.ts
-    events/
-      OrganizationCreated.ts
-      MemberAddedToOrganization.ts
-
+    services/
+      (domain services only when invariants span value objects)
   application/
     commands/
       CreateOrganization/
         CreateOrganizationCommand.ts
         CreateOrganizationHandler.ts
-      AddMember/
-        AddMemberCommand.ts
-        AddMemberHandler.ts
+      AddOrganizationMember/
+        AddOrganizationMemberCommand.ts
+        AddOrganizationMemberHandler.ts
+      RemoveOrganizationMember/
+        RemoveOrganizationMemberCommand.ts
+        RemoveOrganizationMemberHandler.ts
     queries/
       GetMyOrganization/
         GetMyOrganizationQuery.ts
         GetMyOrganizationHandler.ts
-
+      ListOrganizationMembers/
+        ListOrganizationMembersQuery.ts
+        ListOrganizationMembersHandler.ts
+    sagas/
+      (none)
+    event-handlers/
+      (none)
+    jobs/
+      (none)
   infrastructure/
     repositories/
       PrismaOrganizationRepository.ts
-
+    mappers/
+      OrganizationMapper.ts
+    adapters/
+      (external adapters only when required)
   presentation/
     resolvers/
       OrganizationResolver.ts
+    graphql/
+      OrganizationGraphQLType.type.ts
+      OrganizationMemberGraphQLType.type.ts
+      mappers/
+        toOrganizationGraphQLType.ts
+        toOrganizationMemberGraphQLType.ts
 ```
 
-## Persistence Model (Derived from Domain)
-
-```prisma
-model Organization {
-  id String @id @map("_id")
-  name String
-  type OrgType
-  ownerId String
-  createdAt DateTime
-
-  @@index([ownerId]) // serves: findByOwnerId
-}
-
-model OrgMember {
-  id String @id @map("_id")
-  orgId String
-  userId String
-  role OrgRole
-  active Boolean
-
-  @@index([userId, active]) // serves: findByMemberUserId
-  @@index([orgId]) // serves: aggregate reconstitution by findById/findByOwnerId
-  @@unique([orgId, userId]) // backs: OrganizationMemberAlreadyExistsError
-}
-```
-
-`Organization` is the aggregate root; `OrgMember` has membership lifecycle but is reachable only through `IOrganizationRepository`. References are scalar IDs only: `ownerId`, `orgId`, `userId`. Cleanup owners: `UserDeletedPolicyHandler` transfers ownership, deactivates memberships, or prevents deletion through Organization commands; no other module writes membership state. `id` serves `findById`, owner/member indexes map to repository methods, and the org/user unique constraint enforces one membership per user per organization.
-
----
-
-## 10. Migration Risk & Priority
-
-**Risk**: **LOW**
-
-- Organization is underdeveloped (only one query method) — minimal functionality to break.
-
-**Priority**: **PHASE 3 (after core domain modules) OR DEFER**
-**Rationale**:
-
-1. Organization is not currently used in core flows (errands, payments) — can defer implementation.
-2. If organization features are needed (business accounts, teams, billing), implement fully in Phase 3.
-3. If organization is just a placeholder (not in MVP), remove module and revisit later.
-
-**Migration steps**:
-
-1. **Decide**: Is Organization in MVP? If not, defer.
-2. **If implementing**:
-   - Extract Organization aggregate with `addMember()`, `removeMember()` methods.
-   - Introduce IOrganizationRepository and `PrismaOrganizationRepository`.
-   - Create command handlers (CreateOrganization, AddMember, RemoveMember).
-   - Emit events: `OrganizationCreated`, `MemberAddedToOrganization`.
-
----
-
-## 12. Implementation Spec
+## Implementation Spec
 
 ### Domain Layer
 
 ```typescript
-/**
- * Organization aggregate root.
- * Maps to Organization fields: id, name, type, createdAt, ownerId.
- */
+
+/** Aggregate root for Organization invariants; persistence ignorant and reconstituted by repositories. */
+class Organization extends AggregateRoot<OrganizationId> {
+  /** Creates a new aggregate and records creation events where the module emits them. */
+  static create(...args: unknown[]): Organization;
+
+  /** Rehydrates an aggregate from persistence without recording new domain events. */
+  static reconstitute(...args: unknown[]): Organization;
+
+  /** Returns and clears queued domain events after a successful repository write. */
+  pullDomainEvents(): DomainEvent[];
+}
+
+/** Strongly typed identifier for Organization; prevents cross-aggregate ID mix-ups. */
 class OrganizationId extends EntityId {
-  /**
-   * Private constructor. Use OrganizationId.new() or OrganizationId.from().
-   */
-  private constructor(value: string);
-
-  /**
-   * Creates a new OrganizationId.
-   */
-  static new(): OrganizationId;
-
-  /**
-   * Rehydrates OrganizationId from persisted value.
-   */
-  static from(value: string): OrganizationId;
+  /** Builds an ID from a persisted string. */
+  static fromString(value: string): OrganizationId;
 }
 
-/**
- * Member identifier for organization membership records.
- */
-class OrgMemberId extends EntityId {
-  /**
-   * Private constructor. Use OrgMemberId.new() or OrgMemberId.from().
-   */
-  private constructor(value: string);
-
-  /**
-   * Creates a new OrgMemberId.
-   */
-  static new(): OrgMemberId;
-
-  /**
-   * Rehydrates OrgMemberId from persisted value.
-   */
-  static from(value: string): OrgMemberId;
+/** Base domain error for violated Organization invariants. */
+class OrganizationInvariantError extends Error {
+  /** Creates the invariant error. */
+  constructor(message: string);
 }
 
-/**
- * Organization aggregate root.
- */
-class OrganizationAggregate extends AggregateRoot<OrganizationId> {
-  constructor(
-    public readonly id: OrganizationId,
-    private name: string,
-    private type: OrgType,
-    public readonly createdAt: Date,
-    public readonly ownerId: UserId,
-    private members: OrgMemberAggregate[],
-  );
-
-  /**
-   * Creates a new organization aggregate.
-   */
-  static create(
-    name: string,
-    type: OrgType,
-    ownerId: UserId,
-    createdAt: Date,
-    members?: OrgMemberAggregate[],
-  ): OrganizationAggregate;
-
-  /**
-   * Reconstitutes organization aggregate from persistence.
-   */
-  static reconstitute(
-    id: OrganizationId,
-    name: string,
-    type: OrgType,
-    createdAt: Date,
-    ownerId: UserId,
-    members: OrgMemberAggregate[],
-  ): OrganizationAggregate;
-
-  /**
-   * Adds member with role into organization.
-   * Writes OrgMember fields: id, orgId, userId, role, active.
-   */
-  addMember(userId: UserId, role: OrgRole): void;
-
-  /**
-   * Removes member from organization by userId.
-   */
-  removeMember(userId: UserId): void;
-
-  /**
-   * Deactivates member without deleting row by setting active = false.
-   */
-  deactivateMember(userId: UserId): void;
+/** Domain event emitted by Organization after its state transition is persisted. */
+class OrganizationCreatedEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: OrganizationId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
 }
 
-/**
- * Child entity mapped from OrgMember model.
- */
-class OrgMemberAggregate {
-  constructor(
-    public readonly id: OrgMemberId,
-    public readonly orgId: OrganizationId,
-    public readonly userId: UserId,
-    public readonly role: OrgRole,
-    public readonly active: boolean,
-  );
+/** Domain event emitted by Organization after its state transition is persisted. */
+class MemberAddedToOrganizationEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: OrganizationId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
 }
-```
 
-### Repository Interface
+/** Domain event emitted by Organization after its state transition is persisted. */
+class MemberRemovedFromOrganizationEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: OrganizationId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
+}
 
-```typescript
-/**
- * Persistence contract for Organization aggregate.
- */
+/** Repository interface for Organization; domain/application depend on this contract, not Prisma. */
 interface IOrganizationRepository {
-  /**
-   * Finds organization by Organization.id.
-   */
-  findById(id: OrganizationId): Promise<OrganizationAggregate | null>;
+  /** Loads an aggregate by ID. */
+  findById(id: OrganizationId): Promise<Organization | null>;
 
-  /**
-   * Finds organizations by ownerId.
-   */
-  findByOwnerId(ownerId: UserId): Promise<OrganizationAggregate[]>;
-
-  /**
-   * Finds organization membership by OrgMember.userId.
-   */
-  findByMemberUserId(userId: UserId): Promise<OrganizationAggregate | null>;
-
-  /**
-   * Persists organization and member changes.
-   */
-  save(organization: OrganizationAggregate): Promise<void>;
+  /** Persists the aggregate in one durable write boundary. */
+  save(aggregate: Organization): Promise<void>;
 }
+
 ```
 
 ### Application Layer
 
 ```typescript
-/**
- * Creates a new organization and initial owner membership.
- */
-class CreateOrganizationCommandHandler {
-  /**
-   * Creates Organization and emits OrganizationCreatedEvent.
-   */
-  execute(command: CreateOrganizationCommand): Promise<OrganizationId>;
+
+import { Command, CommandBus, CommandHandler, EventBus, EventsHandler, ICommandHandler, IEventHandler, IQueryHandler, Query, QueryBus, QueryHandler } from '@nestjs/cqrs';
+
+/** Command input for the CreateOrganization use case. */
+class CreateOrganizationCommand extends Command<OrganizationId> {
+  /** Captures all input required by CreateOrganizationHandler. */
+  constructor(public readonly payload: CreateOrganizationPayload);
 }
 
-interface CreateOrganizationCommand {
-  name: string;
-  type: OrgType;
-  ownerUserId: UserId;
+/** Handles CreateOrganizationCommand through the NestJS CommandBus. */
+@CommandHandler(CreateOrganizationCommand)
+class CreateOrganizationHandler implements ICommandHandler<CreateOrganizationCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: CreateOrganizationCommand): Promise<OrganizationId>;
 }
 
-/**
- * Adds a member to an existing organization.
- */
-class AddOrganizationMemberCommandHandler {
-  /**
-   * Adds OrgMember row and emits MemberAddedToOrganizationEvent.
-   */
-  execute(command: AddOrganizationMemberCommand): Promise<void>;
+/** Command input for the AddOrganizationMember use case. */
+class AddOrganizationMemberCommand extends Command<void> {
+  /** Captures all input required by AddOrganizationMemberHandler. */
+  constructor(public readonly payload: AddOrganizationMemberPayload);
 }
 
-interface AddOrganizationMemberCommand {
-  organizationId: OrganizationId;
-  userId: UserId;
-  role: OrgRole;
+/** Handles AddOrganizationMemberCommand through the NestJS CommandBus. */
+@CommandHandler(AddOrganizationMemberCommand)
+class AddOrganizationMemberHandler implements ICommandHandler<AddOrganizationMemberCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: AddOrganizationMemberCommand): Promise<void>;
 }
+
+/** Command input for the RemoveOrganizationMember use case. */
+class RemoveOrganizationMemberCommand extends Command<void> {
+  /** Captures all input required by RemoveOrganizationMemberHandler. */
+  constructor(public readonly payload: RemoveOrganizationMemberPayload);
+}
+
+/** Handles RemoveOrganizationMemberCommand through the NestJS CommandBus. */
+@CommandHandler(RemoveOrganizationMemberCommand)
+class RemoveOrganizationMemberHandler implements ICommandHandler<RemoveOrganizationMemberCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: RemoveOrganizationMemberCommand): Promise<void>;
+}
+
+/** Query input for GetMyOrganization. */
+class GetMyOrganizationQuery extends Query<OrganizationDTO | null> {
+  /** Captures all filters, pagination, and caller identity for the query. */
+  constructor(public readonly payload: GetMyOrganizationPayload);
+}
+
+/** Handles GetMyOrganizationQuery through the NestJS QueryBus. */
+@QueryHandler(GetMyOrganizationQuery)
+class GetMyOrganizationHandler implements IQueryHandler<GetMyOrganizationQuery> {
+  /** Returns an application DTO, never a GraphQL type or Prisma row. */
+  async execute(query: GetMyOrganizationQuery): Promise<OrganizationDTO | null>;
+}
+
+/** Query input for ListOrganizationMembers. */
+class ListOrganizationMembersQuery extends Query<OrganizationMemberDTO[]> {
+  /** Captures all filters, pagination, and caller identity for the query. */
+  constructor(public readonly payload: ListOrganizationMembersPayload);
+}
+
+/** Handles ListOrganizationMembersQuery through the NestJS QueryBus. */
+@QueryHandler(ListOrganizationMembersQuery)
+class ListOrganizationMembersHandler implements IQueryHandler<ListOrganizationMembersQuery> {
+  /** Returns an application DTO, never a GraphQL type or Prisma row. */
+  async execute(query: ListOrganizationMembersQuery): Promise<OrganizationMemberDTO[]>;
+}
+
 ```
 
-### Domain Events
+### Infrastructure And Presentation Layers
 
 ```typescript
-/**
- * Emitted when organization is created.
- */
-class OrganizationCreatedEvent {
-  constructor(
-    public readonly organizationId: OrganizationId,
-    public readonly ownerId: UserId,
-    public readonly type: OrgType,
-  );
+
+/** Prisma implementation of IOrganizationRepository; maps rows through OrganizationMapper. */
+@Injectable()
+class PrismaOrganizationRepository implements IOrganizationRepository {
+  /** Loads and maps a persistence row to the domain aggregate. */
+  async findById(id: OrganizationId): Promise<Organization | null>;
+
+  /** Persists aggregate state without publishing events itself. */
+  async save(aggregate: Organization): Promise<void>;
 }
 
-/**
- * Emitted when user is added as an organization member.
- */
-class MemberAddedToOrganizationEvent {
-  constructor(
-    public readonly organizationId: OrganizationId,
-    public readonly userId: UserId,
-    public readonly role: OrgRole,
-  );
+/** Injectable mapper for Organization; uses DI for nested mappers and avoids static conversion helpers. */
+@Injectable()
+class OrganizationMapper {
+  /** Converts a Prisma row into a domain aggregate. */
+  toDomain(row: unknown): Organization;
+
+  /** Converts a domain aggregate into persistence data. */
+  toPersistence(aggregate: Organization): unknown;
 }
+
+/** GraphQL resolver; injects CommandBus and QueryBus, never repositories. */
+@Resolver()
+class OrganizationResolver {
+  /** Creates the resolver with CQRS buses. */
+  constructor(private readonly commandBus: CommandBus, private readonly queryBus: QueryBus);
+}
+
+/** GraphQL shape for OrganizationGraphQLType; separate from application DTOs. */
+type OrganizationGraphQLTypeShape = Omit<OrganizationDTO, 'id'> & { id: string };
+
+/** Presentation type exposed by GraphQL decorators. */
+@ObjectType()
+class OrganizationGraphQLType implements OrganizationGraphQLTypeShape {
+  /** String form of the strongly typed aggregate ID. */
+  @Field() id: string;
+}
+
+/** Converts application DTOs to GraphQL types, including EntityId-to-string fields. */
+function toOrganizationGraphQLType(dto: OrganizationDTO): OrganizationGraphQLType;
+
+/** GraphQL shape for OrganizationMemberGraphQLType; separate from application DTOs. */
+type OrganizationMemberGraphQLTypeShape = Omit<OrganizationMemberDTO, 'id'> & { id: string };
+
+/** Presentation type exposed by GraphQL decorators. */
+@ObjectType()
+class OrganizationMemberGraphQLType implements OrganizationMemberGraphQLTypeShape {
+  /** String form of the strongly typed aggregate ID. */
+  @Field() id: string;
+}
+
+/** Converts application DTOs to GraphQL types, including EntityId-to-string fields. */
+function toOrganizationMemberGraphQLType(dto: OrganizationMemberDTO): OrganizationMemberGraphQLType;
+
 ```
+
+## EIP Patterns Applied
+
+- **Aggregate Boundary**: Organization controls membership consistency and prevents external modules from writing OrgMember rows directly. Status: fully specced with concrete signatures in the Implementation Spec.
+- **Event Notification**: Membership changes emit events for audit and notification handlers. Status: fully specced with concrete signatures in the Implementation Spec.

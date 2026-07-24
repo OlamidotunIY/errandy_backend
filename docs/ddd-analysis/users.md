@@ -1,635 +1,260 @@
-# Users — DDD & EIP Analysis
+# Users - DDD & EIP Analysis
 
-## 1. Current Responsibility
+## Current Responsibility
 
-Manages user profiles and addresses:
+Users owns platform identity profile data: names, contact fields, avatar metadata, onboarding progress, and the active address pointer. Address rows remain owned by Address; Users only stores the selected AddressId and clears it through a command when an address is removed.
 
-- User CRUD: `findOne`, `update` (profile fields, role assignment, profile image upload).
-- Address management: `addAddress`, `deleteAddress`, `setActiveAddress`.
-- Profile image upload to Firebase Storage.
-- Onboarding progress tracking (for providers).
-- Emits `user.updated` event when profile changes (via `globalEventEmitter`).
+## Domain Model
 
-**Files**: `users.service.ts` (~400 lines), `users.resolver.ts`, `users.module.ts`, DTOs.
+`User` is the aggregate root and `UserId` is the strongly typed aggregate identifier. References to other bounded contexts are stored as scalar IDs or value objects; cross-module behavior is coordinated through `CommandBus`, `QueryBus`, and `EventBus` rather than direct repository access.
 
-## 2. Bounded Context Assessment
+Domain events are queued inside aggregates with `addDomainEvent()`. Application handlers call the repository first and publish events only after the write succeeds by iterating `aggregate.pullDomainEvents()` and calling `this.eventBus.publish(event)`.
 
-**This is a supporting sub-domain**, not a core bounded context.
+## Target Structure
 
-- User profile is shared across Client and Provider contexts (a user can have both roles).
-- User is a **shared kernel** — multiple bounded contexts depend on it (Errands, Chat, Notification, Provider, Client).
-
-**Overlaps**:
-
-- **Address**: Address management is in Users module, but there's also a separate `Address` module (likely for geocoding/place search) — potential duplication.
-- **Auth**: User creation is triggered by Auth module, but profile management is here.
-- **Provider/Client**: User has `activeRole` (CLIENT | PROVIDER) and can switch, but Provider and Client modules each have their own entities (`Provider`, `Client` Prisma models).
-
-**Verdict**: Users is a **shared kernel bounded context** — it provides identity and profile data to other contexts.
-
-## 3. Domain Model Audit
-
-**Anemic models**:
-
-- `User` (Prisma model) is a data bag with fields: `name`, `email`, `phoneNumber`, `activeRole`, `onboardingProgress`, etc.
-- No domain behavior:
-  - No `User.updateProfile()` method encapsulating validation rules.
-  - No `User.addRole()` method enforcing role-switching constraints.
-  - No `User.verifyEmail()`, `User.verifyPhone()` (verification is in separate Verification module).
-
-**Aggregate boundaries**:
-
-- **`User`** should be the aggregate root, owning:
-  - `UserAddress` (child entity — addresses are created/deleted with user).
-  - `Session` (child entity — sessions belong to user).
-  - `Account` (child entity — OAuth accounts).
-
-- **Invariants**:
-  - User must have at least one verified contact (email OR phone) to perform actions.
-  - Active address must be one of user's registered addresses (currently enforced at DB level via relation, not domain layer).
-
-**Invariants currently unenforced**:
-
-1. **Role switching**:
-   - `update` (line 34) adds role to `roles` array and sets `activeRole` (line 42-47).
-   - No validation: Can user switch to PROVIDER role if they don't have a Provider profile? (Likely causes bugs.)
-2. **Active address consistency**:
-   - `addAddress` (line 81) auto-sets new address as active (line 95-99).
-   - `deleteAddress` (line 110) does NOT unset active address if deleting the active one — leaves dangling reference (critical bug).
-3. **Onboarding progress**:
-   - `updateOnboardingProgress` is called after adding address (line 106), but logic is likely scattered (incomplete domain model).
-
-## 4. Layering Violations
-
-**Business logic in service**:
-
-- `update` (line 34-88) orchestrates:
-  - Profile image upload (infrastructure: Firebase Storage, line 51-54).
-  - Prisma update (data access).
-  - Event emission (application logic, line 73).
-  - Image deletion (infrastructure cleanup, line 63).
-
-  This is an **application service use case**, not a domain service.
-
-**Persistence leaking**:
-
-- Direct Prisma calls throughout (`this.prisma.user.*`).
-- No repository abstraction.
-
-**Infrastructure in service**:
-
-- `uploadUserImage` (line 175+) uploads to Firebase Storage — infrastructure concern in service layer.
-- Image upload should be in infrastructure adapter, called by application layer.
-
-**Global event emitter**:
-
-- Uses `globalEventEmitter` (line 9, line 73) instead of NestJS `EventEmitter2` — inconsistent with other modules.
-- Why global emitter? (Likely a workaround for event emitter not being available in all contexts.)
-
-## 5. Repository Pattern Gap
-
-**Current state**: No repository. Direct Prisma usage.
-
-**Proposed**:
-
-```
-domain/
-  IUserRepository (interface)
-    - findById(id): User | null
-    - findByEmail(email): User | null
-    - save(user): void
-    - findAddressesByUserId(userId): UserAddress[]
-infrastructure/
-  PrismaUserRepository (implementation)
-```
-
-**Consolidation**: All `prisma.user.*` and `prisma.userAddress.*` calls move to repository.
-
-## 6. EIP Opportunities
-
-**Command/Event patterns**:
-
-1. **UserProfileUpdated event**:
-   - Current: `globalEventEmitter.emit('user.updated', ...)` (line 73).
-   - Proposed: `UserProfileUpdated` typed event.
-   - Listeners:
-     - Payment-Gateway updates Paystack customer profile (already listens, see `payment-gateway.events.ts`).
-     - Notification sends profile update confirmation.
-     - Search/recommendation engine reindexes user.
-
-2. **AddressAdded / AddressDeleted events**:
-   - Not currently emitted.
-   - Could trigger:
-     - Geolocation validation (verify address is real via Google Maps API).
-     - Update nearby errands feed (if user moves).
-
-3. **UserRoleChanged event**:
-   - When user switches `activeRole`, emit event.
-   - Listeners:
-     - Provider module initializes provider profile if switching to PROVIDER for first time.
-     - Client module initializes client profile if switching to CLIENT for first time.
-
-**Dead Letter / Retry**:
-
-- Profile image upload (line 51-54) can fail (Firebase timeout).
-- No retry — user sees error and must re-upload.
-- Recommendation: Queue image upload as background job (BullMQ), retry 3x.
-
-**Aggregator**:
-
-- `findOne` (line 22) aggregates user + activeAddress + provider + userAddress via Prisma include — this is data aggregation, fine for a query.
-
-## 7. Cross-Cutting Concerns
-
-**Validation**:
-
-- `update` does minimal validation: checks if image file is actually an image (line 44-46).
-- No validation for:
-  - Email format (handled by better-auth during sign-up, but what if user updates email?).
-  - Phone number format (international phone numbers need regex validation).
-  - Name length (can user set name to empty string?).
-
-**Transactions**:
-
-- `update` does NOT use explicit transaction, but includes multiple operations:
-  1. Upload image.
-  2. Update user.
-  3. Delete old image.
-
-  If step 3 fails, old image remains in storage (orphaned file) — no cleanup.
-
-- `addAddress` does NOT use transaction:
-  1. Create address.
-  2. Set as active address.
-
-  If step 2 fails, address is created but not active (user has orphaned address).
-
-**Error handling**:
-
-- Throws `BadRequestException` for business errors (line 45, line 115, line 137).
-- No domain exceptions (`InvalidEmailFormat`, `AddressNotFound`).
-
-## 8. GraphQL-Specific Notes
-
-**GraphQL types**:
-
-- `User` entity is likely 1:1 with Prisma model (check `entities/user.entity.ts`).
-- `GqlUserRole` and `GqlOnboardingProgress` enums (line 9) are GraphQL wrappers for Prisma enums.
-
-**N+1 risk**:
-
-- `findOne` (line 22) uses Prisma include to fetch related data — single query, no N+1.
-- If client code queries `users { provider { services } }`, potential N+1 for services.
-- No DataLoader.
-
-**Authorization**:
-
-- No auth checks in UsersService — assumes caller (resolver) already validated user can update their own profile.
-- Risky if resolver doesn't enforce this (e.g., can user A update user B's profile?).
-
-## 9. Target Structure
-
-```
+```text
 src/users/
   domain/
     entities/
-      User.ts                       # Aggregate root with updateProfile(), addAddress(), setActiveAddress()
-      UserAddress.ts                # Child entity
+      User.ts
     value-objects/
-      Email.ts                      # Validates email format
-      PhoneNumber.ts                # Validates phone format (international)
-    repositories/
-      IUserRepository.ts            # Interface: findById, findByEmail, save
+      UserId.ts
+    errors/
+      UserInvariantError.ts
     events/
-      UserProfileUpdated.ts
-      UserAddressAdded.ts
-      UserRoleChanged.ts
-
+      UserProfileUpdatedEvent.ts
+      ActiveAddressChangedEvent.ts
+      ActiveAddressClearedEvent.ts
+    repositories/
+      IUserRepository.ts
+    services/
+      (domain services only when invariants span value objects)
   application/
     commands/
       UpdateUserProfile/
         UpdateUserProfileCommand.ts
-        UpdateUserProfileHandler.ts  # Use case: validate, upload image, update user, emit event
-      AddAddress/
-        AddAddressCommand.ts
-        AddAddressHandler.ts
-      DeleteAddress/
-        DeleteAddressCommand.ts
-        DeleteAddressHandler.ts
+        UpdateUserProfileHandler.ts
+      SetActiveAddress/
+        SetActiveAddressCommand.ts
+        SetActiveAddressHandler.ts
+      ClearActiveAddress/
+        ClearActiveAddressCommand.ts
+        ClearActiveAddressHandler.ts
     queries/
       GetUserProfile/
         GetUserProfileQuery.ts
         GetUserProfileHandler.ts
-
+      FindUserByEmail/
+        FindUserByEmailQuery.ts
+        FindUserByEmailHandler.ts
+    sagas/
+      (none)
+    event-handlers/
+      OnAddressDeletedClearActiveAddressHandler.ts
+    jobs/
+      (none)
   infrastructure/
     repositories/
-      PrismaUserRepository.ts       # Implements IUserRepository
-    storage/
-      FirebaseImageUploader.ts      # Adapter for Firebase Storage
-
+      PrismaUserRepository.ts
+    mappers/
+      UserMapper.ts
+    adapters/
+      (external adapters only when required)
   presentation/
     resolvers/
       UsersResolver.ts
-    types:
-      UserType.ts
+    graphql/
+      UserGraphQLType.type.ts
+      mappers/
+        toUserGraphQLType.ts
 ```
 
----
-
-## Persistence Model (Derived from Domain)
-
-```prisma
-model User {
-  id String @id @map("_id")
-  name String?
-  email String?
-  phoneNumber String?
-  emailVerified Boolean
-  phoneVerified Boolean
-  image String?
-  roles String[]
-  activeRole String?
-  activeAddressId String?
-  onboardingProgress Json
-  createdAt DateTime
-  updatedAt DateTime
-
-  @@unique([email]) // backs: DuplicateEmailError
-  @@unique([phoneNumber]) // backs: DuplicatePhoneNumberError
-  @@index([activeAddressId]) // serves: active address cleanup checks
-}
-```
-
-`Email`, `PhoneNumber`, and `OnboardingProgress` are embedded value objects. `activeAddressId` is a scalar reference to the Address module's `UserAddress.id`; User does not embed or mutate address rows. Cleanup owner: `DeleteUserAddressCommandHandler` must clear or replace `activeAddressId` through Users before removing an address; `UserDeletedPolicyHandler` coordinates soft-delete with Provider, Client, Wallet, Chat, Rating, Address, Auth, and Payment-Gateway references. `id` serves `findById`, unique `email` serves `findByEmail`, and the phone unique backs the same platform identity invariant.
-
----
-
-## 11. Migration Risk & Priority
-
-**Risk**: **HIGH**
-
-- User is a shared kernel — many modules depend on it (Errands, Chat, Provider, Client, Notification).
-- Breaking changes to User module could cascade across the entire system.
-- Address management has a critical bug (deleting active address leaves dangling reference).
-
-**Priority**: **PHASE 2 (after Escrow/Application, before Errands)**
-**Rationale**:
-
-1. User module is foundational but not as tightly coupled to critical money flows as Escrow/Application.
-2. Refactoring User module enables cleaner integration with Provider/Client modules (Phase 2).
-3. Fixing address deletion bug is urgent but can be patched without full refactoring (quick fix: set activeAddress to null if deleted).
-
-**Migration steps**:
-
-1. **URGENT: Fix address deletion bug** (set activeAddressId to null if deleting active address).
-2. **Extract Email and PhoneNumber value objects** for validation.
-3. **Create User aggregate** with `updateProfile()`, `addAddress()`, `deleteAddress()` methods enforcing invariants.
-4. **Introduce IUserRepository** and `PrismaUserRepository`.
-5. **Create command handlers**: `UpdateUserProfileHandler`, `AddAddressHandler`.
-6. **Emit typed events**: `UserProfileUpdated`, `UserAddressAdded`.
-7. **Move image upload to infrastructure adapter** (decouple from service).
-8. **Replace globalEventEmitter with NestJS EventEmitter2** for consistency.
-9. **Add authorization checks** (resolver validates user can only update own profile).
-
----
-
-## 12. Implementation Spec
+## Implementation Spec
 
 ### Domain Layer
 
 ```typescript
-/**
- * User aggregate root representing a platform user (shared kernel).
- * Core invariants:
- * - User must have at least one verified contact (email OR phone)
- * - activeAddressId must reference one of user's own addresses
- * - Cannot switch to PROVIDER role without Provider profile
- * - Cannot switch to CLIENT role without Client profile
- * - Email and phone must be unique across platform
- */
-class UserId extends EntityId {
-  /**
-   * Private constructor. Use UserId.new() or UserId.from().
-   */
-  private constructor(value: string);
 
-  /**
-   * Creates a new UserId.
-   */
-  static new(): UserId;
-
-  /**
-   * Rehydrates UserId from persisted value.
-   */
-  static from(value: string): UserId;
-}
-
-/**
- * Address identifier used across address-bearing modules.
- */
-class AddressId extends EntityId {
-  /**
-   * Private constructor. Use AddressId.new() or AddressId.from().
-   */
-  private constructor(value: string);
-
-  /**
-   * Creates a new AddressId.
-   */
-  static new(): AddressId;
-
-  /**
-   * Rehydrates AddressId from persisted value.
-   */
-  static from(value: string): AddressId;
-}
-
-/**
- * User aggregate root representing a platform user (shared kernel).
- */
+/** Aggregate root for Users invariants; persistence ignorant and reconstituted by repositories. */
 class User extends AggregateRoot<UserId> {
-  /**
-   * Private constructor - use User.create() factory or load from repository.
-   * @param id Unique user identifier (from schema: id String @id)
-   * @param name User's full name (from schema: name String?)
-   * @param email Email address (from schema: email String? @unique)
-   * @param phoneNumber Phone number (from schema: phoneNumber String? @unique)
-   * @param emailVerified Email verification status (from schema: emailVerified Boolean)
-   * @param phoneVerified Phone verification status (from schema: phoneVerified Boolean)
-   * @param image Profile image URL (from schema: image String?)
-   * @param roles User roles array (from schema: roles Role[])
-   * @param activeRole Currently active role (from schema: activeRole Role?)
-   * @param activeAddressId Active address ID (from schema: activeAddressId String?)
-   * @param onboardingProgress Onboarding completion fields (from schema: hasCompletedProfile, etc.)
-   * @param addresses Child entities (from schema: UserAddress[])
-   * @param createdAt Creation timestamp
-   * @param updatedAt Last update timestamp
-   */
-  private constructor(
-    public readonly id: UserId,
-    private name: string | null,
-    private email: Email | null,
-    private phoneNumber: PhoneNumber | null,
-    private emailVerified: boolean,
-    private phoneVerified: boolean,
-    private image: string | null,
-    private roles: Role[],
-    private activeRole: Role | null,
-    private activeAddressId: AddressId | null,
-    private onboardingProgress: OnboardingProgress,
-    private readonly addresses: UserAddress[],
-    public readonly createdAt: Date,
-    public readonly updatedAt: Date,
-  );
+  /** Creates a new aggregate and records creation events where the module emits them. */
+  static create(...args: unknown[]): User;
 
-  /**
-   * Creates a new user aggregate.
-   */
-  static create(
-    email?: string,
-    phoneNumber?: string,
-    name?: string,
-  ): User;
+  /** Rehydrates an aggregate from persistence without recording new domain events. */
+  static reconstitute(...args: unknown[]): User;
 
-  /**
-   * Reconstitutes user aggregate from persistence.
-   */
-  static reconstitute(
-    id: UserId,
-    name: string | null,
-    email: Email | null,
-    phoneNumber: PhoneNumber | null,
-    emailVerified: boolean,
-    phoneVerified: boolean,
-    image: string | null,
-    roles: Role[],
-    activeRole: Role | null,
-    activeAddressId: AddressId | null,
-    onboardingProgress: OnboardingProgress,
-    addresses: UserAddress[],
-    createdAt: Date,
-    updatedAt: Date,
-  ): User;
-
-
-  /**
-   * Updates user profile (name, image, phone, email).
-   * Image upload happens in infrastructure layer - this just stores URL.
-   * @param updates Profile updates
-   * @throws InvalidEmailError when email format invalid
-   * @throws InvalidPhoneNumberError when phone format invalid
-   * @emits UserProfileUpdatedEvent
-   */
-  updateProfile(updates: Partial<UserProfileUpdates>): void;
-
-  /**
-   * Adds new address to user's address collection.
-   * First address added becomes active address automatically.
-   * @param street Street address
-   * @param city City
-   * @param state State
-   * @param country Country
-   * @param placeId Optional Google Places ID
-   * @param coordinates Optional GPS coordinates
-   * @returns New UserAddress ID
-   * @emits AddressAddedEvent
-   */
-  addAddress(
-    street: string,
-    city: string,
-    state: string,
-    country: string,
-    placeId?: string,
-    coordinates?: [number, number],
-  ): AddressId;
-
-  /**
-   * Deletes address from user's collection.
-   * CRITICAL: Sets activeAddressId to null if deleting active address.
-   * @param addressId Address ID to delete
-   * @throws AddressNotFoundError when address doesn't belong to user
-   * @emits AddressDeletedEvent
-   */
-  deleteAddress(addressId: AddressId): void;
-
-  /**
-   * Sets active address (used for location-based queries).
-   * @param addressId Address ID to set as active
-   * @throws AddressNotFoundError when address doesn't belong to user
-   * @emits ActiveAddressChangedEvent
-   */
-  setActiveAddress(addressId: AddressId): void;
-
-  /**
-   * Adds role to user (called when Provider or Client profile created).
-   * @param role Role to add (PROVIDER or CLIENT)
-   * @throws RoleAlreadyExistsError when user already has role
-   * @emits RoleAddedEvent
-   */
-  addRole(role: Role): void;
-
-  /**
-   * Switches active role (user toggles between CLIENT and PROVIDER modes).
-   * @param role Role to switch to
-   * @throws RoleNotAssignedError when user doesn't have this role
-   * @emits ActiveRoleChangedEvent
-   */
-  switchRole(role: Role): void;
-
-  /**
-   * Marks email as verified.
-   * @emits EmailVerifiedEvent
-   */
-  verifyEmail(): void;
-
-  /**
-   * Marks phone as verified.
-   * @emits PhoneVerifiedEvent
-   */
-  verifyPhone(): void;
-
-  /**
-   * Updates onboarding progress (for providers).
-   * Tracks completion of profile, address, bio, skills, etc.
-   * @param field Onboarding field to mark complete
-   */
-  markOnboardingComplete(field: OnboardingField): void;
-
-  /**
-   * Checks if user has at least one verified contact method.
-   */
-  hasVerifiedContact(): boolean;
-
-  /**
-   * Returns active address or null.
-   */
-  getActiveAddress(): UserAddress | null;
+  /** Returns and clears queued domain events after a successful repository write. */
+  pullDomainEvents(): DomainEvent[];
 }
-```
 
-### Repository Interface
+/** Strongly typed identifier for User; prevents cross-aggregate ID mix-ups. */
+class UserId extends EntityId {
+  /** Builds an ID from a persisted string. */
+  static fromString(value: string): UserId;
+}
 
-```typescript
-/**
- * Persistence contract for User aggregate.
- */
+/** Base domain error for violated Users invariants. */
+class UserInvariantError extends Error {
+  /** Creates the invariant error. */
+  constructor(message: string);
+}
+
+/** Domain event emitted by User after its state transition is persisted. */
+class UserProfileUpdatedEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: UserId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
+}
+
+/** Domain event emitted by User after its state transition is persisted. */
+class ActiveAddressChangedEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: UserId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
+}
+
+/** Domain event emitted by User after its state transition is persisted. */
+class ActiveAddressClearedEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: UserId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
+}
+
+/** Repository interface for User; domain/application depend on this contract, not Prisma. */
 interface IUserRepository {
-  /**
-   * Finds user by User.id.
-   */
+  /** Loads an aggregate by ID. */
   findById(id: UserId): Promise<User | null>;
 
-  /**
-   * Finds user by unique User.email.
-   */
-  findByEmail(email: string): Promise<User | null>;
-
-  /**
-   * Finds user by User.phoneNumber.
-   */
-  findByPhoneNumber(phoneNumber: string): Promise<User | null>;
-
-  /**
-   * Persists core User fields and role/address updates.
-   */
-  save(user: User): Promise<void>;
-
-  /**
-   * Returns UserAddress records by UserAddress.userId.
-   */
-  findAddresses(userId: UserId): Promise<UserAddress[]>;
+  /** Persists the aggregate in one durable write boundary. */
+  save(aggregate: User): Promise<void>;
 }
+
 ```
 
 ### Application Layer
 
 ```typescript
-/**
- * Updates user profile details.
- */
-class UpdateUserProfileCommandHandler {
-  /**
-   * Updates User fields: name, email, phoneNumber, image, onboardingProgress.
-   * @emits UserProfileUpdatedEvent
-   */
-  execute(command: UpdateUserProfileCommand): Promise<void>;
+
+import { Command, CommandBus, CommandHandler, EventBus, EventsHandler, ICommandHandler, IEventHandler, IQueryHandler, Query, QueryBus, QueryHandler } from '@nestjs/cqrs';
+
+/** Command input for the UpdateUserProfile use case. */
+class UpdateUserProfileCommand extends Command<void> {
+  /** Captures all input required by UpdateUserProfileHandler. */
+  constructor(public readonly payload: UpdateUserProfilePayload);
 }
 
-interface UpdateUserProfileCommand {
-  userId: UserId;
-  name?: string;
-  email?: string;
-  phoneNumber?: string;
-  image?: string;
-  onboardingProgress?: OnboardingProgress;
+/** Handles UpdateUserProfileCommand through the NestJS CommandBus. */
+@CommandHandler(UpdateUserProfileCommand)
+class UpdateUserProfileHandler implements ICommandHandler<UpdateUserProfileCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: UpdateUserProfileCommand): Promise<void>;
 }
 
-/**
- * Adds an address for a user.
- */
-class AddAddressCommandHandler {
-  /**
-   * Inserts UserAddress row and may update User.activeAddressId.
-   * @emits AddressAddedEvent
-   */
-  execute(command: AddAddressCommand): Promise<AddressId>;
+/** Command input for the SetActiveAddress use case. */
+class SetActiveAddressCommand extends Command<void> {
+  /** Captures all input required by SetActiveAddressHandler. */
+  constructor(public readonly payload: SetActiveAddressPayload);
 }
 
-interface AddAddressCommand {
-  userId: UserId;
-  label: string;
-  address: string;
-  location: { type: 'Point'; coordinates: [number, number] };
+/** Handles SetActiveAddressCommand through the NestJS CommandBus. */
+@CommandHandler(SetActiveAddressCommand)
+class SetActiveAddressHandler implements ICommandHandler<SetActiveAddressCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: SetActiveAddressCommand): Promise<void>;
 }
 
-/**
- * Deletes user address safely.
- */
-class DeleteAddressCommandHandler {
-  /**
-   * Deletes UserAddress and nullifies User.activeAddressId when it references deleted address.
-   * @emits AddressDeletedEvent
-   */
-  execute(command: DeleteAddressCommand): Promise<void>;
+/** Command input for the ClearActiveAddress use case. */
+class ClearActiveAddressCommand extends Command<void> {
+  /** Captures all input required by ClearActiveAddressHandler. */
+  constructor(public readonly payload: ClearActiveAddressPayload);
 }
 
-interface DeleteAddressCommand {
-  userId: UserId;
-  addressId: AddressId;
+/** Handles ClearActiveAddressCommand through the NestJS CommandBus. */
+@CommandHandler(ClearActiveAddressCommand)
+class ClearActiveAddressHandler implements ICommandHandler<ClearActiveAddressCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: ClearActiveAddressCommand): Promise<void>;
 }
+
+/** Query input for GetUserProfile. */
+class GetUserProfileQuery extends Query<UserDTO> {
+  /** Captures all filters, pagination, and caller identity for the query. */
+  constructor(public readonly payload: GetUserProfilePayload);
+}
+
+/** Handles GetUserProfileQuery through the NestJS QueryBus. */
+@QueryHandler(GetUserProfileQuery)
+class GetUserProfileHandler implements IQueryHandler<GetUserProfileQuery> {
+  /** Returns an application DTO, never a GraphQL type or Prisma row. */
+  async execute(query: GetUserProfileQuery): Promise<UserDTO>;
+}
+
+/** Query input for FindUserByEmail. */
+class FindUserByEmailQuery extends Query<UserDTO | null> {
+  /** Captures all filters, pagination, and caller identity for the query. */
+  constructor(public readonly payload: FindUserByEmailPayload);
+}
+
+/** Handles FindUserByEmailQuery through the NestJS QueryBus. */
+@QueryHandler(FindUserByEmailQuery)
+class FindUserByEmailHandler implements IQueryHandler<FindUserByEmailQuery> {
+  /** Returns an application DTO, never a GraphQL type or Prisma row. */
+  async execute(query: FindUserByEmailQuery): Promise<UserDTO | null>;
+}
+
+/** Event handler for AddressDeletedEvent; uses buses rather than handler classes. */
+@EventsHandler(AddressDeletedEvent)
+class OnAddressDeletedClearActiveAddressHandler implements IEventHandler<AddressDeletedEvent> {
+  /** Reacts to the event by dispatching commands/queries through the buses. */
+  async handle(event: AddressDeletedEvent): Promise<void>;
+}
+
 ```
 
-### Domain Events
+### Infrastructure And Presentation Layers
 
 ```typescript
-/**
- * Emitted after user profile update.
- */
-class UserProfileUpdatedEvent {
-  constructor(
-    public readonly userId: UserId,
-    public readonly updatedFields: Array<"name" | "email" | "phoneNumber" | "image" | "onboardingProgress">,
-  );
+
+/** Prisma implementation of IUserRepository; maps rows through UserMapper. */
+@Injectable()
+class PrismaUserRepository implements IUserRepository {
+  /** Loads and maps a persistence row to the domain aggregate. */
+  async findById(id: UserId): Promise<User | null>;
+
+  /** Persists aggregate state without publishing events itself. */
+  async save(aggregate: User): Promise<void>;
 }
 
-/**
- * Emitted when user address is added.
- */
-class AddressAddedEvent {
-  constructor(
-    public readonly userId: UserId,
-    public readonly addressId: AddressId,
-  );
+/** Injectable mapper for User; uses DI for nested mappers and avoids static conversion helpers. */
+@Injectable()
+class UserMapper {
+  /** Converts a Prisma row into a domain aggregate. */
+  toDomain(row: unknown): User;
+
+  /** Converts a domain aggregate into persistence data. */
+  toPersistence(aggregate: User): unknown;
 }
 
-/**
- * Emitted when user address is deleted.
- */
-class AddressDeletedEvent {
-  constructor(
-    public readonly userId: UserId,
-    public readonly addressId: AddressId,
-    public readonly clearedActiveAddress: boolean,
-  );
+/** GraphQL resolver; injects CommandBus and QueryBus, never repositories. */
+@Resolver()
+class UsersResolver {
+  /** Creates the resolver with CQRS buses. */
+  constructor(private readonly commandBus: CommandBus, private readonly queryBus: QueryBus);
 }
+
+/** GraphQL shape for UserGraphQLType; separate from application DTOs. */
+type UserGraphQLTypeShape = Omit<UserDTO, 'id'> & { id: string };
+
+/** Presentation type exposed by GraphQL decorators. */
+@ObjectType()
+class UserGraphQLType implements UserGraphQLTypeShape {
+  /** String form of the strongly typed aggregate ID. */
+  @Field() id: string;
+}
+
+/** Converts application DTOs to GraphQL types, including EntityId-to-string fields. */
+function toUserGraphQLType(dto: UserDTO): UserGraphQLType;
+
 ```
+
+## EIP Patterns Applied
+
+- **Idempotent Receiver**: Email and phone updates are protected by database uniqueness and command-level identity checks before persistence. Status: fully specced with concrete signatures in the Implementation Spec.
+- **Content-Based Router**: AddressDeletedEvent is routed only when the deleted AddressId equals the user activeAddressId. Status: fully specced with concrete signatures in the Implementation Spec.

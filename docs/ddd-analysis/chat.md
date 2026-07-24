@@ -1,855 +1,346 @@
-# Chat — DDD & EIP Analysis
+# Chat - DDD & EIP Analysis
 
-## 1. Current Responsibility
+## Current Responsibility
 
-Manages real-time messaging between users:
+Chat owns conversation rooms, participants, messages, reactions, and read state. Message history is append-oriented and broadcast through PubSub after the message write succeeds.
 
-- Chat room creation/fetching: `getOrCreateChat` (upsert room by normalized participant IDs).
-- Message sending: `sendMessage` with file upload support (images, audio, video via Firebase Storage).
-- Message type handling: TEXT, IMAGE, AUDIO, VIDEO, FILE.
-- Real-time broadcasting: Publishes messages to PubSub (`messageSent` subscription).
-- Unread count tracking.
+## Domain Model
 
-**Files**: `chat.service.ts` (~200 lines), `chat.resolver.ts`, `chat.module.ts`.
+`ChatRoom` is the aggregate root and `ChatId` is the strongly typed aggregate identifier. References to other bounded contexts are stored as scalar IDs or value objects; cross-module behavior is coordinated through `CommandBus`, `QueryBus`, and `EventBus` rather than direct repository access.
 
-## 2. Bounded Context Assessment
+Domain events are queued inside aggregates with `addDomainEvent()`. Application handlers call the repository first and publish events only after the write succeeds by iterating `aggregate.pullDomainEvents()` and calling `this.eventBus.publish(event)`.
 
-**This is a standalone bounded context** for "Messaging & Communication".
+## Target Structure
 
-- Chat is **generic** — not specific to errands. Users can chat about anything.
-- However, in practice, chat rooms are likely created in the context of errands (client-provider communication about a job).
-
-**Overlaps**:
-
-- **Errands**: Chats are probably initiated when a provider applies to an errand or gets assigned — but no explicit link (no `errandId` in ChatRoom model).
-- **Users**: ChatRoom has `participantIds` (array of user IDs) — tight coupling to User aggregate.
-- **Firebase**: File uploads use `FirebaseStorageService` (line 13) — infrastructure dependency.
-- **PubSub**: Real-time broadcasting uses `PubSubService` (line 14) — infrastructure dependency.
-
-**Verdict**: Chat is a **supporting bounded context** for collaboration. Should remain separate (don't merge with Errands).
-
-## 3. Domain Model Audit
-
-**Anemic models**:
-
-- `ChatRoom` (Prisma model) is a data bag with `participantIds`, `roomKey`, `messages`, `lastMessage`.
-  - No behavior: No `ChatRoom.addParticipant()`, `ChatRoom.sendMessage()` methods.
-- `Message` (Prisma model) is a data bag with `content`, `senderId`, `type`, `seen`, `delivered`, `sent`.
-  - No behavior: No `Message.markAsRead()`, `Message.markAsDelivered()` methods.
-
-**Aggregate boundaries**:
-
-- **`ChatRoom`** should be the aggregate root, owning:
-  - `Message` (child entity — messages belong to room).
-  - Invariants: Participants must be valid users, room key is unique, lastMessage is always most recent message.
-- **Message operations**:
-  - `sendMessage()` method on ChatRoom (not on Message — message cannot exist without room).
-  - `markMessageAsRead()` method on ChatRoom (updates message status).
-
-**Invariants currently unenforced**:
-
-1. **Participant validation**:
-   - `sendMessage` checks if sender is a participant (line 103-105), but this is in service layer, not domain.
-   - No guard preventing non-participants from reading messages.
-2. **Message type constraints**:
-   - TEXT messages must have `content` (line 115-117), other types must have `contentUrl` (line 119-122).
-   - Validation is scattered in service — should be in Message value object.
-3. **File upload validation**:
-   - `validateMimeTypeForMessageType` (line 111) checks MIME type, but implementation not seen.
-   - If validation fails, file is already uploaded to Firebase Storage — orphaned file (cleanup?).
-4. **Unread count consistency**:
-   - `getUserChats` (line 20) calculates unread count via `_count` aggregation.
-   - This is computed on the fly — if message `seen` flag is updated outside service (direct Prisma call), count becomes stale.
-
-## 4. Layering Violations
-
-**Business logic in service**:
-
-- `sendMessage` (line 94-173+) orchestrates:
-  1. File upload (infrastructure: Firebase Storage).
-  2. MIME type validation (application logic).
-  3. Message creation (domain operation).
-  4. PubSub broadcast (infrastructure: real-time messaging).
-
-  This is an **application service use case**, not a domain service. Should be `SendMessageCommandHandler`.
-
-**Infrastructure in service**:
-
-- `firebaseStorageService.uploadChatAttachment` (line 113) — direct infrastructure call in service layer.
-- `pubSub.publish` (line 171+) — direct infrastructure call in service layer.
-
-**Persistence leaking**:
-
-- Direct Prisma calls throughout (`this.prisma.chatRoom.*`, `this.prisma.message.*`).
-- No repository abstraction.
-
-## 5. Repository Pattern Gap
-
-**Current state**: No repository. Direct Prisma usage.
-
-**Proposed**:
-
-```
-domain/
-  IChatRoomRepository (interface)
-    - findById(id): ChatRoom | null
-    - findByRoomKey(roomKey): ChatRoom | null
-    - findByParticipant(userId): ChatRoom[]
-    - save(chatRoom): void
-  IMessageRepository (interface)
-    - findById(id): Message | null
-    - findByRoom(roomId, pagination): Message[]
-    - save(message): void
-infrastructure/
-  PrismaChatRoomRepository (implementation)
-  PrismaMessageRepository (implementation)
-```
-
-**Consolidation**: All `prisma.chatRoom.*` and `prisma.message.*` calls move to repositories.
-
-## 6. EIP Opportunities
-
-**Command/Event patterns**:
-
-1. **MessageSent event**:
-   - Current: `sendMessage` publishes to PubSub inline (line 171+).
-   - Proposed: Emit `MessageSent` domain event → event handler publishes to PubSub.
-   - Benefits: Decouples domain logic from real-time infrastructure.
-
-2. **MessageRead event**:
-   - Not currently implemented, but should be:
-     - When user views a message, emit `MessageRead` event.
-     - Listeners:
-       - Update message `seen` flag.
-       - Broadcast read receipt to other participants.
-       - Update unread count.
-
-3. **ChatRoomCreated event**:
-   - When room is created, emit event.
-   - Listeners:
-     - Notification sends "chat started" push notification.
-     - Analytics tracks chat engagement.
-
-**Message Channel (PubSub)**:
-
-- Current: Uses PubSub for real-time message broadcasting (`messageSent:${userId}` subscription).
-- This is correct usage of PubSub for WebSocket subscriptions (GraphQL subscriptions).
-- However, PubSub is in-memory (Redis) — if server restarts, in-flight messages are lost.
-- Recommendation: For critical messages (escrow notifications), use BullMQ in addition to PubSub (persistent queue).
-
-**Dead Letter / Retry**:
-
-- File upload (line 113) can fail (Firebase timeout).
-  - No retry — user sees error and must resend message.
-  - Uploaded file is lost (no reference stored).
-  - Recommendation: Queue file upload as background job, retry 3x.
-- PubSub publish (line 171+) can fail (Redis down).
-  - No retry — other participants don't get real-time notification.
-  - Message is saved in DB, so not lost, but real-time experience breaks.
-
-**Content-Based Router**:
-
-- Message type routing (TEXT vs. IMAGE vs. AUDIO) is handled by conditional logic (line 115-122).
-- This is fine for simple cases, but could be a strategy pattern if message processing grows complex (e.g., moderation, encryption).
-
-## 7. Cross-Cutting Concerns
-
-**Validation**:
-
-- MIME type validation (line 111) — good, but implementation not seen.
-- Message content validation (line 115-122) — checks presence, but not format (e.g., max length, no XSS).
-
-**Transactions**:
-
-- `sendMessage` does NOT use explicit transaction:
-  1. Upload file.
-  2. Create message.
-  3. Publish to PubSub.
-
-  If step 2 fails, file is orphaned in Firebase Storage.
-  If step 3 fails, message is saved but not broadcast.
-
-**Error handling**:
-
-- Throws `BadRequestException` for business errors (line 78, line 105, line 115).
-- No domain exceptions (`InvalidMessageType`, `ParticipantNotInRoom`).
-
-## 8. GraphQL-Specific Notes
-
-**GraphQL subscriptions**:
-
-- `messageSent` subscription (likely in resolver) uses PubSub.
-- Subscription filter: `messageSent:${userId}` — each user has a dedicated channel.
-- This scales poorly (millions of channels for millions of users) — consider using a single channel with client-side filtering.
-
-**N+1 risk**:
-
-- `getUserChats` (line 20) uses Prisma includes to fetch messages, participants, lastMessage — single query per room, no N+1.
-- If client code queries `chats { messages { sender } }`, potential N+1 for sender profile — no DataLoader.
-
-**Authorization**:
-
-- `getOrCreateChat` (line 59) checks if user is participant (line 84-86) — good.
-- `sendMessage` checks if sender is participant (line 103-105) — good.
-- No authorization for reading messages (assumes resolver handles it).
-
-## 9. Target Structure
-
-```
+```text
 src/chat/
   domain/
     entities/
-      ChatRoom.ts                   # Aggregate root with sendMessage(), addParticipant()
-      Message.ts                    # Child entity
+      ChatRoom.ts
     value-objects/
-      MessageContent.ts             # Validates content by type (text, image URL, etc.)
-      MessageType.ts                # Enum: TEXT, IMAGE, AUDIO, VIDEO, FILE
-    repositories/
-      IChatRoomRepository.ts        # Interface: findById, findByParticipant, save
-      IMessageRepository.ts
+      ChatId.ts
+    errors/
+      ChatRoomInvariantError.ts
     events/
-      MessageSent.ts
-      MessageRead.ts
-      ChatRoomCreated.ts
-
+      ChatRoomCreatedEvent.ts
+      MessageSentEvent.ts
+      MessageReadEvent.ts
+      ParticipantAddedEvent.ts
+      ParticipantRemovedEvent.ts
+    repositories/
+      IChatRoomRepository.ts
+    services/
+      (domain services only when invariants span value objects)
   application/
     commands/
+      CreateChatRoom/
+        CreateChatRoomCommand.ts
+        CreateChatRoomHandler.ts
       SendMessage/
         SendMessageCommand.ts
-        SendMessageHandler.ts       # Use case: validate, upload file, create message, emit event
+        SendMessageHandler.ts
       MarkMessageAsRead/
         MarkMessageAsReadCommand.ts
         MarkMessageAsReadHandler.ts
+      AddParticipant/
+        AddParticipantCommand.ts
+        AddParticipantHandler.ts
+      RemoveParticipant/
+        RemoveParticipantCommand.ts
+        RemoveParticipantHandler.ts
     queries/
-      GetUserChats/
-        GetUserChatsQuery.ts
-        GetUserChatsHandler.ts
       GetChatRoom/
         GetChatRoomQuery.ts
         GetChatRoomHandler.ts
+      ListUserChatRooms/
+        ListUserChatRoomsQuery.ts
+        ListUserChatRoomsHandler.ts
+      GetMessages/
+        GetMessagesQuery.ts
+        GetMessagesHandler.ts
+    sagas/
+      (none)
     event-handlers/
-      OnMessageSentBroadcast.ts     # Listens to MessageSent → publishes to PubSub
-
+      OnMessageSentBroadcastHandler.ts
+      OnApplicationSubmittedCreateChatRoomHandler.ts
+    jobs/
+      (none)
   infrastructure/
     repositories/
       PrismaChatRoomRepository.ts
-      PrismaMessageRepository.ts
+    mappers/
+      ChatMapper.ts
     adapters/
-      FirebaseFileUploader.ts       # Wraps FirebaseStorageService
-      PubSubBroadcaster.ts          # Wraps PubSubService
-
+      (external adapters only when required)
   presentation/
     resolvers/
       ChatResolver.ts
-    types/
-      ChatRoomType.ts
-      MessageType.ts
+    graphql/
+      ChatRoomGraphQLType.type.ts
+      MessageGraphQLType.type.ts
+      mappers/
+        toChatRoomGraphQLType.ts
+        toMessageGraphQLType.ts
 ```
 
----
-
-## Persistence Model (Derived from Domain)
-
-```prisma
-model ChatRoom {
-  id String @id @map("_id")
-  errandId String?
-  lastMessageId String?
-  createdAt DateTime
-  updatedAt DateTime
-
-  @@index([errandId]) // serves: findByErrandAndParticipants
-  @@index([lastMessageId]) // serves: last-message cleanup checks
-}
-
-model ChatParticipant {
-  id String @id @map("_id")
-  chatRoomId String
-  userId String
-  joinedAt DateTime
-
-  @@index([userId, chatRoomId]) // serves: findByUser
-  @@unique([chatRoomId, userId]) // backs: ParticipantAlreadyExistsError
-}
-
-model Message {
-  id String @id @map("_id")
-  chatRoomId String
-  senderId String
-  type MessageType
-  content String
-  createdAt DateTime
-
-  @@index([chatRoomId, createdAt]) // serves: findMessages
-}
-```
-
-`ChatRoom` is the aggregate root; `ChatParticipant` and append-only `Message` records are reachable only through `IChatRoomRepository`. References are scalar IDs only: `errandId`, `lastMessageId`, `chatRoomId`, `userId`, `senderId`. Cleanup owners: `ErrandDeletedPolicyHandler` archives or detaches errand chats through Chat commands; `UserDeletedPolicyHandler` anonymizes participant/sender display data without removing message history; `DeleteMessageCommandHandler` updates `lastMessageId` before removing a message if deletion is ever allowed. `id` serves `findById`; indexes map directly to chat repository methods and cleanup checks.
-
----
-
-## 11. Migration Risk & Priority
-
-**Risk**: **MEDIUM**
-
-- Chat is a real-time feature — refactoring could break WebSocket subscriptions if not careful.
-- However, chat is isolated from core business flows (errands, payments) — lower criticality.
-
-**Priority**: **PHASE 3 (after Errands/Escrow/Application/Provider/Client)**
-**Rationale**:
-
-1. Chat is a supporting feature, not core to job marketplace (errands/payments are core).
-2. Refactoring chat doesn't unblock other modules.
-3. Current implementation is functional (no critical bugs) — can defer refactoring.
-
-**Migration steps**:
-
-1. **Extract ChatRoom aggregate** with `sendMessage()`, `addParticipant()` methods.
-2. **Extract Message value object** with type-specific validation.
-3. **Introduce IChatRoomRepository** and `PrismaChatRoomRepository`.
-4. **Create SendMessageCommandHandler** (move file upload + validation + broadcast out of service).
-5. **Emit domain events**: `MessageSent`, `MessageRead`.
-6. **Create event listener** for PubSub broadcasting (decouple from command handler).
-7. **Queue file uploads** in BullMQ (retry on failure).
-8. **Add DataLoader** for message sender profile (prevent N+1).
-9. **Add message moderation** (scan for spam/abuse before broadcasting).
-
----
-
-## 12. Implementation Spec
+## Implementation Spec
 
 ### Domain Layer
 
 ```typescript
-/**
- * ChatRoom aggregate root representing conversation between users.
- * Core invariants:
- * - ChatRoom must have at least 2 participants
- * - errandId is optional (chat can exist without errand for direct messaging)
- * - lastMessageId must reference valid message in room
- * - Participants can only read messages if they're in the room
- * - Messages are append-only (cannot edit/delete after send)
- */
-class ChatRoomId extends EntityId {
-  /**
-   * Private constructor. Use ChatRoomId.new() or ChatRoomId.from().
-   */
-  private constructor(value: string);
 
-  /**
-   * Creates a new ChatRoomId.
-   */
-  static new(): ChatRoomId;
+/** Aggregate root for Chat invariants; persistence ignorant and reconstituted by repositories. */
+class ChatRoom extends AggregateRoot<ChatId> {
+  /** Creates a new aggregate and records creation events where the module emits them. */
+  static create(...args: unknown[]): ChatRoom;
 
-  /**
-   * Rehydrates ChatRoomId from persisted value.
-   */
-  static from(value: string): ChatRoomId;
+  /** Rehydrates an aggregate from persistence without recording new domain events. */
+  static reconstitute(...args: unknown[]): ChatRoom;
+
+  /** Returns and clears queued domain events after a successful repository write. */
+  pullDomainEvents(): DomainEvent[];
 }
 
-/**
- * Message identifier for chat message entities.
- */
-class MessageId extends EntityId {
-  /**
-   * Private constructor. Use MessageId.new() or MessageId.from().
-   */
-  private constructor(value: string);
-
-  /**
-   * Creates a new MessageId.
-   */
-  static new(): MessageId;
-
-  /**
-   * Rehydrates MessageId from persisted value.
-   */
-  static from(value: string): MessageId;
+/** Strongly typed identifier for ChatRoom; prevents cross-aggregate ID mix-ups. */
+class ChatId extends EntityId {
+  /** Builds an ID from a persisted string. */
+  static fromString(value: string): ChatId;
 }
 
-/**
- * ChatRoom aggregate root representing conversation between users.
- */
-class ChatRoom extends AggregateRoot<ChatRoomId> {
-  /**
-   * Private constructor - use ChatRoom.create() factory or load from repository.
-   * @param id Unique chat room identifier (from schema: id String @id)
-   * @param errandId Optional errand this chat is for (from schema: errandId String?)
-   * @param participantIds Array of user IDs in room (from schema: ChatRoomParticipant[])
-   * @param messages Message entities (from schema: Message[])
-   * @param lastMessageId Last message ID (from schema: lastMessageId String?)
-   * @param createdAt Creation timestamp
-   * @param updatedAt Last activity timestamp
-   */
-  private constructor(
-    public readonly id: ChatRoomId,
-    public readonly errandId: ErrandId | null,
-    private readonly participantIds: UserId[],
-    private readonly messages: Message[],
-    private lastMessageId: MessageId | null,
-    public readonly createdAt: Date,
-    public readonly updatedAt: Date,
-  );
-
-  /**
-   * Factory method to create new chat room.
-   * Requires at least 2 participants.
-   * @param participantIds User IDs (minimum 2)
-   * @param errandId Optional errand ID this chat is for
-   * @throws InsufficientParticipantsError when < 2 participants
-   * @returns New ChatRoom instance
-   */
-  static create(
-    participantIds: UserId[],
-    errandId?: ErrandId,
-  ): ChatRoom;
-
-  /**
-   * Reconstitutes ChatRoom aggregate from persistence.
-   */
-  static reconstitute(
-    id: ChatRoomId,
-    errandId: ErrandId | null,
-    participantIds: UserId[],
-    messages: Message[],
-    lastMessageId: MessageId | null,
-    createdAt: Date,
-    updatedAt: Date,
-  ): ChatRoom;
-
-  /**
-   * Sends message in chat room.
-   * Message is validated based on type (text/image/audio/location).
-   * @param senderId User sending message (must be participant)
-   * @param messageType Message type enum
-   * @param content Message content (text, URL, coordinates, etc.)
-   * @throws UnauthorizedSenderError when sender not in participant list
-   * @throws InvalidMessageContentError when content doesn't match type
-   * @emits MessageSentEvent (triggers PubSub broadcast)
-   * @returns New Message ID
-   */
-  sendMessage(
-    senderId: UserId,
-    messageType: MessageType,
-    content: string,
-  ): MessageId;
-
-  /**
-   * Marks message as read by user.
-   * Updates MessageRead record.
-   * @param messageId Message ID
-   * @param userId User marking as read (must be participant)
-   * @throws UnauthorizedReaderError when user not in participant list
-   * @throws MessageNotFoundException when message not in this room
-   * @emits MessageReadEvent
-   */
-  markMessageAsRead(messageId: MessageId, userId: UserId): void;
-
-  /**
-   * Adds participant to chat room.
-   * Used when new applicant joins errand chat.
-   * @param userId User to add
-   * @throws ParticipantAlreadyExistsError when user already in room
-   * @emits ParticipantAddedEvent
-   */
-  addParticipant(userId: UserId): void;
-
-  /**
-   * Removes participant from chat room.
-   * Used when user leaves chat.
-   * @param userId User to remove
-   * @throws CannotRemoveLastParticipantError when trying to remove last participant
-   * @emits ParticipantRemovedEvent
-   */
-  removeParticipant(userId: UserId): void;
-
-  /**
-   * Checks if user is participant.
-   * @param userId User ID
-   */
-  isParticipant(userId: UserId): boolean;
-
-  /**
-   * Returns unread message count for user.
-   * @param userId User ID
-   * @returns Number of unread messages
-   */
-  getUnreadCount(userId: UserId): number;
+/** Base domain error for violated Chat invariants. */
+class ChatRoomInvariantError extends Error {
+  /** Creates the invariant error. */
+  constructor(message: string);
 }
 
-/**
- * Message entity (child of ChatRoom aggregate).
- * Immutable once created.
- */
-class Message {
-  constructor(
-    public readonly id: MessageId,
-    public readonly chatRoomId: ChatRoomId,
-    public readonly senderId: UserId,
-    public readonly type: MessageType,
-    public readonly content: string,
-    public readonly createdAt: Date,
-  );
-
-  /**
-   * Validates message content based on type.
-   * TEXT: Any non-empty string
-   * IMAGE/AUDIO: Valid URL
-   * LOCATION: JSON with lat/lng coordinates
-   * @throws InvalidMessageContentError when content invalid for type
-   */
-  validate(): void;
+/** Domain event emitted by ChatRoom after its state transition is persisted. */
+class ChatRoomCreatedEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: ChatId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
 }
 
-/**
- * ChatRoomParticipant entity (child of ChatRoom).
- */
-class ChatRoomParticipant {
-  constructor(
-    public readonly chatRoomId: ChatRoomId,
-    public readonly userId: UserId,
-    public readonly joinedAt: Date,
-  );
+/** Domain event emitted by ChatRoom after its state transition is persisted. */
+class MessageSentEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: ChatId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
 }
 
-/** Thrown when chat room created with < 2 participants. */
-class InsufficientParticipantsError extends Error {}
+/** Domain event emitted by ChatRoom after its state transition is persisted. */
+class MessageReadEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: ChatId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
+}
 
-/** Thrown when non-participant tries to send message. */
-class UnauthorizedSenderError extends Error {}
+/** Domain event emitted by ChatRoom after its state transition is persisted. */
+class ParticipantAddedEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: ChatId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
+}
 
-/** Thrown when message content doesn't match type. */
-class InvalidMessageContentError extends Error {}
+/** Domain event emitted by ChatRoom after its state transition is persisted. */
+class ParticipantRemovedEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: ChatId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
+}
 
-/** Thrown when non-participant tries to read message. */
-class UnauthorizedReaderError extends Error {}
-
-/** Thrown when message not in chat room. */
-class MessageNotFoundException extends Error {}
-
-/** Thrown when participant already in room. */
-class ParticipantAlreadyExistsError extends Error {}
-
-/** Thrown when trying to remove last participant. */
-class CannotRemoveLastParticipantError extends Error {}
-```
-
-### Repository Interface
-
-```typescript
-/**
- * Persistence contract for ChatRoom aggregate.
- */
+/** Repository interface for ChatRoom; domain/application depend on this contract, not Prisma. */
 interface IChatRoomRepository {
-  /**
-   * Finds chat room by unique ID.
-   * @param id Chat room ID
-   * @returns ChatRoom aggregate or null if not found
-   */
-  findById(id: ChatRoomId): Promise<ChatRoom | null>;
+  /** Loads an aggregate by ID. */
+  findById(id: ChatId): Promise<ChatRoom | null>;
 
-  /**
-   * Finds chat room for specific errand and participants.
-   * Each errand + participant pair has one chat room.
-   * @param errandId Errand ID
-   * @param participantIds Participant user IDs
-   * @returns ChatRoom aggregate or null if not found
-   */
-  findByErrandAndParticipants(
-    errandId: ErrandId,
-    participantIds: UserId[],
-  ): Promise<ChatRoom | null>;
-
-  /**
-   * Finds all chat rooms for user.
-   * @param userId User ID
-   * @returns Array of ChatRoom aggregates sorted by last activity
-   */
-  findByUser(userId: UserId): Promise<ChatRoom[]>;
-
-  /**
-   * Persists chat room aggregate.
-   * Messages are append-only - new messages are added, never updated.
-   * @param chatRoom ChatRoom to save
-   */
-  save(chatRoom: ChatRoom): Promise<void>;
-
-  /**
-   * Finds messages in chat room with pagination.
-   * @param chatRoomId Chat room ID
-   * @param limit Max messages to return
-   * @param beforeMessageId Optional cursor for pagination (messages before this ID)
-   * @returns Array of Message entities sorted by createdAt DESC
-   */
-  findMessages(
-    chatRoomId: ChatRoomId,
-    limit: number,
-    beforeMessageId?: MessageId,
-  ): Promise<Message[]>;
+  /** Persists the aggregate in one durable write boundary. */
+  save(aggregate: ChatRoom): Promise<void>;
 }
+
 ```
 
 ### Application Layer
 
 ```typescript
-/**
- * Creates new chat room.
- */
-class CreateChatRoomCommandHandler {
-  /**
-   * @param command Chat room details
-   * @throws InsufficientParticipantsError when < 2 participants
-   * @throws ErrandNotFoundException when errand doesn't exist (if errandId provided)
-   * @emits ChatRoomCreatedEvent
-   * @returns Chat room ID
-   */
-  execute(command: CreateChatRoomCommand): Promise<ChatRoomId>;
+
+import { Command, CommandBus, CommandHandler, EventBus, EventsHandler, ICommandHandler, IEventHandler, IQueryHandler, Query, QueryBus, QueryHandler } from '@nestjs/cqrs';
+
+/** Command input for the CreateChatRoom use case. */
+class CreateChatRoomCommand extends Command<ChatId> {
+  /** Captures all input required by CreateChatRoomHandler. */
+  constructor(public readonly payload: CreateChatRoomPayload);
 }
 
-interface CreateChatRoomCommand {
-  participantIds: UserId[];
-  errandId?: ErrandId;
+/** Handles CreateChatRoomCommand through the NestJS CommandBus. */
+@CommandHandler(CreateChatRoomCommand)
+class CreateChatRoomHandler implements ICommandHandler<CreateChatRoomCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: CreateChatRoomCommand): Promise<ChatId>;
 }
 
-/**
- * Sends message in chat room.
- * Handles file upload for IMAGE/AUDIO types.
- */
-class SendMessageCommandHandler {
-  /**
-   * @param command Message details
-   * @throws ChatRoomNotFoundException when room doesn't exist
-   * @throws UnauthorizedSenderError when sender not participant
-   * @throws InvalidMessageContentError when content invalid for type
-   * @emits MessageSentEvent (triggers PubSub broadcast)
-   * @returns Message ID
-   */
-  execute(command: SendMessageCommand): Promise<MessageId>;
+/** Command input for the SendMessage use case. */
+class SendMessageCommand extends Command<MessageId> {
+  /** Captures all input required by SendMessageHandler. */
+  constructor(public readonly payload: SendMessagePayload);
 }
 
-interface SendMessageCommand {
-  chatRoomId: ChatRoomId;
-  senderId: UserId;
-  type: MessageType;
-  content: string; // text, URL, or JSON coordinates
-  file?: Buffer; // for IMAGE/AUDIO uploads (converted to URL by handler)
+/** Handles SendMessageCommand through the NestJS CommandBus. */
+@CommandHandler(SendMessageCommand)
+class SendMessageHandler implements ICommandHandler<SendMessageCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: SendMessageCommand): Promise<MessageId>;
 }
 
-/**
- * Marks message as read.
- */
-class MarkMessageAsReadCommandHandler {
-  /**
-   * @param command Read details
-   * @throws ChatRoomNotFoundException when room doesn't exist
-   * @throws UnauthorizedReaderError when user not participant
-   * @throws MessageNotFoundException when message not in room
-   * @emits MessageReadEvent
-   */
-  execute(command: MarkMessageAsReadCommand): Promise<void>;
+/** Command input for the MarkMessageAsRead use case. */
+class MarkMessageAsReadCommand extends Command<void> {
+  /** Captures all input required by MarkMessageAsReadHandler. */
+  constructor(public readonly payload: MarkMessageAsReadPayload);
 }
 
-interface MarkMessageAsReadCommand {
-  chatRoomId: ChatRoomId;
-  messageId: MessageId;
-  userId: UserId;
+/** Handles MarkMessageAsReadCommand through the NestJS CommandBus. */
+@CommandHandler(MarkMessageAsReadCommand)
+class MarkMessageAsReadHandler implements ICommandHandler<MarkMessageAsReadCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: MarkMessageAsReadCommand): Promise<void>;
 }
 
-/**
- * Adds participant to chat room.
- */
-class AddParticipantCommandHandler {
-  /**
-   * @param command Participant details
-   * @throws ChatRoomNotFoundException when room doesn't exist
-   * @throws ParticipantAlreadyExistsError when user already in room
-   * @emits ParticipantAddedEvent
-   */
-  execute(command: AddParticipantCommand): Promise<void>;
+/** Command input for the AddParticipant use case. */
+class AddParticipantCommand extends Command<void> {
+  /** Captures all input required by AddParticipantHandler. */
+  constructor(public readonly payload: AddParticipantPayload);
 }
 
-interface AddParticipantCommand {
-  chatRoomId: ChatRoomId;
-  userId: UserId;
+/** Handles AddParticipantCommand through the NestJS CommandBus. */
+@CommandHandler(AddParticipantCommand)
+class AddParticipantHandler implements ICommandHandler<AddParticipantCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: AddParticipantCommand): Promise<void>;
 }
 
-/**
- * Removes participant from chat room.
- */
-class RemoveParticipantCommandHandler {
-  /**
-   * @param command Participant to remove
-   * @throws ChatRoomNotFoundException when room doesn't exist
-   * @throws CannotRemoveLastParticipantError when removing last participant
-   * @emits ParticipantRemovedEvent
-   */
-  execute(command: RemoveParticipantCommand): Promise<void>;
+/** Command input for the RemoveParticipant use case. */
+class RemoveParticipantCommand extends Command<void> {
+  /** Captures all input required by RemoveParticipantHandler. */
+  constructor(public readonly payload: RemoveParticipantPayload);
 }
 
-interface RemoveParticipantCommand {
-  chatRoomId: ChatRoomId;
-  userId: UserId;
+/** Handles RemoveParticipantCommand through the NestJS CommandBus. */
+@CommandHandler(RemoveParticipantCommand)
+class RemoveParticipantHandler implements ICommandHandler<RemoveParticipantCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: RemoveParticipantCommand): Promise<void>;
 }
 
-/**
- * Query handler: Get chat room by ID.
- */
-class GetChatRoomQueryHandler {
-  /**
-   * @param query Chat room ID
-   * @returns Chat room details with participants
-   * @throws ChatRoomNotFoundException when not found
-   */
-  execute(query: GetChatRoomQuery): Promise<ChatRoomDTO>;
+/** Query input for GetChatRoom. */
+class GetChatRoomQuery extends Query<ChatRoomDTO | null> {
+  /** Captures all filters, pagination, and caller identity for the query. */
+  constructor(public readonly payload: GetChatRoomPayload);
 }
 
-interface GetChatRoomQuery {
-  chatRoomId: ChatRoomId;
+/** Handles GetChatRoomQuery through the NestJS QueryBus. */
+@QueryHandler(GetChatRoomQuery)
+class GetChatRoomHandler implements IQueryHandler<GetChatRoomQuery> {
+  /** Returns an application DTO, never a GraphQL type or Prisma row. */
+  async execute(query: GetChatRoomQuery): Promise<ChatRoomDTO | null>;
 }
 
-/**
- * Query handler: List user's chat rooms.
- */
-class ListUserChatRoomsQueryHandler {
-  /**
-   * @param query User ID
-   * @returns Array of chat rooms sorted by last activity
-   */
-  execute(query: ListUserChatRoomsQuery): Promise<ChatRoomDTO[]>;
+/** Query input for ListUserChatRooms. */
+class ListUserChatRoomsQuery extends Query<ChatRoomDTO[]> {
+  /** Captures all filters, pagination, and caller identity for the query. */
+  constructor(public readonly payload: ListUserChatRoomsPayload);
 }
 
-interface ListUserChatRoomsQuery {
-  userId: UserId;
+/** Handles ListUserChatRoomsQuery through the NestJS QueryBus. */
+@QueryHandler(ListUserChatRoomsQuery)
+class ListUserChatRoomsHandler implements IQueryHandler<ListUserChatRoomsQuery> {
+  /** Returns an application DTO, never a GraphQL type or Prisma row. */
+  async execute(query: ListUserChatRoomsQuery): Promise<ChatRoomDTO[]>;
 }
 
-/**
- * Query handler: Get messages in chat room.
- */
-class GetMessagesQueryHandler {
-  /**
-   * @param query Chat room ID with pagination
-   * @returns Array of messages with sender details
-   */
-  execute(query: GetMessagesQuery): Promise<MessageDTO[]>;
+/** Query input for GetMessages. */
+class GetMessagesQuery extends Query<MessageDTO[]> {
+  /** Captures all filters, pagination, and caller identity for the query. */
+  constructor(public readonly payload: GetMessagesPayload);
 }
 
-interface GetMessagesQuery {
-  chatRoomId: ChatRoomId;
-  limit: number;
-  beforeMessageId?: MessageId; // cursor for pagination
+/** Handles GetMessagesQuery through the NestJS QueryBus. */
+@QueryHandler(GetMessagesQuery)
+class GetMessagesHandler implements IQueryHandler<GetMessagesQuery> {
+  /** Returns an application DTO, never a GraphQL type or Prisma row. */
+  async execute(query: GetMessagesQuery): Promise<MessageDTO[]>;
 }
 
-interface ChatRoomDTO {
-  id: ChatRoomId;
-  errandId: ErrandId | null;
-  participants: { userId: UserId; name: string; image: string | null }[];
-  lastMessage: MessageDTO | null;
-  unreadCount: number; // for current user
-  createdAt: Date;
-  updatedAt: Date;
+/** Event handler for MessageSentEvent; uses buses rather than handler classes. */
+@EventsHandler(MessageSentEvent)
+class OnMessageSentBroadcastHandler implements IEventHandler<MessageSentEvent> {
+  /** Reacts to the event by dispatching commands/queries through the buses. */
+  async handle(event: MessageSentEvent): Promise<void>;
 }
 
-interface MessageDTO {
-  id: MessageId;
-  chatRoomId: ChatRoomId;
-  senderId: UserId;
-  type: MessageType;
-  content: string;
-  createdAt: Date;
-  sender?: { id: string; name: string; image: string | null };
+/** Event handler for ApplicationSubmittedEvent; uses buses rather than handler classes. */
+@EventsHandler(ApplicationSubmittedEvent)
+class OnApplicationSubmittedCreateChatRoomHandler implements IEventHandler<ApplicationSubmittedEvent> {
+  /** Reacts to the event by dispatching commands/queries through the buses. */
+  async handle(event: ApplicationSubmittedEvent): Promise<void>;
 }
+
 ```
 
-### Domain Events
+### Infrastructure And Presentation Layers
 
 ```typescript
-/**
- * Emitted when new chat room created.
- * Consumed by: Notification (notify participants)
- */
-class ChatRoomCreatedEvent {
-  constructor(
-    public readonly chatRoomId: ChatRoomId,
-    public readonly participantIds: UserId[],
-    public readonly errandId: ErrandId | null,
-  ) {}
+
+/** Prisma implementation of IChatRoomRepository; maps rows through ChatMapper. */
+@Injectable()
+class PrismaChatRoomRepository implements IChatRoomRepository {
+  /** Loads and maps a persistence row to the domain aggregate. */
+  async findById(id: ChatId): Promise<ChatRoom | null>;
+
+  /** Persists aggregate state without publishing events itself. */
+  async save(aggregate: ChatRoom): Promise<void>;
 }
 
-/**
- * Emitted when message sent.
- * CRITICAL: Triggers PubSub broadcast to all room participants.
- * Consumed by: PubSub broadcaster, Notification module
- */
-class MessageSentEvent {
-  constructor(
-    public readonly messageId: MessageId,
-    public readonly chatRoomId: ChatRoomId,
-    public readonly senderId: UserId,
-    public readonly type: MessageType,
-    public readonly content: string,
-    public readonly recipientIds: UserId[], // all participants except sender
-  ) {}
+/** Injectable mapper for ChatRoom; uses DI for nested mappers and avoids static conversion helpers. */
+@Injectable()
+class ChatMapper {
+  /** Converts a Prisma row into a domain aggregate. */
+  toDomain(row: unknown): ChatRoom;
+
+  /** Converts a domain aggregate into persistence data. */
+  toPersistence(aggregate: ChatRoom): unknown;
 }
 
-/**
- * Emitted when message marked as read.
- * Consumed by: Notification (update unread count badge), PubSub (notify sender)
- */
-class MessageReadEvent {
-  constructor(
-    public readonly messageId: MessageId,
-    public readonly chatRoomId: ChatRoomId,
-    public readonly userId: UserId,
-  ) {}
+/** GraphQL resolver; injects CommandBus and QueryBus, never repositories. */
+@Resolver()
+class ChatResolver {
+  /** Creates the resolver with CQRS buses. */
+  constructor(private readonly commandBus: CommandBus, private readonly queryBus: QueryBus);
 }
 
-/**
- * Emitted when participant added to chat room.
- * Consumed by: Notification (notify new participant)
- */
-class ParticipantAddedEvent {
-  constructor(
-    public readonly chatRoomId: ChatRoomId,
-    public readonly userId: UserId,
-  ) {}
+/** GraphQL shape for ChatRoomGraphQLType; separate from application DTOs. */
+type ChatRoomGraphQLTypeShape = Omit<ChatRoomDTO, 'id'> & { id: string };
+
+/** Presentation type exposed by GraphQL decorators. */
+@ObjectType()
+class ChatRoomGraphQLType implements ChatRoomGraphQLTypeShape {
+  /** String form of the strongly typed aggregate ID. */
+  @Field() id: string;
 }
 
-/**
- * Emitted when participant removed from chat room.
- * Consumed by: Notification
- */
-class ParticipantRemovedEvent {
-  constructor(
-    public readonly chatRoomId: ChatRoomId,
-    public readonly userId: UserId,
-  ) {}
+/** Converts application DTOs to GraphQL types, including EntityId-to-string fields. */
+function toChatRoomGraphQLType(dto: ChatRoomDTO): ChatRoomGraphQLType;
+
+/** GraphQL shape for MessageGraphQLType; separate from application DTOs. */
+type MessageGraphQLTypeShape = Omit<MessageDTO, 'id'> & { id: string };
+
+/** Presentation type exposed by GraphQL decorators. */
+@ObjectType()
+class MessageGraphQLType implements MessageGraphQLTypeShape {
+  /** String form of the strongly typed aggregate ID. */
+  @Field() id: string;
 }
+
+/** Converts application DTOs to GraphQL types, including EntityId-to-string fields. */
+function toMessageGraphQLType(dto: MessageDTO): MessageGraphQLType;
+
 ```
 
-### Event Handlers (React to other module events)
+## EIP Patterns Applied
 
-```typescript
-/**
- * Listens to MessageSentEvent and broadcasts to room participants via PubSub.
- * Decouples message sending from broadcasting.
- */
-class OnMessageSentBroadcastHandler {
-  /**
-   * @listens MessageSentEvent
-   * Publishes message to PubSub topic for real-time delivery
-   */
-  handle(event: MessageSentEvent): Promise<void>;
-}
-
-/**
- * Listens to ApplicationSubmittedEvent and creates chat room for errand.
- * Workers can chat with client after applying.
- */
-class OnApplicationSubmittedCreateChatRoomHandler {
-  /**
-   * @listens ApplicationSubmittedEvent
-   * Creates chat room with client and worker as participants
-   */
-  handle(event: ApplicationSubmittedEvent): Promise<void>;
-}
-```
+- **Publish-Subscribe Channel**: MessageSentEvent is published after persistence and broadcast to subscribers by an event handler. Status: fully specced with concrete signatures in the Implementation Spec.
+- **Idempotent Receiver**: CreateChatRoom uses errand/application participant uniqueness to avoid duplicate rooms. Status: fully specced with concrete signatures in the Implementation Spec.
+- **Content-Based Router**: Chat queries route by participant, errand, and room membership without leaking room internals. Status: fully specced with concrete signatures in the Implementation Spec.

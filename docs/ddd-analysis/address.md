@@ -1,356 +1,275 @@
-# Address — DDD & EIP Analysis
+# Address - DDD & EIP Analysis
 
-## 1. Current Responsibility
+## Current Responsibility
 
-Manages address autocomplete and geocoding via Google Places API:
+Address owns saved user addresses, address suggestions, reverse geocoding, and coordinate normalization. Users may reference an active AddressId but cannot mutate address records directly.
 
-- **Address suggestions**: `suggestAddresses` (line 20-31) fetches autocomplete suggestions from Google Places.
-- **Reverse geocoding**: `reverseGeocode` (line 33-68) converts coordinates to formatted address (fallback: "Pinned Location").
-- **Place details**: `getPlaceDetails` (line 73-86) fetches full address details from Google Place ID.
-- **User addresses**: `getUserAddresses` (line 88-98) fetches user's saved addresses from DB.
+## Domain Model
 
-**Files**: `address.service.ts` (~98 lines), `address.resolver.ts`, `address.module.ts`.
+`UserAddress` is the aggregate root and `AddressId` is the strongly typed aggregate identifier. References to other bounded contexts are stored as scalar IDs or value objects; cross-module behavior is coordinated through `CommandBus`, `QueryBus`, and `EventBus` rather than direct repository access.
 
-## 2. Bounded Context Assessment
+Domain events are queued inside aggregates with `addDomainEvent()`. Application handlers call the repository first and publish events only after the write succeeds by iterating `aggregate.pullDomainEvents()` and calling `this.eventBus.publish(event)`.
 
-**This is infrastructure** (Google Places adapter) + **sub-domain of Users**.
+## Target Structure
 
-- Address autocomplete/geocoding is **infrastructure** — wrapper for Google Places API.
-- User addresses (`getUserAddresses`) is **domain logic** — belongs to Users module.
-
-**Overlaps**:
-
-- **Users**: User has `activeAddressId` (foreign key to `UserAddress`).
-- **Errands**: Errand has `location` (coordinates) for geospatial search.
-- **Provider**: Provider has `activeAddress` for location-based matching.
-
-**Verdict**: Split Address module:
-
-1. **Infrastructure layer**: Google Places adapter (autocomplete, geocoding) → `common/geocoding/`.
-2. **Domain layer**: User address management → merge into **Users** module.
-
-## 3. Domain Model Audit
-
-**Anemic models**:
-
-- `UserAddress` (Prisma model) is a data bag with `formattedAddress`, `location` (GeoPoint), `label`.
-  - No behavior: No `UserAddress.setAsActive()`, `UserAddress.validate()` methods.
-
-**Aggregate boundaries**:
-
-- **`User`** aggregate should own `UserAddress` (child entity):
-  - Invariants: Active address must exist, user must have at least one address to post errands.
-
-**Invariants currently unenforced**:
-
-1. **Active address validation**:
-   - Users module deletes address without checking if it's active (dangling `activeAddressId` bug) — URGENT fix needed.
-2. **Address uniqueness**:
-   - No validation that user doesn't save duplicate addresses (same `formattedAddress`).
-
-## 4. Layering Violations
-
-**Infrastructure in service**:
-
-- `suggestAddresses` (line 20-31) makes direct HTTP call to Google Places API (`axios.get`) — should be in infrastructure adapter.
-- `reverseGeocode` (line 33-68) makes direct HTTP call to Google Places API — should be in infrastructure adapter.
-
-**Domain logic missing**:
-
-- `getUserAddresses` (line 88-98) is a read operation (query) — fine.
-- However, address creation/deletion logic is likely in resolver or Users module (not in Address service).
-
-## 5. Repository Pattern Gap
-
-**Current state**: Direct Prisma usage for `getUserAddresses`.
-
-**Proposed**:
-
-```
-infrastructure/geocoding/
-  IGeocodingService (interface - port)
-    - suggestAddresses(input): AddressSuggestion[]
-    - reverseGeocode(lat, lng): AddressDetails
-    - getPlaceDetails(placeId): AddressDetails
-  GooglePlacesAdapter (implementation)
-```
-
-**User address repository** (in Users module):
-
-```
-domain/
-  IUserAddressRepository (interface)
-    - findByUserId(userId): UserAddress[]
-    - save(address): void
-```
-
-## 6. EIP Opportunities
-
-**Adapter Pattern** (should be implemented):
-
-- Current: `AddressService` is tightly coupled to Google Places API (line 20-86: axios calls).
-- Recommendation: Extract `IGeocodingService` interface:
-  - `GooglePlacesAdapter` implements interface.
-  - `MapboxAdapter` as alternative (if switching providers).
-
-**Dead Letter / Retry**:
-
-- Google Places API calls can fail (timeout, rate limit).
-  - No retry — user sees error and must retry manually.
-  - Recommendation: Add retry logic (3x with exponential backoff).
-
-**Fallback**:
-
-- `reverseGeocode` (line 33-68) has fallback to "Pinned Location" (line 52-55, line 61-67) — good resilience pattern.
-
-## 7. Cross-Cutting Concerns
-
-**Error handling**:
-
-- `reverseGeocode` (line 58-67) catches errors and returns fallback — good.
-- `suggestAddresses` and `getPlaceDetails` don't catch errors — axios errors bubble up.
-
-**Logging**:
-
-- `reverseGeocode` (line 60) logs errors — good.
-- Other methods don't log — should log API calls for audit trail.
-
-**Validation**:
-
-- No validation of coordinates (latitude: -90 to 90, longitude: -180 to 180).
-
-## 8. GraphQL-Specific Notes
-
-**Authorization**:
-
-- `suggestAddresses`, `reverseGeocode`, `getPlaceDetails` are public (no auth needed for autocomplete).
-- `getUserAddresses` requires auth (user can only view their own addresses).
-
-## 9. Target Structure
-
-```
-src/infrastructure/geocoding/  # OR src/common/geocoding/
-  domain/
-    IGeocodingService.ts            # Port (interface)
-
-  infrastructure/
-    adapters/
-      GooglePlacesAdapter.ts        # Adapter (implements IGeocodingService)
-      MapboxAdapter.ts              # Future: Mapbox support
-
-  presentation/
-    resolvers/
-      GeocodingResolver.ts          # Autocomplete, reverse geocoding
-
-src/users/
+```text
+src/address/
   domain/
     entities/
-      UserAddress.ts                # Child entity of User aggregate
+      UserAddress.ts
+    value-objects/
+      AddressId.ts
+    errors/
+      UserAddressInvariantError.ts
+    events/
+      AddressSavedEvent.ts
+      AddressDeletedEvent.ts
+      AddressSuggestionsResolvedEvent.ts
+      ReverseGeocodeResolvedEvent.ts
     repositories/
       IUserAddressRepository.ts
-
+    services/
+      (domain services only when invariants span value objects)
   application/
+    commands/
+      SaveUserAddress/
+        SaveUserAddressCommand.ts
+        SaveUserAddressHandler.ts
+      DeleteUserAddress/
+        DeleteUserAddressCommand.ts
+        DeleteUserAddressHandler.ts
     queries/
+      SuggestAddresses/
+        SuggestAddressesQuery.ts
+        SuggestAddressesHandler.ts
+      ReverseGeocode/
+        ReverseGeocodeQuery.ts
+        ReverseGeocodeHandler.ts
       GetUserAddresses/
         GetUserAddressesQuery.ts
         GetUserAddressesHandler.ts
+    sagas/
+      (none)
+    event-handlers/
+      (none)
+    jobs/
+      (none)
+  infrastructure/
+    repositories/
+      PrismaUserAddressRepository.ts
+    mappers/
+      AddressMapper.ts
+    adapters/
+      (external adapters only when required)
+  presentation/
+    resolvers/
+      AddressResolver.ts
+    graphql/
+      UserAddressGraphQLType.type.ts
+      AddressSuggestionGraphQLType.type.ts
+      mappers/
+        toUserAddressGraphQLType.ts
+        toAddressSuggestionGraphQLType.ts
 ```
 
-## Persistence Model (Derived from Domain)
-
-```prisma
-model UserAddress {
-  id String @id @map("_id")
-  userId String
-  label String
-  address String
-  location Json
-  createdAt DateTime
-  updatedAt DateTime
-
-  @@index([userId, createdAt]) // serves: findByUserId
-}
-```
-
-`location` embeds the coordinate value object. Reference fields are scalar IDs only: `userId`. Cleanup owners: `UserDeletedPolicyHandler` deletes or archives addresses through `IUserAddressRepository`; `DeleteUserAddressCommandHandler` must emit/perform active-address cleanup in Users before deleting an address. `id` serves `findById`, and the user/date index serves `findByUserId`. No unique constraint is added because users may save multiple addresses with the same label or coordinates unless product rules change.
-
----
-
-## 10. Migration Risk & Priority
-
-**Risk**: **MEDIUM**
-
-- Address module is split between infrastructure (geocoding) and domain (user addresses) — refactoring requires coordination.
-- Google Places API is external dependency — changing adapter could break autocomplete.
-
-**Priority**: **PHASE 2 (parallel with Users)**
-**Rationale**:
-
-1. User addresses are tightly coupled to Users module — refactor together.
-2. Geocoding infrastructure can be extracted independently (low coupling).
-3. Active address bug (in Users module) must be fixed first.
-
-**Migration steps**:
-
-1. **Extract IGeocodingService interface** (port).
-2. **Rename AddressService to GooglePlacesAdapter** (adapter).
-3. **Move user address logic to Users module** (merge `getUserAddresses` into Users domain).
-4. **Fix active address bug** in Users module (URGENT).
-5. **Add retry logic** for Google Places API calls (3x with exponential backoff).
-6. **Add coordinate validation** (latitude/longitude ranges).
-7. **Add DataLoader** for user addresses (prevent N+1 if needed).
-
----
-
-## 12. Implementation Spec
+## Implementation Spec
 
 ### Domain Layer
 
 ```typescript
-/**
- * Value object representing a user address consumed by Users and Errands contexts.
- * Maps to schema fields on UserAddress: id, userId, label, address, location, createdAt, updatedAt.
- */
+
+/** Aggregate root for Address invariants; persistence ignorant and reconstituted by repositories. */
+class UserAddress extends AggregateRoot<AddressId> {
+  /** Creates a new aggregate and records creation events where the module emits them. */
+  static create(...args: unknown[]): UserAddress;
+
+  /** Rehydrates an aggregate from persistence without recording new domain events. */
+  static reconstitute(...args: unknown[]): UserAddress;
+
+  /** Returns and clears queued domain events after a successful repository write. */
+  pullDomainEvents(): DomainEvent[];
+}
+
+/** Strongly typed identifier for UserAddress; prevents cross-aggregate ID mix-ups. */
 class AddressId extends EntityId {
-  /**
-   * Private constructor. Use AddressId.new() or AddressId.from().
-   */
-  private constructor(value: string);
-
-  /**
-   * Creates a new AddressId.
-   */
-  static new(): AddressId;
-
-  /**
-   * Rehydrates AddressId from persisted value.
-   */
-  static from(value: string): AddressId;
+  /** Builds an ID from a persisted string. */
+  static fromString(value: string): AddressId;
 }
 
-/**
- * Snapshot of address values used by application and query layers.
- */
-class UserAddressSnapshot {
-  constructor(
-    public readonly id: AddressId,
-    public readonly userId: UserId,
-    public readonly label: string,
-    public readonly address: string,
-    public readonly location: { type: "Point"; coordinates: [number, number] },
-    public readonly createdAt: Date,
-    public readonly updatedAt: Date,
-  );
-
-  /**
-   * Validates coordinate boundaries before issuing geocoding lookups.
-   * Latitude must be in [-90, 90], longitude in [-180, 180].
-   */
-  validateCoordinates(): void;
+/** Base domain error for violated Address invariants. */
+class UserAddressInvariantError extends Error {
+  /** Creates the invariant error. */
+  constructor(message: string);
 }
 
-/**
- * Port for external geocoding providers.
- */
-interface IGeocodingService {
-  /**
-   * Resolves free-text input to candidate addresses.
-   */
-  suggestAddresses(input: string): Promise<Array<{ placeId: string; description: string }>>;
-
-  /**
-   * Resolves coordinates to a formatted address.
-   */
-  reverseGeocode(lat: number, lng: number): Promise<{ formattedAddress: string; placeId?: string }>;
-
-  /**
-   * Resolves provider-specific place id to full address details.
-   */
-  getPlaceDetails(placeId: string): Promise<{ formattedAddress: string; location: { type: "Point"; coordinates: [number, number] } }>;
+/** Domain event emitted by UserAddress after its state transition is persisted. */
+class AddressSavedEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: AddressId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
 }
-```
 
-### Repository Interface
+/** Domain event emitted by UserAddress after its state transition is persisted. */
+class AddressDeletedEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: AddressId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
+}
 
-```typescript
-/**
- * Read/write contract for persisted user addresses (UserAddress model).
- */
+/** Domain event emitted by UserAddress after its state transition is persisted. */
+class AddressSuggestionsResolvedEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: AddressId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
+}
+
+/** Domain event emitted by UserAddress after its state transition is persisted. */
+class ReverseGeocodeResolvedEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: AddressId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
+}
+
+/** Repository interface for UserAddress; domain/application depend on this contract, not Prisma. */
 interface IUserAddressRepository {
-  /**
-   * Returns all addresses owned by a user, ordered by createdAt descending.
-   */
-  findByUserId(userId: UserId): Promise<UserAddressSnapshot[]>;
+  /** Loads an aggregate by ID. */
+  findById(id: AddressId): Promise<UserAddress | null>;
 
-  /**
-   * Finds one address by UserAddress.id.
-   */
-  findById(id: AddressId): Promise<UserAddressSnapshot | null>;
-
-  /**
-   * Persists address updates for fields label, address, location, and updatedAt.
-   */
-  save(address: UserAddressSnapshot): Promise<void>;
+  /** Persists the aggregate in one durable write boundary. */
+  save(aggregate: UserAddress): Promise<void>;
 }
+
 ```
 
 ### Application Layer
 
 ```typescript
-/**
- * Query handler for geocoding autocomplete requests.
- */
-class SuggestAddressesQueryHandler {
-  /**
-   * @param query Contains partial address input
-   * @returns Place suggestions for UI autocomplete
-   */
-  execute(
-    query: SuggestAddressesQuery,
-  ): Promise<Array<{ placeId: string; description: string }>>;
+
+import { Command, CommandBus, CommandHandler, EventBus, EventsHandler, ICommandHandler, IEventHandler, IQueryHandler, Query, QueryBus, QueryHandler } from '@nestjs/cqrs';
+
+/** Command input for the SaveUserAddress use case. */
+class SaveUserAddressCommand extends Command<AddressId> {
+  /** Captures all input required by SaveUserAddressHandler. */
+  constructor(public readonly payload: SaveUserAddressPayload);
 }
 
-interface SuggestAddressesQuery {
-  input: string;
+/** Handles SaveUserAddressCommand through the NestJS CommandBus. */
+@CommandHandler(SaveUserAddressCommand)
+class SaveUserAddressHandler implements ICommandHandler<SaveUserAddressCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: SaveUserAddressCommand): Promise<AddressId>;
 }
 
-/**
- * Query handler for a user's saved addresses.
- */
-class GetUserAddressesQueryHandler {
-  /**
-   * Reads UserAddress records by userId and returns normalized snapshots.
-   */
-  execute(query: GetUserAddressesQuery): Promise<UserAddressSnapshot[]>;
+/** Command input for the DeleteUserAddress use case. */
+class DeleteUserAddressCommand extends Command<void> {
+  /** Captures all input required by DeleteUserAddressHandler. */
+  constructor(public readonly payload: DeleteUserAddressPayload);
 }
 
-interface GetUserAddressesQuery {
-  userId: UserId;
+/** Handles DeleteUserAddressCommand through the NestJS CommandBus. */
+@CommandHandler(DeleteUserAddressCommand)
+class DeleteUserAddressHandler implements ICommandHandler<DeleteUserAddressCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: DeleteUserAddressCommand): Promise<void>;
 }
+
+/** Query input for SuggestAddresses. */
+class SuggestAddressesQuery extends Query<AddressSuggestionDTO[]> {
+  /** Captures all filters, pagination, and caller identity for the query. */
+  constructor(public readonly payload: SuggestAddressesPayload);
+}
+
+/** Handles SuggestAddressesQuery through the NestJS QueryBus. */
+@QueryHandler(SuggestAddressesQuery)
+class SuggestAddressesHandler implements IQueryHandler<SuggestAddressesQuery> {
+  /** Returns an application DTO, never a GraphQL type or Prisma row. */
+  async execute(query: SuggestAddressesQuery): Promise<AddressSuggestionDTO[]>;
+}
+
+/** Query input for ReverseGeocode. */
+class ReverseGeocodeQuery extends Query<AddressSuggestionDTO> {
+  /** Captures all filters, pagination, and caller identity for the query. */
+  constructor(public readonly payload: ReverseGeocodePayload);
+}
+
+/** Handles ReverseGeocodeQuery through the NestJS QueryBus. */
+@QueryHandler(ReverseGeocodeQuery)
+class ReverseGeocodeHandler implements IQueryHandler<ReverseGeocodeQuery> {
+  /** Returns an application DTO, never a GraphQL type or Prisma row. */
+  async execute(query: ReverseGeocodeQuery): Promise<AddressSuggestionDTO>;
+}
+
+/** Query input for GetUserAddresses. */
+class GetUserAddressesQuery extends Query<UserAddressDTO[]> {
+  /** Captures all filters, pagination, and caller identity for the query. */
+  constructor(public readonly payload: GetUserAddressesPayload);
+}
+
+/** Handles GetUserAddressesQuery through the NestJS QueryBus. */
+@QueryHandler(GetUserAddressesQuery)
+class GetUserAddressesHandler implements IQueryHandler<GetUserAddressesQuery> {
+  /** Returns an application DTO, never a GraphQL type or Prisma row. */
+  async execute(query: GetUserAddressesQuery): Promise<UserAddressDTO[]>;
+}
+
 ```
 
-### Domain Events
+### Infrastructure And Presentation Layers
 
 ```typescript
-/**
- * Emitted when autocomplete suggestions are returned from geocoding adapter.
- */
-class AddressSuggestionsResolvedEvent {
-  constructor(
-    public readonly userId: UserId | null,
-    public readonly input: string,
-    public readonly suggestionCount: number,
-  );
+
+/** Prisma implementation of IUserAddressRepository; maps rows through AddressMapper. */
+@Injectable()
+class PrismaUserAddressRepository implements IUserAddressRepository {
+  /** Loads and maps a persistence row to the domain aggregate. */
+  async findById(id: AddressId): Promise<UserAddress | null>;
+
+  /** Persists aggregate state without publishing events itself. */
+  async save(aggregate: UserAddress): Promise<void>;
 }
 
-/**
- * Emitted when reverse geocoding resolves a coordinate pair.
- */
-class ReverseGeocodeResolvedEvent {
-  constructor(
-    public readonly lat: number,
-    public readonly lng: number,
-    public readonly formattedAddress: string,
-  );
+/** Injectable mapper for UserAddress; uses DI for nested mappers and avoids static conversion helpers. */
+@Injectable()
+class AddressMapper {
+  /** Converts a Prisma row into a domain aggregate. */
+  toDomain(row: unknown): UserAddress;
+
+  /** Converts a domain aggregate into persistence data. */
+  toPersistence(aggregate: UserAddress): unknown;
 }
+
+/** GraphQL resolver; injects CommandBus and QueryBus, never repositories. */
+@Resolver()
+class AddressResolver {
+  /** Creates the resolver with CQRS buses. */
+  constructor(private readonly commandBus: CommandBus, private readonly queryBus: QueryBus);
+}
+
+/** GraphQL shape for UserAddressGraphQLType; separate from application DTOs. */
+type UserAddressGraphQLTypeShape = Omit<UserAddressDTO, 'id'> & { id: string };
+
+/** Presentation type exposed by GraphQL decorators. */
+@ObjectType()
+class UserAddressGraphQLType implements UserAddressGraphQLTypeShape {
+  /** String form of the strongly typed aggregate ID. */
+  @Field() id: string;
+}
+
+/** Converts application DTOs to GraphQL types, including EntityId-to-string fields. */
+function toUserAddressGraphQLType(dto: UserAddressDTO): UserAddressGraphQLType;
+
+/** GraphQL shape for AddressSuggestionGraphQLType; separate from application DTOs. */
+type AddressSuggestionGraphQLTypeShape = Omit<AddressSuggestionDTO, 'id'> & { id: string };
+
+/** Presentation type exposed by GraphQL decorators. */
+@ObjectType()
+class AddressSuggestionGraphQLType implements AddressSuggestionGraphQLTypeShape {
+  /** String form of the strongly typed aggregate ID. */
+  @Field() id: string;
+}
+
+/** Converts application DTOs to GraphQL types, including EntityId-to-string fields. */
+function toAddressSuggestionGraphQLType(dto: AddressSuggestionDTO): AddressSuggestionGraphQLType;
+
 ```
+
+## EIP Patterns Applied
+
+- **Request-Reply**: Suggestion and reverse-geocode queries wrap external geocoder calls behind QueryBus request/response. Status: fully specced with concrete signatures in the Implementation Spec.
+- **Event Notification**: AddressDeletedEvent lets Users clear activeAddressId after the address deletion write succeeds. Status: fully specced with concrete signatures in the Implementation Spec.

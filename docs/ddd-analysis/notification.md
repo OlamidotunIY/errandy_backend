@@ -1,302 +1,226 @@
-# Notification — DDD & EIP Analysis
+# Notification - DDD & EIP Analysis
 
-## 1. Current Responsibility
+## Current Responsibility
 
-Orchestrates multi-channel notifications (email + push):
+Notification owns notification requests and dispatch history. Delivery adapters for push, email, and SMS are infrastructure dependencies; domain logic decides recipient, channel set, payload, status, and retry identity.
 
-- **Unified notification sender**: `sendNotification` (line 18-44) sends email and/or push notification based on options.
-- **Event listener**: `handleUserCreated` (line 46-65) listens to `user.created` event and sends welcome email.
-- Delegates to:
-  - `EmailService` (Resend adapter) for emails.
-  - `PushService` (Firebase Cloud Messaging adapter) for push notifications.
+## Domain Model
 
-**Files**: `notification.service.ts` (~70 lines), `notification.resolver.ts`, `notification.module.ts`.
+`NotificationRequest` is the aggregate root and `NotificationId` is the strongly typed aggregate identifier. References to other bounded contexts are stored as scalar IDs or value objects; cross-module behavior is coordinated through `CommandBus`, `QueryBus`, and `EventBus` rather than direct repository access.
 
-## 2. Bounded Context Assessment
+Domain events are queued inside aggregates with `addDomainEvent()`. Application handlers call the repository first and publish events only after the write succeeds by iterating `aggregate.pullDomainEvents()` and calling `this.eventBus.publish(event)`.
 
-**This is infrastructure / application service**, NOT a bounded context.
+## Target Structure
 
-- Notification is a **cross-cutting concern** — it's used by all bounded contexts (Errands, Escrow, Chat, etc.) to notify users.
-- Notification has NO domain logic — it's a facade over Email + Push services.
-
-**Overlaps**:
-
-- **Email**: NotificationService depends on EmailService (line 3, line 40).
-- **Push**: NotificationService depends on PushService (line 4, line 35).
-- **Users**: Listens to `user.created` event (line 46) — couples to Users module.
-- **All modules**: Every module can send notifications (e.g., "errand assigned", "payment received").
-
-**Verdict**: Notification is an **application service layer**, NOT a domain module. Should be renamed to `common/notification/` or `infrastructure/notification/`.
-
-## 3. Domain Model Audit
-
-**No domain model** — Notification is purely infrastructure.
-
-- `SendNotificationOptions` (line 8) is a DTO, not a domain entity.
-- No aggregates, no invariants, no business rules.
-
-**Data model (if it exists)**:
-
-- Prisma likely has a `Notification` model (for storing notification history), but not seen in service.
-- If so, it's an **event log** (read-only history), not a domain aggregate.
-
-## 4. Layering Violations
-
-**Cross-cutting concern in application layer**:
-
-- `sendNotification` (line 18-44) orchestrates email + push — this is fine as an application service.
-- However, service directly queries `prisma.user.findUnique` (line 21) — this is a data access concern, should be in infrastructure.
-
-**Event listener in service**:
-
-- `handleUserCreated` (line 46-65) is an event handler, NOT a service method.
-- Should be in `application/event-handlers/OnUserCreatedSendWelcome.ts` (separate from service).
-
-**Hardcoded templates**:
-
-- Line 51: `template: 'welcome'` — hardcoded template name.
-- Line 42: Template context is built inline (`{ ...options.email.context, name: user.name }`).
-- Recommendation: Create notification template registry (centralized config).
-
-## 5. Repository Pattern Gap
-
-**Not applicable** — Notification is infrastructure, not domain.
-
-- If `Notification` model exists (for history), it would need a repository:
-  - `INotificationHistoryRepository` (save notification for audit trail).
-
-## 6. EIP Opportunities
-
-**Publish-Subscribe (Event-Driven)**:
-
-- Current: `handleUserCreated` (line 46) listens to `user.created` event — this is correct usage of EventEmitter2.
-- Recommendation: Extract all event handlers to `application/event-handlers/`:
-  - `OnUserCreatedSendWelcome.ts`
-  - `OnErrandAssignedNotifyProvider.ts`
-  - `OnPaymentReceivedNotifyClient.ts`
-
-**Message Channel**:
-
-- Notifications could be queued in BullMQ (instead of synchronous):
-  - When event is emitted, push notification job to queue.
-  - Worker processes queue, retries on failure (email service down).
-  - Benefits: Resilience, retry, dead-letter queue.
-
-**Dead Letter / Retry**:
-
-- Current: If email/push fails (line 40, line 35), error bubbles up.
-- Line 58-64: Welcome email is try-catch wrapped (logs error but doesn't throw) — good for non-critical notifications.
-- Recommendation: Queue ALL notifications in BullMQ:
-  - Retry 3x on failure.
-  - Move to dead-letter queue after max retries.
-  - Alert ops team if DLQ threshold exceeded.
-
-**Content-Based Router**:
-
-- `sendNotification` (line 18-44) routes to Email and/or Push based on options:
-  - If `options.email`, send email.
-  - If `options.push && options.fcmToken`, send push.
-- This is fine for simple routing, but could be a strategy pattern if notification channels grow (SMS, Slack, etc.).
-
-**Message Translator**:
-
-- Email templates (Resend) vs. Push payloads (FCM) have different formats.
-- Recommendation: Create notification template objects:
-  - `NotificationTemplate` (abstract): `{ title, body, data }`.
-  - `EmailRenderer` (translates to Resend format).
-  - `PushRenderer` (translates to FCM format).
-
-## 7. Cross-Cutting Concerns
-
-**Error handling**:
-
-- `handleUserCreated` (line 46) wraps email sending in try-catch (line 58-64) — good.
-- `sendNotification` (line 18) does NOT wrap — if email/push fails, error bubbles up.
-
-**Logging**:
-
-- Logs welcome email sent (line 61) and errors (line 62-64) — good.
-- Should log ALL notification sends (email, push) for audit trail.
-
-**Transactions**:
-
-- Not applicable (notifications are idempotent side effects).
-
-## 8. GraphQL-Specific Notes
-
-**No GraphQL in Notification** (based on seen service):
-
-- Notifications are sent asynchronously (event-driven), not via GraphQL mutations.
-- If there's a mutation `sendTestNotification`, it should be admin-only (security).
-
-**Authorization**:
-
-- Not applicable (notifications are system-generated, not user-initiated).
-
-## 9. Target Structure
-
-```
-src/common/notification/  # OR src/infrastructure/notification/
-  application/
-    NotificationService.ts          # Facade: sendEmail(), sendPush(), sendMultiChannel()
-    event-handlers/
-      OnUserCreatedSendWelcome.ts   # Listens to user.created → sends welcome email
-      OnErrandAssignedNotifyProvider.ts
-      OnPaymentReceivedNotifyClient.ts
-      OnMessageSentNotifyRecipient.ts
-
-  infrastructure/
-    adapters/
-      EmailAdapter.ts               # Wraps EmailService (Resend)
-      PushAdapter.ts                # Wraps PushService (FCM)
-    templates/
-      NotificationTemplateRegistry.ts  # Centralized template config
-    queues/
-      NotificationQueue.ts          # BullMQ queue for async notification delivery
-      NotificationWorker.ts         # Worker processes notification jobs
-
+```text
+src/notification/
   domain/
-    NotificationHistory.ts          # Aggregate: audit log of sent notifications (if needed)
-    INotificationHistoryRepository.ts
+    entities/
+      NotificationRequest.ts
+    value-objects/
+      NotificationId.ts
+    errors/
+      NotificationRequestInvariantError.ts
+    events/
+      NotificationDispatchRequestedEvent.ts
+      NotificationDispatchedEvent.ts
+      NotificationDispatchFailedEvent.ts
+    repositories/
+      INotificationHistoryRepository.ts
+    services/
+      (domain services only when invariants span value objects)
+  application/
+    commands/
+      SendNotification/
+        SendNotificationCommand.ts
+        SendNotificationHandler.ts
+    queries/
+      GetNotificationHistory/
+        GetNotificationHistoryQuery.ts
+        GetNotificationHistoryHandler.ts
+    sagas/
+      (none)
+    event-handlers/
+      OnDomainEventSendNotificationHandler.ts
+    jobs/
+      RetryFailedNotificationJob.ts
+      RetryFailedNotificationProcessor.ts
+  infrastructure/
+    repositories/
+      PrismaNotificationRequestRepository.ts
+    mappers/
+      NotificationMapper.ts
+    adapters/
+      (external adapters only when required)
+  presentation/
+    resolvers/
+      NotificationResolver.ts
+    graphql/
+      NotificationGraphQLType.type.ts
+      mappers/
+        toNotificationGraphQLType.ts
 ```
 
-**Alternative**: If notification history is not needed, remove domain layer entirely (pure infrastructure).
-
-## Persistence Model (Derived from Domain)
-
-```prisma
-model NotificationHistory {
-  id String @id @map("_id")
-  recipientUserId String
-  templateKey String
-  channels String[]
-  payload Json?
-  sentAt DateTime
-
-  @@index([recipientUserId, sentAt]) // serves: notification history reads/audit
-  @@index([templateKey, sentAt]) // serves: template delivery audit
-}
-```
-
-`channels` and `payload` are embedded values from `NotificationRequest`. Reference fields are scalar IDs only: `recipientUserId`. Cleanup owner: `UserDeletedPolicyHandler` anonymizes or purges notification history according to retention policy through `INotificationHistoryRepository`. The repository currently exposes only `save`; indexes are for the audit/history reads implied by keeping this model and should be wired when those query methods are added. No unique constraint is needed because repeated notifications are allowed.
-
----
-
-## 10. Migration Risk & Priority
-
-**Risk**: **LOW**
-
-- Notification is infrastructure — refactoring won't break domain logic.
-- However, every module depends on NotificationService — refactoring requires coordinated updates.
-
-**Priority**: **PHASE 3 (after core domain modules)**
-**Rationale**:
-
-1. Notification is infrastructure — refactoring doesn't unlock domain modeling.
-2. Current implementation is functional (no critical bugs).
-3. Queueing notifications (BullMQ) can be done independently of domain refactoring.
-
-**Migration steps**:
-
-1. **Extract event handlers** from NotificationService to `application/event-handlers/`.
-2. **Queue notifications** in BullMQ:
-   - Create `NotificationQueue` and `NotificationWorker`.
-   - Emit event → push job to queue → worker sends email/push.
-3. **Add retry logic** (3x retry, dead-letter queue).
-4. **Centralize templates** in `NotificationTemplateRegistry`.
-5. **Add notification history** (optional: store sent notifications for audit trail).
-6. **Add preference management** (optional: user can opt out of certain notifications).
-7. **Move to `common/` or `infrastructure/`** (rename from `notification/` to clarify it's not a domain module).
-
----
-
-## 12. Implementation Spec
+## Implementation Spec
 
 ### Domain Layer
 
 ```typescript
-/**
- * Notification request value object used for channel orchestration.
- * References User fields: id, email, phoneNumber, activeRole for recipient targeting.
- */
-class NotificationRequest {
-  constructor(
-    public readonly recipientUserId: UserId,
-    public readonly channels: Array<"EMAIL" | "PUSH">,
-    public readonly templateKey: string,
-    public readonly payload: Record<string, unknown>,
-  );
 
-  /**
-   * Ensures at least one channel exists and template key is present.
-   */
-  validate(): void;
+/** Aggregate root for Notification invariants; persistence ignorant and reconstituted by repositories. */
+class NotificationRequest extends AggregateRoot<NotificationId> {
+  /** Creates a new aggregate and records creation events where the module emits them. */
+  static create(...args: unknown[]): NotificationRequest;
+
+  /** Rehydrates an aggregate from persistence without recording new domain events. */
+  static reconstitute(...args: unknown[]): NotificationRequest;
+
+  /** Returns and clears queued domain events after a successful repository write. */
+  pullDomainEvents(): DomainEvent[];
 }
-```
 
-### Repository Interface
+/** Strongly typed identifier for NotificationRequest; prevents cross-aggregate ID mix-ups. */
+class NotificationId extends EntityId {
+  /** Builds an ID from a persisted string. */
+  static fromString(value: string): NotificationId;
+}
 
-```typescript
-/**
- * Optional history persistence contract for notification delivery.
- * // TODO: No Notification Prisma model currently exists.
- */
+/** Base domain error for violated Notification invariants. */
+class NotificationRequestInvariantError extends Error {
+  /** Creates the invariant error. */
+  constructor(message: string);
+}
+
+/** Domain event emitted by NotificationRequest after its state transition is persisted. */
+class NotificationDispatchRequestedEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: NotificationId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
+}
+
+/** Domain event emitted by NotificationRequest after its state transition is persisted. */
+class NotificationDispatchedEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: NotificationId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
+}
+
+/** Domain event emitted by NotificationRequest after its state transition is persisted. */
+class NotificationDispatchFailedEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: NotificationId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
+}
+
+/** Repository interface for NotificationRequest; domain/application depend on this contract, not Prisma. */
 interface INotificationHistoryRepository {
-  /**
-   * Stores dispatched notification metadata.
-   */
-  save(entry: {
-    recipientUserId: UserId;
-    templateKey: string;
-    channels: Array<'EMAIL' | 'PUSH'>;
-    sentAt: Date;
-  }): Promise<void>;
+  /** Loads an aggregate by ID. */
+  findById(id: NotificationId): Promise<NotificationRequest | null>;
+
+  /** Persists the aggregate in one durable write boundary. */
+  save(aggregate: NotificationRequest): Promise<void>;
 }
+
 ```
 
 ### Application Layer
 
 ```typescript
-/**
- * Sends multi-channel notifications through underlying adapters.
- */
-class SendNotificationCommandHandler {
-  /**
-   * Routes request to channel adapters and emits NotificationDispatchedEvent.
-   */
-  execute(command: SendNotificationCommand): Promise<void>;
+
+import { Command, CommandBus, CommandHandler, EventBus, EventsHandler, ICommandHandler, IEventHandler, IQueryHandler, Query, QueryBus, QueryHandler } from '@nestjs/cqrs';
+
+/** Command input for the SendNotification use case. */
+class SendNotificationCommand extends Command<void> {
+  /** Captures all input required by SendNotificationHandler. */
+  constructor(public readonly payload: SendNotificationPayload);
 }
 
-interface SendNotificationCommand {
-  recipientUserId: UserId;
-  templateKey: string;
-  payload: Record<string, unknown>;
-  channels: Array<'EMAIL' | 'PUSH'>;
+/** Handles SendNotificationCommand through the NestJS CommandBus. */
+@CommandHandler(SendNotificationCommand)
+class SendNotificationHandler implements ICommandHandler<SendNotificationCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: SendNotificationCommand): Promise<void>;
 }
+
+/** Query input for GetNotificationHistory. */
+class GetNotificationHistoryQuery extends Query<NotificationDTO[]> {
+  /** Captures all filters, pagination, and caller identity for the query. */
+  constructor(public readonly payload: GetNotificationHistoryPayload);
+}
+
+/** Handles GetNotificationHistoryQuery through the NestJS QueryBus. */
+@QueryHandler(GetNotificationHistoryQuery)
+class GetNotificationHistoryHandler implements IQueryHandler<GetNotificationHistoryQuery> {
+  /** Returns an application DTO, never a GraphQL type or Prisma row. */
+  async execute(query: GetNotificationHistoryQuery): Promise<NotificationDTO[]>;
+}
+
+/** Event handler for DomainEvent; uses buses rather than handler classes. */
+@EventsHandler(DomainEvent)
+class OnDomainEventSendNotificationHandler implements IEventHandler<DomainEvent> {
+  /** Reacts to the event by dispatching commands/queries through the buses. */
+  async handle(event: DomainEvent): Promise<void>;
+}
+
+/** Scheduler/query side for RetryFailedNotification; finds eligible records and enqueues one BullMQ job per record/window. */
+class RetryFailedNotificationJob {
+  /** Enqueues work; it never processes records inline during the scheduler tick. */
+  async enqueueDueJobs(): Promise<void>;
+}
+
+/** BullMQ processor for RetryFailedNotification; dispatches use cases through CommandBus and uses retry/backoff. */
+@Processor('RetryFailedNotification')
+class RetryFailedNotificationProcessor {
+  /** Processes one queued payload with attempts=5 and exponential backoff; DLQ payload includes original payload, correlationId, failure reason, attempt count, and every idempotency key or gatewayReference needed for safe replay. */
+  async process(job: Job<RetryFailedNotificationPayload>): Promise<void>;
+}
+
 ```
 
-### Domain Events
+### Infrastructure And Presentation Layers
 
 ```typescript
-/**
- * Emitted when notification fan-out starts.
- */
-class NotificationDispatchRequestedEvent {
-  constructor(
-    public readonly recipientUserId: UserId,
-    public readonly channels: Array<"EMAIL" | "PUSH">,
-    public readonly templateKey: string,
-  );
+
+/** Prisma implementation of INotificationHistoryRepository; maps rows through NotificationMapper. */
+@Injectable()
+class PrismaNotificationRequestRepository implements INotificationHistoryRepository {
+  /** Loads and maps a persistence row to the domain aggregate. */
+  async findById(id: NotificationId): Promise<NotificationRequest | null>;
+
+  /** Persists aggregate state without publishing events itself. */
+  async save(aggregate: NotificationRequest): Promise<void>;
 }
 
-/**
- * Emitted after channel delivery attempts complete.
- */
-class NotificationDispatchedEvent {
-  constructor(
-    public readonly recipientUserId: UserId,
-    public readonly templateKey: string,
-    public readonly successfulChannels: Array<"EMAIL" | "PUSH">,
-  );
+/** Injectable mapper for NotificationRequest; uses DI for nested mappers and avoids static conversion helpers. */
+@Injectable()
+class NotificationMapper {
+  /** Converts a Prisma row into a domain aggregate. */
+  toDomain(row: unknown): NotificationRequest;
+
+  /** Converts a domain aggregate into persistence data. */
+  toPersistence(aggregate: NotificationRequest): unknown;
 }
+
+/** GraphQL resolver; injects CommandBus and QueryBus, never repositories. */
+@Resolver()
+class NotificationResolver {
+  /** Creates the resolver with CQRS buses. */
+  constructor(private readonly commandBus: CommandBus, private readonly queryBus: QueryBus);
+}
+
+/** GraphQL shape for NotificationGraphQLType; separate from application DTOs. */
+type NotificationGraphQLTypeShape = Omit<NotificationDTO, 'id'> & { id: string };
+
+/** Presentation type exposed by GraphQL decorators. */
+@ObjectType()
+class NotificationGraphQLType implements NotificationGraphQLTypeShape {
+  /** String form of the strongly typed aggregate ID. */
+  @Field() id: string;
+}
+
+/** Converts application DTOs to GraphQL types, including EntityId-to-string fields. */
+function toNotificationGraphQLType(dto: NotificationDTO): NotificationGraphQLType;
+
 ```
+
+## EIP Patterns Applied
+
+- **Message Translator**: Domain events are translated into channel-specific notification payloads without leaking adapter details. Status: fully specced with concrete signatures in the Implementation Spec.
+- **Dead Letter Channel**: RetryFailedNotificationProcessor retries failed dispatches and records exhausted payloads with recipient, channels, template, and correlationId. Status: fully specced with concrete signatures in the Implementation Spec.

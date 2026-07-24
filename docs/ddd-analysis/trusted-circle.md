@@ -1,405 +1,252 @@
-# Trusted-Circle — DDD & EIP Analysis
+# Trusted Circle - DDD & EIP Analysis
 
-## 1. Current Responsibility
+## Current Responsibility
 
-Manages client's list of trusted providers (favorites):
+Trusted Circle owns a client-curated set of preferred providers. It supports provider trust signals for discovery without merging Client and Provider aggregate state.
 
-- **Get trusted circle**: `getTrustedCircle` (line 16-32) fetches active members with provider details.
-- **Get pending members**: `getPendingMembers` (line 34-57) fetches members with `PENDING` status.
-- **Add to circle**: `addToCircle` (line 59-108) adds a provider to client's circle (creates circle if doesn't exist).
-- **Remove from circle**: `removeFromCircle` (line 110-126) deletes a member from circle.
-- **Share circle**: `shareCircle` (line 128-152+) shares client's trusted circle with another user (via email or user ID).
+## Domain Model
 
-**Files**: `trusted-circle.service.ts` (~150+ lines), `trusted-circle.resolver.ts`, `trusted-circle.module.ts`.
+`TrustedCircle` is the aggregate root and `TrustedCircleId` is the strongly typed aggregate identifier. References to other bounded contexts are stored as scalar IDs or value objects; cross-module behavior is coordinated through `CommandBus`, `QueryBus`, and `EventBus` rather than direct repository access.
 
-## 2. Bounded Context Assessment
+Domain events are queued inside aggregates with `addDomainEvent()`. Application handlers call the repository first and publish events only after the write succeeds by iterating `aggregate.pullDomainEvents()` and calling `this.eventBus.publish(event)`.
 
-**This is a sub-domain of Client** or a separate "Social Graph" bounded context.
+## Target Structure
 
-- Trusted Circle is a **client-specific feature** — workers providers can't have trusted circles (only clients can).
-- However, "Share Circle" (line 128+) introduces social/viral growth mechanics — could be a separate context.
-
-**Overlaps**:
-
-- **Client**: TrustedCircle belongs to Client (`trustedCircleId → Client.id`).
-- **Provider**: TrustedCircle contains providers (`TrustedCircleMember.providerId → Provider.id`).
-- **Errands**: Provider discovery (in Provider module, line 66+ of provider.service.ts) queries trusted circle to prioritize trusted providers.
-
-**Verdict**: Trusted Circle is a **sub-domain of Client** (merge into Client module) unless social features grow complex (sharing, recommendations, social proof).
-
-## 3. Domain Model Audit
-
-**Anemic models**:
-
-- `TrustedCircle` (Prisma model) is a data bag with `clientId`, `name`, `members`.
-  - No behavior: No `TrustedCircle.addMember()`, `TrustedCircle.removeMember()` methods.
-- `TrustedCircleMember` (Prisma model) is a data bag with `providerId`, `status`, `source`.
-  - No behavior.
-
-**Aggregate boundaries**:
-
-- **`TrustedCircle`** should be the aggregate root, owning:
-  - `TrustedCircleMember` (child entity — members belong to circle).
-  - Invariants: Circle must belong to a client, members must be valid providers, no duplicate members.
-
-**Invariants currently unenforced**:
-
-1. **Duplicate prevention**:
-   - `addToCircle` (line 88-97) checks for existing member and returns early (line 97) — good.
-   - However, no validation that provider exists before adding (line 81-85: checks, but after circle creation).
-2. **Circle name**:
-   - Default circle name is "My Trusted Circle" (line 73) — hardcoded in service, should be in domain.
-3. **Member status**:
-   - `status` field (PENDING | ACTIVE) is stored, but no logic for approving/rejecting pending members.
-   - If provider must approve being added to circle (privacy), status transitions should be in domain.
-
-## 4. Layering Violations
-
-**Business logic in service**:
-
-- `addToCircle` (line 59-108) orchestrates:
-  1. Find or create circle (upsert logic).
-  2. Check provider existence.
-  3. Check for duplicates.
-  4. Create member.
-
-  This is a **use case** (command handler), not a domain service. Should be `AddToCircleCommandHandler`.
-
-**Persistence leaking**:
-
-- Direct Prisma calls throughout (`this.prisma.trustedCircle.*`, `this.prisma.trustedCircleMember.*`).
-- No repository abstraction.
-
-**Event emission missing**:
-
-- When provider is added to circle, should emit `ProviderAddedToCircle` event:
-  - Listeners:
-    - Notification sends "you've been added to X's trusted circle" push notification to provider (if member status is ACTIVE).
-    - Analytics tracks viral growth (how many circles each provider is in).
-
-## 5. Repository Pattern Gap
-
-**Current state**: No repository. Direct Prisma usage.
-
-**Proposed**:
-
-```
-domain/
-  ITrustedCircleRepository (interface)
-    - findByClientId(clientId): TrustedCircle | null
-    - save(circle): void
-infrastructure/
-  PrismaTrustedCircleRepository (implementation)
-```
-
-**Consolidation**: All `prisma.trustedCircle.*` calls move to repository.
-
-## 6. EIP Opportunities
-
-**Command/Event patterns**:
-
-1. **ProviderAddedToCircle event**:
-   - When client adds provider to circle, emit event.
-   - Listeners:
-     - Provider module increments "times added to circles" metric (social proof).
-     - Notification sends "you've been added to a trusted circle" push notification to provider.
-
-2. **CircleShared event**:
-   - When client shares circle (line 128+), emit event.
-   - Listeners:
-     - Notification sends "X shared their trusted circle with you" email to recipient.
-     - Analytics tracks viral growth.
-
-**Dead Letter / Retry**:
-
-- No external calls in TrustedCircleService (all DB queries).
-
-## 7. Cross-Cutting Concerns
-
-**Validation**:
-
-- `shareCircle` (line 128+) validates recipient (email or user ID required) — good (line 131-133).
-
-**Transactions**:
-
-- `addToCircle` (line 59-108) creates circle, then creates member — two Prisma calls, no transaction.
-- Race condition: If two providers are added concurrently to new circle, circle could be created twice (duplicate circles).
-
-**Error handling**:
-
-- Throws `NotFoundException` (line 62, line 84, line 115, line 120, line 138, line 145) — good domain errors.
-- Throws `BadRequestException` (line 131) — HTTP-specific exception in service layer.
-
-## 8. GraphQL-Specific Notes
-
-**Authorization**:
-
-- No auth checks in service (assumes resolver validates user can only manage their own circle).
-
-## 9. Target Structure
-
-```
-src/client/
+```text
+src/trusted-circle/
   domain/
     entities/
-      TrustedCircle.ts              # Aggregate root with addMember(), removeMember()
-      TrustedCircleMember.ts        # Child entity
+      TrustedCircle.ts
     value-objects/
-      MemberStatus.ts               # PENDING | ACTIVE
-      MemberSource.ts               # MANUAL_ADD | AUTO_SUGGESTED | SHARED
+      TrustedCircleId.ts
+    errors/
+      TrustedCircleInvariantError.ts
+    events/
+      ProviderAddedToCircleEvent.ts
+      ProviderRemovedFromCircleEvent.ts
+      TrustedCircleSharedEvent.ts
     repositories/
       ITrustedCircleRepository.ts
-    events/
-      ProviderAddedToCircle.ts
-      ProviderRemovedFromCircle.ts
-      CircleShared.ts
-
+    services/
+      (domain services only when invariants span value objects)
   application/
     commands/
-      AddToCircle/
-        AddToCircleCommand.ts
-        AddToCircleHandler.ts
-      RemoveFromCircle/
-        RemoveFromCircleCommand.ts
-        RemoveFromCircleHandler.ts
-      ShareCircle/
-        ShareCircleCommand.ts
-        ShareCircleHandler.ts
+      AddToTrustedCircle/
+        AddToTrustedCircleCommand.ts
+        AddToTrustedCircleHandler.ts
+      RemoveFromTrustedCircle/
+        RemoveFromTrustedCircleCommand.ts
+        RemoveFromTrustedCircleHandler.ts
+      ShareTrustedCircle/
+        ShareTrustedCircleCommand.ts
+        ShareTrustedCircleHandler.ts
     queries/
       GetTrustedCircle/
         GetTrustedCircleQuery.ts
         GetTrustedCircleHandler.ts
-
+    sagas/
+      (none)
+    event-handlers/
+      (none)
+    jobs/
+      (none)
   infrastructure/
     repositories/
       PrismaTrustedCircleRepository.ts
+    mappers/
+      TrustedCircleMapper.ts
+    adapters/
+      (external adapters only when required)
+  presentation/
+    resolvers/
+      TrustedCircleResolver.ts
+    graphql/
+      TrustedCircleGraphQLType.type.ts
+      TrustedCircleMemberGraphQLType.type.ts
+      mappers/
+        toTrustedCircleGraphQLType.ts
+        toTrustedCircleMemberGraphQLType.ts
 ```
 
-**Recommendation**: Merge Trusted-Circle into Client module (as part of client domain).
-
-## Persistence Model (Derived from Domain)
-
-```prisma
-model TrustedCircle {
-  id String @id @map("_id")
-  clientId String
-  name String?
-  createdAt DateTime
-
-  @@unique([clientId]) // backs: TrustedCircleAlreadyExistsError
-}
-
-model TrustedCircleMember {
-  id String @id @map("_id")
-  trustedCircleId String
-  providerId String
-  addedAt DateTime
-  source CircleSource
-  status TrustedCircleMemberStatus
-
-  @@index([trustedCircleId]) // serves: aggregate reconstitution by findById/findByClientId
-  @@index([providerId, status]) // serves: provider deletion cleanup
-  @@unique([trustedCircleId, providerId]) // backs: TrustedCircleMemberAlreadyExistsError
-}
-```
-
-`TrustedCircle` is the aggregate root; `TrustedCircleMember` has membership lifecycle but is reachable only through `ITrustedCircleRepository`. References are scalar IDs only: `clientId`, `trustedCircleId`, `providerId`. Cleanup owners: `ClientDeletedPolicyHandler` deletes or archives the circle through `ITrustedCircleRepository`; `ProviderDeletedPolicyHandler` removes/deactivates member entries through TrustedCircle commands. `id` serves `findById`, unique `clientId` serves `findByClientId`, and member indexes support reconstitution and cleanup.
-
----
-
-## 10. Migration Risk & Priority
-
-**Risk**: **LOW**
-
-- Trusted Circle is a supporting feature — refactoring won't break core flows (errands, payments).
-- Provider discovery (in Provider module) queries trusted circle, but that's a read operation (low coupling).
-
-**Priority**: **PHASE 2 (parallel with Client/Provider)**
-**Rationale**:
-
-1. Trusted Circle is tightly coupled to Client — refactor together.
-2. Trusted Circle is used by Provider discovery — refactor together for consistency.
-3. Current implementation is functional — no critical bugs.
-
-**Migration steps**:
-
-1. **Merge Trusted-Circle into Client module** (or keep separate if social features grow).
-2. **Extract TrustedCircle aggregate** with `addMember()`, `removeMember()` methods.
-3. **Introduce ITrustedCircleRepository** and `PrismaTrustedCircleRepository`.
-4. **Create command handlers** (AddToCircle, RemoveFromCircle, ShareCircle).
-5. **Emit events**: `ProviderAddedToCircle`, `CircleShared`.
-6. **Add transaction** for circle creation + member creation (prevent duplicate circles).
-7. **Implement member approval flow** (if provider must approve being added to circle).
-
----
-
-## 12. Implementation Spec
+## Implementation Spec
 
 ### Domain Layer
 
 ```typescript
-/**
- * Trusted circle aggregate root.
- * Maps to TrustedCircle fields: id, clientId, name, createdAt.
- */
+
+/** Aggregate root for Trusted Circle invariants; persistence ignorant and reconstituted by repositories. */
+class TrustedCircle extends AggregateRoot<TrustedCircleId> {
+  /** Creates a new aggregate and records creation events where the module emits them. */
+  static create(...args: unknown[]): TrustedCircle;
+
+  /** Rehydrates an aggregate from persistence without recording new domain events. */
+  static reconstitute(...args: unknown[]): TrustedCircle;
+
+  /** Returns and clears queued domain events after a successful repository write. */
+  pullDomainEvents(): DomainEvent[];
+}
+
+/** Strongly typed identifier for TrustedCircle; prevents cross-aggregate ID mix-ups. */
 class TrustedCircleId extends EntityId {
-  /**
-   * Private constructor. Use TrustedCircleId.new() or TrustedCircleId.from().
-   */
-  private constructor(value: string);
-
-  /**
-   * Creates a new TrustedCircleId.
-   */
-  static new(): TrustedCircleId;
-
-  /**
-   * Rehydrates TrustedCircleId from persisted value.
-   */
-  static from(value: string): TrustedCircleId;
+  /** Builds an ID from a persisted string. */
+  static fromString(value: string): TrustedCircleId;
 }
 
-/**
- * Trusted circle aggregate root.
- */
-class TrustedCircleAggregate extends AggregateRoot<TrustedCircleId> {
-  constructor(
-    public readonly id: TrustedCircleId,
-    public readonly clientId: ClientId,
-    private name: string | null,
-    public readonly createdAt: Date,
-    private members: TrustedCircleMemberAggregate[],
-  );
-
-  /**
-   * Creates a new trusted circle aggregate.
-   */
-  static create(
-    clientId: ClientId,
-    name: string | null,
-    createdAt: Date,
-    members?: TrustedCircleMemberAggregate[],
-  ): TrustedCircleAggregate;
-
-  /**
-   * Reconstitutes trusted circle aggregate from persistence.
-   */
-  static reconstitute(
-    id: TrustedCircleId,
-    clientId: ClientId,
-    name: string | null,
-    createdAt: Date,
-    members: TrustedCircleMemberAggregate[],
-  ): TrustedCircleAggregate;
-
-  /**
-   * Adds provider to circle if not already present.
-   * Writes TrustedCircleMember fields trustedCircleId, providerId, source, status.
-   */
-  addMember(providerId: ProviderId, source: CircleSource): void;
-
-  /**
-   * Removes provider from circle.
-   */
-  removeMember(providerId: ProviderId): void;
+/** Base domain error for violated Trusted Circle invariants. */
+class TrustedCircleInvariantError extends Error {
+  /** Creates the invariant error. */
+  constructor(message: string);
 }
 
-/**
- * Circle member child entity mapped from TrustedCircleMember model.
- */
-class TrustedCircleMemberAggregate {
-  constructor(
-    public readonly id: string,
-    public readonly trustedCircleId: TrustedCircleId,
-    public readonly providerId: ProviderId,
-    public readonly addedAt: Date,
-    public readonly source: CircleSource,
-    public readonly status: TrustedCircleMemberStatus,
-  );
+/** Domain event emitted by TrustedCircle after its state transition is persisted. */
+class ProviderAddedToCircleEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: TrustedCircleId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
 }
-```
 
-### Repository Interface
+/** Domain event emitted by TrustedCircle after its state transition is persisted. */
+class ProviderRemovedFromCircleEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: TrustedCircleId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
+}
 
-```typescript
-/**
- * Persistence contract for trusted circles.
- */
+/** Domain event emitted by TrustedCircle after its state transition is persisted. */
+class TrustedCircleSharedEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: TrustedCircleId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
+}
+
+/** Repository interface for TrustedCircle; domain/application depend on this contract, not Prisma. */
 interface ITrustedCircleRepository {
-  /**
-   * Finds circle by TrustedCircle.id.
-   */
-  findById(id: TrustedCircleId): Promise<TrustedCircleAggregate | null>;
+  /** Loads an aggregate by ID. */
+  findById(id: TrustedCircleId): Promise<TrustedCircle | null>;
 
-  /**
-   * Finds circle owned by clientId.
-   */
-  findByClientId(clientId: ClientId): Promise<TrustedCircleAggregate | null>;
-
-  /**
-   * Saves circle and member changes.
-   */
-  save(circle: TrustedCircleAggregate): Promise<void>;
+  /** Persists the aggregate in one durable write boundary. */
+  save(aggregate: TrustedCircle): Promise<void>;
 }
+
 ```
 
 ### Application Layer
 
 ```typescript
-/**
- * Adds provider into a client's trusted circle.
- */
-class AddToTrustedCircleCommandHandler {
-  /**
-   * Mutates circle and emits ProviderAddedToCircleEvent.
-   */
-  execute(command: AddToTrustedCircleCommand): Promise<void>;
+
+import { Command, CommandBus, CommandHandler, EventBus, EventsHandler, ICommandHandler, IEventHandler, IQueryHandler, Query, QueryBus, QueryHandler } from '@nestjs/cqrs';
+
+/** Command input for the AddToTrustedCircle use case. */
+class AddToTrustedCircleCommand extends Command<void> {
+  /** Captures all input required by AddToTrustedCircleHandler. */
+  constructor(public readonly payload: AddToTrustedCirclePayload);
 }
 
-interface AddToTrustedCircleCommand {
-  clientId: ClientId;
-  providerId: ProviderId;
-  source: CircleSource;
+/** Handles AddToTrustedCircleCommand through the NestJS CommandBus. */
+@CommandHandler(AddToTrustedCircleCommand)
+class AddToTrustedCircleHandler implements ICommandHandler<AddToTrustedCircleCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: AddToTrustedCircleCommand): Promise<void>;
 }
 
-/**
- * Removes provider from trusted circle.
- */
-class RemoveFromTrustedCircleCommandHandler {
-  /**
-   * Mutates circle and emits ProviderRemovedFromCircleEvent.
-   */
-  execute(command: RemoveFromTrustedCircleCommand): Promise<void>;
+/** Command input for the RemoveFromTrustedCircle use case. */
+class RemoveFromTrustedCircleCommand extends Command<void> {
+  /** Captures all input required by RemoveFromTrustedCircleHandler. */
+  constructor(public readonly payload: RemoveFromTrustedCirclePayload);
 }
 
-interface RemoveFromTrustedCircleCommand {
-  clientId: ClientId;
-  providerId: ProviderId;
+/** Handles RemoveFromTrustedCircleCommand through the NestJS CommandBus. */
+@CommandHandler(RemoveFromTrustedCircleCommand)
+class RemoveFromTrustedCircleHandler implements ICommandHandler<RemoveFromTrustedCircleCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: RemoveFromTrustedCircleCommand): Promise<void>;
 }
+
+/** Command input for the ShareTrustedCircle use case. */
+class ShareTrustedCircleCommand extends Command<void> {
+  /** Captures all input required by ShareTrustedCircleHandler. */
+  constructor(public readonly payload: ShareTrustedCirclePayload);
+}
+
+/** Handles ShareTrustedCircleCommand through the NestJS CommandBus. */
+@CommandHandler(ShareTrustedCircleCommand)
+class ShareTrustedCircleHandler implements ICommandHandler<ShareTrustedCircleCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: ShareTrustedCircleCommand): Promise<void>;
+}
+
+/** Query input for GetTrustedCircle. */
+class GetTrustedCircleQuery extends Query<TrustedCircleDTO> {
+  /** Captures all filters, pagination, and caller identity for the query. */
+  constructor(public readonly payload: GetTrustedCirclePayload);
+}
+
+/** Handles GetTrustedCircleQuery through the NestJS QueryBus. */
+@QueryHandler(GetTrustedCircleQuery)
+class GetTrustedCircleHandler implements IQueryHandler<GetTrustedCircleQuery> {
+  /** Returns an application DTO, never a GraphQL type or Prisma row. */
+  async execute(query: GetTrustedCircleQuery): Promise<TrustedCircleDTO>;
+}
+
 ```
 
-### Domain Events
+### Infrastructure And Presentation Layers
 
 ```typescript
-/**
- * Emitted when provider is added to circle.
- */
-class ProviderAddedToCircleEvent {
-  constructor(
-    public readonly trustedCircleId: TrustedCircleId,
-    public readonly clientId: ClientId,
-    public readonly providerId: ProviderId,
-  );
+
+/** Prisma implementation of ITrustedCircleRepository; maps rows through TrustedCircleMapper. */
+@Injectable()
+class PrismaTrustedCircleRepository implements ITrustedCircleRepository {
+  /** Loads and maps a persistence row to the domain aggregate. */
+  async findById(id: TrustedCircleId): Promise<TrustedCircle | null>;
+
+  /** Persists aggregate state without publishing events itself. */
+  async save(aggregate: TrustedCircle): Promise<void>;
 }
 
-/**
- * Emitted when provider is removed from circle.
- */
-class ProviderRemovedFromCircleEvent {
-  constructor(
-    public readonly trustedCircleId: TrustedCircleId,
-    public readonly clientId: ClientId,
-    public readonly providerId: ProviderId,
-  );
+/** Injectable mapper for TrustedCircle; uses DI for nested mappers and avoids static conversion helpers. */
+@Injectable()
+class TrustedCircleMapper {
+  /** Converts a Prisma row into a domain aggregate. */
+  toDomain(row: unknown): TrustedCircle;
+
+  /** Converts a domain aggregate into persistence data. */
+  toPersistence(aggregate: TrustedCircle): unknown;
 }
+
+/** GraphQL resolver; injects CommandBus and QueryBus, never repositories. */
+@Resolver()
+class TrustedCircleResolver {
+  /** Creates the resolver with CQRS buses. */
+  constructor(private readonly commandBus: CommandBus, private readonly queryBus: QueryBus);
+}
+
+/** GraphQL shape for TrustedCircleGraphQLType; separate from application DTOs. */
+type TrustedCircleGraphQLTypeShape = Omit<TrustedCircleDTO, 'id'> & { id: string };
+
+/** Presentation type exposed by GraphQL decorators. */
+@ObjectType()
+class TrustedCircleGraphQLType implements TrustedCircleGraphQLTypeShape {
+  /** String form of the strongly typed aggregate ID. */
+  @Field() id: string;
+}
+
+/** Converts application DTOs to GraphQL types, including EntityId-to-string fields. */
+function toTrustedCircleGraphQLType(dto: TrustedCircleDTO): TrustedCircleGraphQLType;
+
+/** GraphQL shape for TrustedCircleMemberGraphQLType; separate from application DTOs. */
+type TrustedCircleMemberGraphQLTypeShape = Omit<TrustedCircleMemberDTO, 'id'> & { id: string };
+
+/** Presentation type exposed by GraphQL decorators. */
+@ObjectType()
+class TrustedCircleMemberGraphQLType implements TrustedCircleMemberGraphQLTypeShape {
+  /** String form of the strongly typed aggregate ID. */
+  @Field() id: string;
+}
+
+/** Converts application DTOs to GraphQL types, including EntityId-to-string fields. */
+function toTrustedCircleMemberGraphQLType(dto: TrustedCircleMemberDTO): TrustedCircleMemberGraphQLType;
+
 ```
+
+## EIP Patterns Applied
+
+- **Recipient List**: A trusted circle is an explicit recipient/provider list reused by discovery and sharing flows. Status: fully specced with concrete signatures in the Implementation Spec.
+- **Event Notification**: ProviderAddedToCircleEvent and ProviderRemovedFromCircleEvent update discovery read models. Status: fully specced with concrete signatures in the Implementation Spec.

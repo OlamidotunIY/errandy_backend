@@ -1,198 +1,36 @@
-# Application — DDD & EIP Analysis
+# Application - DDD & EIP Analysis
 
-## 1. Current Responsibility
+## Current Responsibility
 
-Manages worker applications to errands (providers applying for client jobs):
+Application owns provider applications to errands, including submission, acceptance, rejection, cancellation, and one-application-per-worker-per-errand uniqueness. Acceptance starts the cross-module funding and assignment workflow but Application does not charge payments or assign errands itself.
 
-- Creating applications (`apply` method)
-- Fetching application by ID (`getApplicationById`)
-- Listing applications for an errand (`errandApplications` — client view)
-- Application summary statistics (`errandApplicationSummary` — counts by status, chatting applicants)
-- Fetching user's own application for an errand (`myApplicationForErrand`)
-- **Acceptance logic** is in `EscrowService.acceptApplicationAndFundEscrow` (NOT in this module)
+## Domain Model
 
-**Files**: `application.service.ts` (~200 lines), `application.resolver.ts`, `application.module.ts`.
+`Application` is the aggregate root and `ApplicationId` is the strongly typed aggregate identifier. References to other bounded contexts are stored as scalar IDs or value objects; cross-module behavior is coordinated through `CommandBus`, `QueryBus`, and `EventBus` rather than direct repository access.
 
-## 2. Bounded Context Assessment
+Domain events are queued inside aggregates with `addDomainEvent()`. Application handlers call the repository first and publish events only after the write succeeds by iterating `aggregate.pullDomainEvents()` and calling `this.eventBus.publish(event)`.
 
-**This should be a sub-domain of Errands**, not a standalone bounded context.
+## Target Structure
 
-- Application is a **relationship entity** between Errand and Provider — it represents a provider's intent to work on an errand.
-- It has lifecycle states (`PENDING` → `ACCEPTED` | `REJECTED` | `CANCELLED`), but those states are tightly coupled to errand status transitions.
-
-**Overlaps**:
-
-- **Errands**: Applications are filtered by errand status (line 49: `errand.status !== ErrandStatus.OPEN` guard). Errand status drives application lifecycle.
-- **Escrow**: Acceptance logic lives in `EscrowService` (line 13: `import { EscrowService }`), not in `ApplicationService`.
-- **Provider**: Application references `workerId` (provider ID), but provider discovery/matching is separate.
-
-**Verdict**: Application is a **supporting sub-domain** within the Errands bounded context. It should be folded into Errands domain layer as a child entity or aggregate.
-
-## 3. Domain Model Audit
-
-**Anemic models**:
-
-- `Application` (Prisma model) is a data bag with `errandId`, `workerId`, `status`, `acceptedAt`. No behavior.
-- No methods for state transitions (`accept()`, `reject()`, `cancel()`).
-
-**Aggregate boundaries**:
-
-- **Option 1: Application as child entity of Errand**:
-
-  - `Errand` aggregate owns `Application` collection.
-  - `Errand.applyWorker(workerId)` creates application.
-  - `Errand.acceptApplication(applicationId)` transitions errand status + application status together.
-  - Benefits: Ensures consistency (cannot accept application if errand is no longer `OPEN`).
-- **Option 2: Application as separate aggregate**:
-
-  - `Application` is its own aggregate root.
-  - Invariants: Can only apply if errand is `OPEN`, cannot accept twice.
-  - Downside: Need distributed transaction or saga to keep errand + application in sync.
-
-**Recommendation**: Option 1 (child entity) because application lifecycle is inseparable from errand lifecycle.
-
-**Invariants currently unenforced**:
-
-1. **Cannot apply to closed errands**:
-   - Checked in service (line 49: `if (errand.status !== ErrandStatus.OPEN)`), but not in domain layer.
-   - What if errand status changes after fetch but before application creation? (Race condition.)
-2. **Cannot apply twice**:
-   - Unique constraint on `(errandId, workerId)` enforces this at DB level, but no domain validation.
-   - If constraint fails, Prisma throws generic error instead of domain exception (`WorkerAlreadyApplied`).
-3. **Cannot accept non-pending applications**:
-   - Checked in `EscrowService` (line 100 in escrow.service.ts: `application.status !== ApplicationStatus.PENDING`), but NOT in `ApplicationService`.
-4. **Source type guard**:
-   - `apply` checks `errand.sourceType` (line 54: cannot apply to `LISTING_HIRE` or `RECURRING_CONTRACT`).
-   - This is a business rule that should be an invariant in Errand domain, not scattered across services.
-
-## 4. Layering Violations
-
-**Business logic in wrong module**:
-
-- **Acceptance logic is in Escrow module**, not Application module:
-  - `EscrowService.acceptApplicationAndFundEscrow` (line 58 in escrow.service.ts) updates application status (line ~80-90).
-  - Application module should own its own state transitions.
-
-**Persistence leaking**:
-
-- Direct Prisma calls: `this.prisma.application.*` throughout service.
-- No repository abstraction.
-
-**Cross-module dependencies**:
-
-- `ApplicationService` depends on `EscrowService` (line 13: `import { EscrowService }`).
-- But `ApplicationService` doesn't actually call escrow — the dependency is declared but unused (code smell: leftover from refactoring?).
-- Resolver (`ApplicationResolver`) probably calls escrow directly (need to verify).
-
-## 5. Repository Pattern Gap
-
-**Current state**: No repository. Direct Prisma usage.
-
-**Proposed**:
-
-```
-domain/
-  IApplicationRepository (interface)
-    - findById(id): Application | null
-    - findByErrandAndWorker(errandId, workerId): Application | null
-    - findAllForErrand(errandId): Application[]
-    - save(application): void
-infrastructure/
-  PrismaApplicationRepository (implementation)
-```
-
-**Consolidation**: All `prisma.application.*` calls move to repository.
-
-## 6. EIP Opportunities
-
-**Command/Event patterns**:
-
-1. **ApplicationSubmitted event**:
-
-   - When `apply` creates application (line 60), emit `ApplicationSubmitted` event.
-   - Listeners:
-     - Notification module sends push to client ("New application from Provider X").
-     - Recommendation engine updates provider ranking.
-2. **ApplicationAccepted event**:
-
-   - Currently acceptance is handled in escrow module (wrong layer).
-   - Should be: `Application.accept()` method emits `ApplicationAccepted` → Escrow listens → funds escrow.
-   - Chain: `ApplicationAccepted` → `EscrowFunded` → `ErrandAssigned` → `ApplicationsCancelled` (other pending apps).
-3. **Replace direct method calls with Saga**:
-
-   - Current: Acceptance is a monolithic operation in `EscrowService.acceptApplicationAndFundEscrow` (110 lines).
-   - Proposed: Saga orchestrates:
-     ```
-     AcceptApplicationCommand
-       → ApplicationAccepted event
-       → FundEscrow command
-       → EscrowFunded event
-       → AssignErrand command
-       → ErrandAssigned event
-       → CancelOtherApplications command
-     ```
-   - Each step is idempotent, with compensation (e.g., if escrow funding fails, revert application to `PENDING`).
-
-**Aggregator**:
-
-- `errandApplicationSummary` (line 118) aggregates application data (counts by status, chatting applicants).
-- This is a read model / query — should be in CQRS query handler, not in domain service.
-
-**Dead Letter / Retry**:
-
-- `apply` has no retry if Prisma create fails (e.g., network blip).
-- If worker applies but DB times out, client sees error and worker must retry manually.
-- Recommendation: Idempotent command with unique reference (`applicationId` pre-generated), retried from queue.
-
-## 7. Cross-Cutting Concerns
-
-**Validation**:
-
-- Source type guard (line 54: cannot apply to listing-hire errands) is in application service — should be in Errand domain.
-- Provider profile check (line 39: `if (!provider)`) is in service — should be guard in domain method.
-
-**Transactions**:
-
-- `apply` does not use explicit transaction, but creates a single record (auto-commit).
-- Should be wrapped in use-case-level transaction: create application + log audit event.
-
-**Error handling**:
-
-- Throws generic `Error` (line 43: `'User does not have a provider profile'`, line 49: `'This errand is not open'`).
-- No domain exceptions (`ErrandNotOpen`, `WorkerNotEligible`).
-
-## 8. GraphQL-Specific Notes
-
-**GraphQL types**:
-
-- `Application` entity is likely 1:1 with Prisma model (need to verify `entities/application.entity.ts`).
-
-**N+1 risk**:
-
-- `errandApplications` (line 106) fetches all applications for an errand — if client code iterates to get provider details, N+1 query.
-- No DataLoader.
-
-**Authorization**:
-
-- `errandApplications` checks client ownership (line 123: `client.id !== errand.clientId`).
-- `getApplicationById` checks if caller is client OR worker (line 85-96) — good authorization logic.
-- `apply` does NOT check if errand belongs to caller's client — but this is safe (providers can apply to any open errand).
-
-## 9. Target Structure
-
-**Option A: Merge into Errands module** (recommended)
-
-```
-src/errands/
+```text
+src/application/
   domain/
     entities/
-      Errand.ts                     # Aggregate root
-      Application.ts                # Child entity of Errand
+      Application.ts
     value-objects/
-      ApplicationStatus.ts
+      ApplicationId.ts
+    errors/
+      ApplicationInvariantError.ts
+    events/
+      ApplicationSubmittedEvent.ts
+      ApplicationAcceptedEvent.ts
+      ApplicationRejectedEvent.ts
+      ApplicationCancelledEvent.ts
+      ApplicationAcceptanceFailedEvent.ts
     repositories/
-      IErrandRepository.ts          # Includes application methods: findApplicationsForErrand()
-
+      IApplicationRepository.ts
+    services/
+      (domain services only when invariants span value objects)
   application/
     commands/
       SubmitApplication/
@@ -200,599 +38,318 @@ src/errands/
         SubmitApplicationHandler.ts
       AcceptApplication/
         AcceptApplicationCommand.ts
-        AcceptApplicationHandler.ts  # Coordinates Application + Escrow + Errand via saga
+        AcceptApplicationHandler.ts
+      RejectApplication/
+        RejectApplicationCommand.ts
+        RejectApplicationHandler.ts
+      CancelApplication/
+        CancelApplicationCommand.ts
+        CancelApplicationHandler.ts
+      CancelOtherApplications/
+        CancelOtherApplicationsCommand.ts
+        CancelOtherApplicationsHandler.ts
     queries/
-      GetApplicationsForErrand/
-        GetApplicationsForErrandQuery.ts
-        GetApplicationsForErrandHandler.ts
-```
-
-**Option B: Keep separate module** (if strong reason to decouple)
-
-```
-src/application/
-  domain/
-    entities/
-      Application.ts                # Aggregate root with accept(), reject(), cancel()
-    repositories/
-      IApplicationRepository.ts
-    events/
-      ApplicationSubmitted.ts
-      ApplicationAccepted.ts
-      ApplicationRejected.ts
-
-  application/
-    commands/
-      SubmitApplication/
-        SubmitApplicationCommand.ts
-        SubmitApplicationHandler.ts
-    queries/
-      GetApplicationsForErrand/
-        GetApplicationsForErrandQuery.ts
-        GetApplicationsForErrandHandler.ts
+      GetApplication/
+        GetApplicationQuery.ts
+        GetApplicationHandler.ts
+      ListErrandApplications/
+        ListErrandApplicationsQuery.ts
+        ListErrandApplicationsHandler.ts
+      GetMyApplication/
+        GetMyApplicationQuery.ts
+        GetMyApplicationHandler.ts
+      GetApplicationSummary/
+        GetApplicationSummaryQuery.ts
+        GetApplicationSummaryHandler.ts
     sagas/
-      AcceptApplicationSaga.ts      # Coordinates Application + Escrow + Errand
-
+      AcceptApplicationSaga.ts
+    event-handlers/
+      (none)
+    jobs/
+      (none)
   infrastructure/
     repositories/
       PrismaApplicationRepository.ts
-
+    mappers/
+      ApplicationMapper.ts
+    adapters/
+      (external adapters only when required)
   presentation/
-    resolvers:
+    resolvers/
       ApplicationResolver.ts
-    types/
-      ApplicationType.ts
+    graphql/
+      ApplicationGraphQLType.type.ts
+      ApplicationSummaryGraphQLType.type.ts
+      mappers/
+        toApplicationGraphQLType.ts
+        toApplicationSummaryGraphQLType.ts
 ```
 
----
-
-## Persistence Model (Derived from Domain)
-
-```prisma
-model Application {
-  id String @id @map("_id")
-  errandId String
-  workerId String
-  status ApplicationStatus
-  coverLetter String?
-  proposedRateKobo Int?
-  acceptedAt DateTime?
-  rejectedAt DateTime?
-  cancelledAt DateTime?
-  createdAt DateTime
-
-  @@unique([errandId, workerId]) // backs: WorkerAlreadyAppliedException
-  @@index([errandId, status]) // serves: findByErrand, countByStatus
-  @@index([workerId, status]) // serves: findByWorker
-}
-```
-
-Reference fields are scalar IDs only: `errandId`, `workerId`. Cleanup owners: `ErrandDeletedPolicyHandler` cancels/removes applications through `IApplicationRepository`; `ProviderDeletedPolicyHandler` cancels pending applications and preserves accepted/completed audit history. `id` serves `findById`, the unique pair serves `findByErrandAndWorker` and enforces one application per worker per errand, and the status indexes serve list/count repository methods.
-
----
-
-## 11. Migration Risk & Priority
-
-**Risk**: **MEDIUM**
-
-- Application is tightly coupled to Errands and Escrow.
-- Acceptance logic is split across modules (Application, Escrow, Errands) — refactoring requires coordinating all three.
-
-**Priority**: **PHASE 1 (parallel with Escrow)**
-**Rationale**:
-
-1. Application acceptance is part of the escrow funding saga — must refactor together.
-2. Decoupling application state transitions from escrow unblocks event-driven architecture.
-3. Relatively small module (~200 lines) — easier to refactor early before more features pile on.
-
-**Migration steps**:
-
-1. **Decide**: Merge into Errands module OR keep separate (recommend merge for simplicity).
-2. **Extract Application aggregate** with `submit()`, `accept()`, `reject()`, `cancel()` methods.
-3. **Create SubmitApplicationCommandHandler** (replaces current `apply` method).
-4. **Extract AcceptApplicationSaga** from `EscrowService.acceptApplicationAndFundEscrow`.
-5. **Emit domain events**: `ApplicationSubmitted`, `ApplicationAccepted`.
-6. **Update Escrow module** to listen to `ApplicationAccepted` instead of being called directly.
-7. **Remove ApplicationService dependency on EscrowService** (if still exists).
-8. **Test acceptance flow end-to-end** (staging environment).
-
----
-
-## 12. Implementation Spec
+## Implementation Spec
 
 ### Domain Layer
 
 ```typescript
-/**
- * Application aggregate root representing a provider's application to work on an errand.
- * Core invariants:
- * - Worker can only apply once per errand (errandId + workerId is unique)
- * - Can only apply to errands with status OPEN
- * - Can only apply to non-LISTING_HIRE and non-RECURRING_CONTRACT errands
- * - Status transitions: PENDING → (ACCEPTED | REJECTED | CANCELLED)
- * - Only PENDING applications can be accepted/rejected
- */
-class ApplicationId extends EntityId {
-  /**
-   * Private constructor. Use ApplicationId.new() or ApplicationId.from().
-   */
-  private constructor(value: string);
 
-  /**
-   * Creates a new ApplicationId.
-   */
-  static new(): ApplicationId;
-
-  /**
-   * Rehydrates an ApplicationId from persisted value.
-   */
-  static from(value: string): ApplicationId;
-}
-
-/**
- * Application aggregate root representing a provider's application to work on an errand.
- */
+/** Aggregate root for Application invariants; persistence ignorant and reconstituted by repositories. */
 class Application extends AggregateRoot<ApplicationId> {
-  /**
-   * Private constructor - use Application.submit() factory or load from repository.
-   * @param id Unique application identifier (from schema: id String @id)
-   * @param errandId Errand being applied for (from schema: errandId String)
-   * @param workerId Provider applying (from schema: workerId String)
-   * @param status Application status (from schema: status ApplicationStatus)
-   * @param coverLetter Optional cover letter from worker (from schema: coverLetter String?)
-   * @param proposedRate Optional counter-offer rate if worker proposes different rate (from schema: proposedRate Int?)
-   * @param acceptedAt Timestamp when accepted (from schema: acceptedAt DateTime?)
-   * @param rejectedAt Timestamp when rejected (from schema: rejectedAt DateTime?)
-   * @param cancelledAt Timestamp when cancelled (from schema: cancelledAt DateTime?)
-   * @param createdAt Creation timestamp
-   */
-  private constructor(
-    public readonly id: ApplicationId,
-    public readonly errandId: ErrandId,
-    public readonly workerId: ProviderId,
-    private status: ApplicationStatus,
-    public readonly coverLetter: string | null,
-    public readonly proposedRate: number | null,
-    private acceptedAt: Date | null,
-    private rejectedAt: Date | null,
-    private cancelledAt: Date | null,
-    public readonly createdAt: Date,
-  );
+  /** Creates a new aggregate and records creation events where the module emits them. */
+  static create(...args: unknown[]): Application;
 
-  /**
-   * Factory method to submit new application (status = PENDING).
-   * Caller must ensure errand is OPEN and sourceType is valid before calling.
-   * @param errandId Errand ID being applied for
-   * @param workerId Provider ID applying
-   * @param coverLetter Optional cover letter
-   * @param proposedRate Optional counter-offer rate in kobo
-   * @throws WorkerAlreadyAppliedException when worker already applied to this errand (DB constraint violation)
-   * @returns New Application instance with status = PENDING
-   */
-  static create(
-    errandId: ErrandId,
-    workerId: ProviderId,
-    coverLetter?: string,
-    proposedRate?: number,
-  ): Application;
+  /** Rehydrates an aggregate from persistence without recording new domain events. */
+  static reconstitute(...args: unknown[]): Application;
 
-  /**
-   * Factory method to reconstitute an Application from persistence.
-   */
-  static reconstitute(
-    id: ApplicationId,
-    errandId: ErrandId,
-    workerId: ProviderId,
-    status: ApplicationStatus,
-    coverLetter: string | null,
-    proposedRate: number | null,
-    acceptedAt: Date | null,
-    rejectedAt: Date | null,
-    cancelledAt: Date | null,
-    createdAt: Date,
-  ): Application;
-
-  /**
-   * Accepts application (PENDING → ACCEPTED).
-   * Should be called by client. Triggers AcceptApplicationSaga.
-   * @param acceptedBy Client ID who accepted
-   * @throws InvalidStatusTransitionError when status is not PENDING
-   * @emits ApplicationAcceptedEvent
-   */
-  accept(acceptedBy: ClientId): void;
-
-  /**
-   * Rejects application (PENDING → REJECTED).
-   * @param rejectedBy Client ID who rejected
-   * @throws InvalidStatusTransitionError when status is not PENDING
-   * @emits ApplicationRejectedEvent
-   */
-  reject(rejectedBy: ClientId): void;
-
-  /**
-   * Cancels application (PENDING → CANCELLED).
-   * Worker can cancel their own application before it's processed.
-   * @throws InvalidStatusTransitionError when status is not PENDING
-   * @emits ApplicationCancelledEvent
-   */
-  cancel(): void;
-
-  /**
-   * Checks if application can be accepted (must be PENDING).
-   */
-  canAccept(): boolean;
-
-  /**
-   * Returns current status.
-   */
-  getStatus(): ApplicationStatus;
+  /** Returns and clears queued domain events after a successful repository write. */
+  pullDomainEvents(): DomainEvent[];
 }
 
-/** Thrown when worker tries to apply to same errand twice. */
-class WorkerAlreadyAppliedException extends Error {}
+/** Strongly typed identifier for Application; prevents cross-aggregate ID mix-ups. */
+class ApplicationId extends EntityId {
+  /** Builds an ID from a persisted string. */
+  static fromString(value: string): ApplicationId;
+}
 
-/** Thrown when trying to transition from invalid status. */
-class InvalidStatusTransitionError extends Error {}
-```
+/** Base domain error for violated Application invariants. */
+class ApplicationInvariantError extends Error {
+  /** Creates the invariant error. */
+  constructor(message: string);
+}
 
-### Repository Interface
+/** Domain event emitted by Application after its state transition is persisted. */
+class ApplicationSubmittedEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: ApplicationId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
+}
 
-```typescript
-/**
- * Persistence contract for Application aggregate.
- */
+/** Domain event emitted by Application after its state transition is persisted. */
+class ApplicationAcceptedEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: ApplicationId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
+}
+
+/** Domain event emitted by Application after its state transition is persisted. */
+class ApplicationRejectedEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: ApplicationId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
+}
+
+/** Domain event emitted by Application after its state transition is persisted. */
+class ApplicationCancelledEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: ApplicationId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
+}
+
+/** Domain event emitted by Application after its state transition is persisted. */
+class ApplicationAcceptanceFailedEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: ApplicationId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
+}
+
+/** Repository interface for Application; domain/application depend on this contract, not Prisma. */
 interface IApplicationRepository {
-  /**
-   * Finds application by unique ID.
-   * @param id Application ID
-   * @returns Application aggregate or null if not found
-   */
+  /** Loads an aggregate by ID. */
   findById(id: ApplicationId): Promise<Application | null>;
 
-  /**
-   * Finds worker's application for a specific errand.
-   * Used to check if worker already applied.
-   * @param errandId Errand ID
-   * @param workerId Worker ID
-   * @returns Application aggregate or null if not found
-   */
-  findByErrandAndWorker(
-    errandId: ErrandId,
-    workerId: ProviderId,
-  ): Promise<Application | null>;
-
-  /**
-   * Finds all applications for an errand (client view).
-   * @param errandId Errand ID
-   * @param status Optional filter by status
-   * @returns Array of Application aggregates
-   */
-  findByErrand(
-    errandId: ErrandId,
-    status?: ApplicationStatus,
-  ): Promise<Application[]>;
-
-  /**
-   * Finds all applications submitted by a worker.
-   * @param workerId Worker ID
-   * @param status Optional filter by status
-   * @returns Array of Application aggregates
-   */
-  findByWorker(
-    workerId: ProviderId,
-    status?: ApplicationStatus,
-  ): Promise<Application[]>;
-
-  /**
-   * Persists application aggregate.
-   * @param application Application to save
-   */
-  save(application: Application): Promise<void>;
-
-  /**
-   * Counts applications by status for an errand.
-   * Used for errand application summary.
-   * @param errandId Errand ID
-   * @returns Map of status → count
-   */
-  countByStatus(errandId: ErrandId): Promise<Map<ApplicationStatus, number>>;
+  /** Persists the aggregate in one durable write boundary. */
+  save(aggregate: Application): Promise<void>;
 }
+
 ```
 
 ### Application Layer
 
 ```typescript
-/**
- * Submits new application for errand.
- * Validates that errand is OPEN and sourceType allows applications.
- */
-class SubmitApplicationCommandHandler {
-  /**
-   * @param command Application details
-   * @throws ErrandNotFoundException when errand doesn't exist
-   * @throws ErrandNotOpenException when errand status is not OPEN
-   * @throws InvalidErrandSourceTypeException when errand sourceType is LISTING_HIRE or RECURRING_CONTRACT
-   * @throws WorkerAlreadyAppliedException when worker already applied
-   * @emits ApplicationSubmittedEvent
-   */
-  execute(command: SubmitApplicationCommand): Promise<ApplicationId>; // returns application ID
+
+import { Command, CommandBus, CommandHandler, EventBus, EventsHandler, ICommandHandler, IEventHandler, IQueryHandler, Query, QueryBus, QueryHandler } from '@nestjs/cqrs';
+
+/** Command input for the SubmitApplication use case. */
+class SubmitApplicationCommand extends Command<ApplicationId> {
+  /** Captures all input required by SubmitApplicationHandler. */
+  constructor(public readonly payload: SubmitApplicationPayload);
 }
 
-interface SubmitApplicationCommand {
-  errandId: ErrandId;
-  workerId: ProviderId;
-  coverLetter?: string;
-  proposedRate?: number; // kobo
+/** Handles SubmitApplicationCommand through the NestJS CommandBus. */
+@CommandHandler(SubmitApplicationCommand)
+class SubmitApplicationHandler implements ICommandHandler<SubmitApplicationCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: SubmitApplicationCommand): Promise<ApplicationId>;
 }
 
-/**
- * Accepts application and initiates AcceptApplicationSaga.
- * Client accepts one worker's application.
- */
-class AcceptApplicationCommandHandler {
-  /**
-   * @param command Acceptance details
-   * @throws ApplicationNotFoundException when application doesn't exist
-   * @throws InvalidStatusTransitionError when application status is not PENDING
-   * @throws UnauthorizedException when acceptedBy is not the errand client
-   * @emits ApplicationAcceptedEvent (triggers AcceptApplicationSaga)
-   */
-  execute(command: AcceptApplicationCommand): Promise<void>;
+/** Command input for the AcceptApplication use case. */
+class AcceptApplicationCommand extends Command<void> {
+  /** Captures all input required by AcceptApplicationHandler. */
+  constructor(public readonly payload: AcceptApplicationPayload);
 }
 
-interface AcceptApplicationCommand {
-  applicationId: ApplicationId;
-  acceptedBy: ClientId; // client ID (must match errand.clientId)
+/** Handles AcceptApplicationCommand through the NestJS CommandBus. */
+@CommandHandler(AcceptApplicationCommand)
+class AcceptApplicationHandler implements ICommandHandler<AcceptApplicationCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: AcceptApplicationCommand): Promise<void>;
 }
 
-/**
- * Rejects application.
- */
-class RejectApplicationCommandHandler {
-  /**
-   * @param command Rejection details
-   * @throws ApplicationNotFoundException when application doesn't exist
-   * @throws InvalidStatusTransitionError when application status is not PENDING
-   * @throws UnauthorizedException when rejectedBy is not the errand client
-   * @emits ApplicationRejectedEvent
-   */
-  execute(command: RejectApplicationCommand): Promise<void>;
+/** Command input for the RejectApplication use case. */
+class RejectApplicationCommand extends Command<void> {
+  /** Captures all input required by RejectApplicationHandler. */
+  constructor(public readonly payload: RejectApplicationPayload);
 }
 
-interface RejectApplicationCommand {
-  applicationId: ApplicationId;
-  rejectedBy: ClientId; // client ID
+/** Handles RejectApplicationCommand through the NestJS CommandBus. */
+@CommandHandler(RejectApplicationCommand)
+class RejectApplicationHandler implements ICommandHandler<RejectApplicationCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: RejectApplicationCommand): Promise<void>;
 }
 
-/**
- * Cancels application (worker-initiated).
- */
-class CancelApplicationCommandHandler {
-  /**
-   * @param command Cancellation details
-   * @throws ApplicationNotFoundException when application doesn't exist
-   * @throws InvalidStatusTransitionError when application status is not PENDING
-   * @throws UnauthorizedException when cancelledBy is not the application workerId
-   * @emits ApplicationCancelledEvent
-   */
-  execute(command: CancelApplicationCommand): Promise<void>;
+/** Command input for the CancelApplication use case. */
+class CancelApplicationCommand extends Command<void> {
+  /** Captures all input required by CancelApplicationHandler. */
+  constructor(public readonly payload: CancelApplicationPayload);
 }
 
-interface CancelApplicationCommand {
-  applicationId: ApplicationId;
-  cancelledBy: ProviderId; // worker ID (must match application.workerId)
+/** Handles CancelApplicationCommand through the NestJS CommandBus. */
+@CommandHandler(CancelApplicationCommand)
+class CancelApplicationHandler implements ICommandHandler<CancelApplicationCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: CancelApplicationCommand): Promise<void>;
 }
 
-/**
- * Query handler: Get application by ID.
- */
-class GetApplicationQueryHandler {
-  /**
-   * @param query Application ID
-   * @returns Application details
-   * @throws ApplicationNotFoundException when not found
-   */
-  execute(query: GetApplicationQuery): Promise<ApplicationDTO>;
+/** Command input for the CancelOtherApplications use case. */
+class CancelOtherApplicationsCommand extends Command<void> {
+  /** Captures all input required by CancelOtherApplicationsHandler. */
+  constructor(public readonly payload: CancelOtherApplicationsPayload);
 }
 
-interface GetApplicationQuery {
-  applicationId: ApplicationId;
+/** Handles CancelOtherApplicationsCommand through the NestJS CommandBus. */
+@CommandHandler(CancelOtherApplicationsCommand)
+class CancelOtherApplicationsHandler implements ICommandHandler<CancelOtherApplicationsCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: CancelOtherApplicationsCommand): Promise<void>;
 }
 
-/**
- * Query handler: List applications for errand (client view).
- */
-class ListErrandApplicationsQueryHandler {
-  /**
-   * @param query Errand ID and optional status filter
-   * @returns Array of applications with worker details
-   */
-  execute(query: ListErrandApplicationsQuery): Promise<ApplicationDTO[]>;
+/** Query input for GetApplication. */
+class GetApplicationQuery extends Query<ApplicationDTO | null> {
+  /** Captures all filters, pagination, and caller identity for the query. */
+  constructor(public readonly payload: GetApplicationPayload);
 }
 
-interface ListErrandApplicationsQuery {
-  errandId: ErrandId;
-  status?: ApplicationStatus;
+/** Handles GetApplicationQuery through the NestJS QueryBus. */
+@QueryHandler(GetApplicationQuery)
+class GetApplicationHandler implements IQueryHandler<GetApplicationQuery> {
+  /** Returns an application DTO, never a GraphQL type or Prisma row. */
+  async execute(query: GetApplicationQuery): Promise<ApplicationDTO | null>;
 }
 
-/**
- * Query handler: Get worker's own application for errand.
- */
-class GetMyApplicationQueryHandler {
-  /**
-   * @param query Errand and worker IDs
-   * @returns Application details or null if not applied
-   */
-  execute(query: GetMyApplicationQuery): Promise<ApplicationDTO | null>;
+/** Query input for ListErrandApplications. */
+class ListErrandApplicationsQuery extends Query<ApplicationDTO[]> {
+  /** Captures all filters, pagination, and caller identity for the query. */
+  constructor(public readonly payload: ListErrandApplicationsPayload);
 }
 
-interface GetMyApplicationQuery {
-  errandId: ErrandId;
-  workerId: ProviderId;
+/** Handles ListErrandApplicationsQuery through the NestJS QueryBus. */
+@QueryHandler(ListErrandApplicationsQuery)
+class ListErrandApplicationsHandler implements IQueryHandler<ListErrandApplicationsQuery> {
+  /** Returns an application DTO, never a GraphQL type or Prisma row. */
+  async execute(query: ListErrandApplicationsQuery): Promise<ApplicationDTO[]>;
 }
 
-/**
- * Query handler: Get application summary for errand (counts by status).
- */
-class GetApplicationSummaryQueryHandler {
-  /**
-   * @param query Errand ID
-   * @returns Summary with counts by status and chatting applicants
-   */
-  execute(query: GetApplicationSummaryQuery): Promise<ApplicationSummaryDTO>;
+/** Query input for GetMyApplication. */
+class GetMyApplicationQuery extends Query<ApplicationDTO | null> {
+  /** Captures all filters, pagination, and caller identity for the query. */
+  constructor(public readonly payload: GetMyApplicationPayload);
 }
 
-interface GetApplicationSummaryQuery {
-  errandId: ErrandId;
+/** Handles GetMyApplicationQuery through the NestJS QueryBus. */
+@QueryHandler(GetMyApplicationQuery)
+class GetMyApplicationHandler implements IQueryHandler<GetMyApplicationQuery> {
+  /** Returns an application DTO, never a GraphQL type or Prisma row. */
+  async execute(query: GetMyApplicationQuery): Promise<ApplicationDTO | null>;
 }
 
-interface ApplicationDTO {
-  id: ApplicationId;
-  errandId: ErrandId;
-  workerId: ProviderId;
-  status: ApplicationStatus;
-  coverLetter: string | null;
-  proposedRate: number | null;
-  acceptedAt: Date | null;
-  rejectedAt: Date | null;
-  cancelledAt: Date | null;
-  createdAt: Date;
-  worker?: {
-    // joined from Provider
-    id: ProviderId;
-    userId: UserId;
-    bio: string | null;
-    skills: string[];
-  };
+/** Query input for GetApplicationSummary. */
+class GetApplicationSummaryQuery extends Query<ApplicationSummaryDTO> {
+  /** Captures all filters, pagination, and caller identity for the query. */
+  constructor(public readonly payload: GetApplicationSummaryPayload);
 }
 
-interface ApplicationSummaryDTO {
-  errandId: ErrandId;
-  totalApplications: number;
-  pendingCount: number;
-  acceptedCount: number;
-  rejectedCount: number;
-  cancelledCount: number;
-  chattingApplicantsCount: number; // workers with active chat rooms
-}
-```
-
-### Domain Events
-
-```typescript
-/**
- * Emitted when worker submits application.
- * Consumed by: Notification module (notify client of new applicant)
- */
-class ApplicationSubmittedEvent {
-  constructor(
-    public readonly applicationId: ApplicationId,
-    public readonly errandId: ErrandId,
-    public readonly workerId: ProviderId,
-    public readonly clientId: ClientId,
-  ) {}
+/** Handles GetApplicationSummaryQuery through the NestJS QueryBus. */
+@QueryHandler(GetApplicationSummaryQuery)
+class GetApplicationSummaryHandler implements IQueryHandler<GetApplicationSummaryQuery> {
+  /** Returns an application DTO, never a GraphQL type or Prisma row. */
+  async execute(query: GetApplicationSummaryQuery): Promise<ApplicationSummaryDTO>;
 }
 
-/**
- * Emitted when client accepts application.
- * CRITICAL: Triggers AcceptApplicationSaga (escrow funding flow).
- * Consumed by: AcceptApplicationSaga, Notification module, Errands module
- */
-class ApplicationAcceptedEvent {
-  constructor(
-    public readonly applicationId: ApplicationId,
-    public readonly errandId: ErrandId,
-    public readonly workerId: ProviderId,
-    public readonly clientId: ClientId,
-    public readonly acceptedBy: ClientId,
-  ) {}
-}
-
-/**
- * Emitted when client rejects application.
- * Consumed by: Notification module (notify worker of rejection)
- */
-class ApplicationRejectedEvent {
-  constructor(
-    public readonly applicationId: ApplicationId,
-    public readonly errandId: ErrandId,
-    public readonly workerId: ProviderId,
-    public readonly rejectedBy: ClientId,
-  ) {}
-}
-
-/**
- * Emitted when worker cancels own application.
- * Consumed by: Notification module (notify client)
- */
-class ApplicationCancelledEvent {
-  constructor(
-    public readonly applicationId: ApplicationId,
-    public readonly errandId: ErrandId,
-    public readonly workerId: ProviderId,
-  ) {}
-}
-```
-
-### Saga
-
-```typescript
-/**
- * AcceptApplicationSaga orchestrates errand assignment, escrow creation, and funding.
- * Multi-step workflow with rollback on failure.
- *
- * Flow:
- * 1. ApplicationAcceptedEvent triggers saga
- * 2. Reject all other pending applications
- * 3. Update Errand status to ASSIGNED (call UpdateErrandStatusCommand)
- * 4. Create Escrow (call CreateEscrowCommand)
- * 5. Charge payment (call FundEscrowCommand)
- * 6. Hold funds in wallet (call HoldFundsCommand)
- * 7. Update Errand status to IN_PROGRESS
- *
- * On failure at any step: Rollback previous steps and emit ApplicationAcceptanceFailed event.
- */
+/** Process manager that reacts to ApplicationAcceptedEvent and dispatches follow-up commands through CommandBus. */
 class AcceptApplicationSaga {
-  /**
-   * @listens ApplicationAcceptedEvent
-   * Orchestrates multi-step acceptance flow with transaction rollback on failure.
-   * Each step is idempotent (saga can be retried on crash).
-   */
-  handle(event: ApplicationAcceptedEvent): Promise<void>;
+  /** Creates the saga with CommandBus, EventBus, and logger dependencies. */
+  constructor(private readonly commandBus: CommandBus, private readonly eventBus: EventBus);
 
-  /**
-   * Rejects all other PENDING applications for the errand.
-   * Called after application is accepted.
-   * @param errandId Errand ID
-   * @param acceptedApplicationId Application ID that was accepted (skip this one)
-   */
-  private rejectOtherApplications(
-    errandId: ErrandId,
-    acceptedApplicationId: ApplicationId,
-  ): Promise<void>;
-
-  /**
-   * Rollback handler if escrow creation or funding fails.
-   * Reverts application status back to PENDING and errand status back to OPEN.
-   * @param applicationId Application ID to rollback
-   * @param errandId Errand ID to rollback
-   * @emits ApplicationAcceptanceFailedEvent
-   */
-  private rollback(
-    applicationId: ApplicationId,
-    errandId: ErrandId,
-  ): Promise<void>;
+  /** Handles the triggering event and dispatches commands with commandBus.execute(new XCommand(...)). */
+  async handle(event: ApplicationAcceptedEvent): Promise<void>;
 }
 
-/**
- * Emitted when AcceptApplicationSaga fails and rolls back.
- * Consumed by: Notification module (alert client of failure)
- */
-class ApplicationAcceptanceFailedEvent {
-  constructor(
-    public readonly applicationId: ApplicationId,
-    public readonly errandId: ErrandId,
-    public readonly reason: string,
-  ) {}
-}
 ```
+
+### Infrastructure And Presentation Layers
+
+```typescript
+
+/** Prisma implementation of IApplicationRepository; maps rows through ApplicationMapper. */
+@Injectable()
+class PrismaApplicationRepository implements IApplicationRepository {
+  /** Loads and maps a persistence row to the domain aggregate. */
+  async findById(id: ApplicationId): Promise<Application | null>;
+
+  /** Persists aggregate state without publishing events itself. */
+  async save(aggregate: Application): Promise<void>;
+}
+
+/** Injectable mapper for Application; uses DI for nested mappers and avoids static conversion helpers. */
+@Injectable()
+class ApplicationMapper {
+  /** Converts a Prisma row into a domain aggregate. */
+  toDomain(row: unknown): Application;
+
+  /** Converts a domain aggregate into persistence data. */
+  toPersistence(aggregate: Application): unknown;
+}
+
+/** GraphQL resolver; injects CommandBus and QueryBus, never repositories. */
+@Resolver()
+class ApplicationResolver {
+  /** Creates the resolver with CQRS buses. */
+  constructor(private readonly commandBus: CommandBus, private readonly queryBus: QueryBus);
+}
+
+/** GraphQL shape for ApplicationGraphQLType; separate from application DTOs. */
+type ApplicationGraphQLTypeShape = Omit<ApplicationDTO, 'id'> & { id: string };
+
+/** Presentation type exposed by GraphQL decorators. */
+@ObjectType()
+class ApplicationGraphQLType implements ApplicationGraphQLTypeShape {
+  /** String form of the strongly typed aggregate ID. */
+  @Field() id: string;
+}
+
+/** Converts application DTOs to GraphQL types, including EntityId-to-string fields. */
+function toApplicationGraphQLType(dto: ApplicationDTO): ApplicationGraphQLType;
+
+/** GraphQL shape for ApplicationSummaryGraphQLType; separate from application DTOs. */
+type ApplicationSummaryGraphQLTypeShape = Omit<ApplicationSummaryDTO, 'id'> & { id: string };
+
+/** Presentation type exposed by GraphQL decorators. */
+@ObjectType()
+class ApplicationSummaryGraphQLType implements ApplicationSummaryGraphQLTypeShape {
+  /** String form of the strongly typed aggregate ID. */
+  @Field() id: string;
+}
+
+/** Converts application DTOs to GraphQL types, including EntityId-to-string fields. */
+function toApplicationSummaryGraphQLType(dto: ApplicationSummaryDTO): ApplicationSummaryGraphQLType;
+
+```
+
+## EIP Patterns Applied
+
+- **Saga / Process Manager**: AcceptApplicationSaga coordinates Escrow funding, Errand assignment, and cancellation of competing applications. Status: fully specced with concrete signatures in the Implementation Spec.
+- **Idempotent Receiver**: The errandId/workerId unique constraint prevents duplicate applications for the same errand. Status: fully specced with concrete signatures in the Implementation Spec.

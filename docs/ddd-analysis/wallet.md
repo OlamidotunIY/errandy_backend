@@ -1,181 +1,37 @@
 # Wallet - DDD & EIP Analysis
 
-## 1. Current Responsibility
+## Current Responsibility
 
-**Intended to manage user wallet balances through an immutable ledger.** Updated: this module was previously described with mutable stored balance fields (`available`, `held`). The target design is now ledger-only: every balance movement is an append-only `LedgerEntry`, and active, pending, and available balances are computed from ledger entries.
+Wallet owns money movements after external payment outcomes are known. Balances are derived from append-only `LedgerEntry` records; active, pending, and available amounts are projections rather than mutable source-of-truth fields.
 
-- `WalletService` is a **stub** with placeholder methods returning strings like `'This action adds a new wallet'`.
-- `WalletResolver` has CRUD scaffolding but no real implementation.
-- Actual wallet logic is **scattered across other modules**:
-  - `EscrowService` creates wallet transactions (`this.prisma.transaction.create`, line ~150 in `escrow.service.ts`).
-  - `PaymentGatewayService` updates wallet balance during refund fallback (`this.prisma.wallet.update`, line ~150 in `payment-gateway.service.ts`).
-  - No centralized service for wallet operations.
+## Domain Model
 
-**Files**: `wallet.service.ts` (stub), `wallet.resolver.ts` (stub), `wallet.module.ts`.
+`Wallet` is the aggregate root and `WalletId` is the strongly typed aggregate identifier. `LedgerEntry` is the append-only money movement record and `WalletBalanceSnapshot` is the materialized read model. Escrow-related movements key idempotency by `escrowId`; withdrawals key idempotency by `gatewayReference` because they are not tied to an escrow.
 
-## 2. Bounded Context Assessment
+Domain events are queued inside `Wallet` with `addDomainEvent()`. Application handlers append ledger entries first, update the balance snapshot after the append succeeds, then publish `wallet.pullDomainEvents()` through `this.eventBus.publish(event)`.
 
-**This SHOULD be a real bounded context** for "Wallet & Ledger Management", but it is currently **degenerate** - the domain logic lives elsewhere.
+## Target Structure
 
-**Overlaps**:
-
-- **Escrow**: Escrow lifecycle should produce wallet ledger entries for worker active balance, worker pending balance, worker available balance, active reversal, and client refunds.
-- **Payment-Gateway**: Paystack charges/refunds are the ground truth for external money movement; wallet entries must be traceable to gateway references when they represent an external payment event.
-- **Errands** (indirectly): Errand completion triggers worker balance movement from active to pending.
-- **Dispute** (future): Dispute resolution will eventually own refunding escrows already in `COMPLETED_PENDING_PAYOUT`; this is explicitly deferred.
-
-**Verdict**: Wallet is a missing bounded context - the domain exists in the Prisma schema (`Wallet`, `Transaction` models), but the target design requires replacing the mutable balance model with a ledger-only aggregate and a `LedgerEntry` model.
-
-## 3. Domain Model Audit
-
-Updated: the prior audit assumed `Wallet.available` and `Wallet.held` were authoritative balance fields. They are now deprecated implementation details and must not be used as source-of-truth balances.
-
-**Anemic models**:
-
-- `Wallet` (Prisma model): currently has `available`, `held`, and `currency`, but no behavior. In the target model, `available` and `held` are removed/deprecated; a wallet has identity and ownership only.
-- `Transaction` (Prisma model): currently acts as a partial ledger with `ownerId`, `ownerType`, `errandId`, `amount`, `type`, `status`, and `reference`, but the target model is a new immutable `LedgerEntry` with `walletId`, `escrowId`, `gatewayReference`, and the explicit ledger entry types needed for the three-bucket worker model.
-
-**Aggregate boundaries**:
-
-- **`Wallet`** should be the aggregate root with no stored balance fields.
-- **`LedgerEntry`** is append-only and immutable. It records each balance movement and is never updated after creation.
-- Worker balances are three separate computed buckets:
-  - Active errand balance: escrow-funded work in progress; visible, not withdrawable.
-  - Pending balance: completed work inside the 3-day clearance window; visible, not withdrawable.
-  - Available balance: cleared funds; visible and withdrawable.
-- Normal worker flow is one-way: `ACTIVE_ERRAND_CREDIT` -> `PENDING_CREDIT` -> `AVAILABLE_CREDIT`.
-- Clients do not have wallet-tracked escrow holds. Client spending is computed from `Escrow` records, not from wallet balances. Clients only receive wallet credits via refunds.
-
-**Invariants currently unenforced**:
-
-1. **Ledger-only balance integrity**:
-   - Current code mutates `Wallet.available` directly. Target behavior computes active, pending, and available balances by summing `LedgerEntry` rows.
-   - Balance snapshots may exist only as read-model/materialized-view optimization, never as source of truth.
-2. **Bucket movement rules**:
-   - Active balance can move to pending only when escrow reaches completed pending payout.
-   - Pending balance can move to available only after the 3-day clearance window elapses.
-   - Pending/available funds do not move back to active under normal operation.
-3. **Client wallet scope**:
-   - Client escrow spending must not appear as a wallet hold or debit. `amount spent` belongs to an Escrow read model.
-   - Client wallet entries are refund credits only, unless future top-up/withdrawal product requirements are introduced.
-4. **Refund gap**:
-   - Refunds from `COMPLETED_PENDING_PAYOUT` would reverse a pending-balance credit and are out of scope until the Dispute module exists.
-5. **Gateway reconciliation**:
-   - Every ledger entry caused by a Paystack charge/refund must carry the Paystack reference that caused it so duplicate webhooks can be ignored and reconciliation can compare ledger state to Paystack records.
-
-## 4. Layering Violations
-
-**Business logic scattered**:
-
-- Escrow module creates wallet transactions directly:
-
-  ```typescript
-  await tx.transaction.upsert({
-    where: { reference: `ESCROW_HOLD:${errand.id}` },
-    update: {},
-    create: { ownerId, ownerType, amount, type: 'ESCROW_HOLD', ... }
-  })
-  ```
-
-  Updated: this must become a Wallet command that appends `LedgerEntry` rows. Escrow should not know wallet schema details.
-
-- Payment-gateway module updates wallet balance:
-  ```typescript
-  await this.prisma.wallet.update({
-    where: { id: wallet.id },
-    data: { available: { increment: refundAmountKobo } },
-  });
-  ```
-  Updated: this must become a `RecordClientRefundCommandHandler` call that appends a `REFUND_CREDIT` ledger entry with the Paystack refund reference.
-
-**Persistence leaking**:
-
-- Other modules directly call `this.prisma.wallet.*` and `this.prisma.transaction.*` - bypassing any wallet service.
-
-## 5. Repository Pattern Gap
-
-**Current state**: No repository. Wallet data is accessed directly via Prisma from Escrow and Payment-Gateway modules.
-
-**Proposed**:
-
-```
-domain/
-  IWalletRepository
-  ILedgerEntryRepository
-infrastructure/
-  PrismaWalletRepository
-  PrismaLedgerEntryRepository
-```
-
-**Consolidation**: All `prisma.wallet.*` and `prisma.transaction.*` calls in Escrow and Payment-Gateway modules are replaced with wallet command handlers that append ledger entries and publish wallet domain events.
-
-## 6. EIP Opportunities
-
-Updated: the ledger itself is now the central integration pattern.
-
-1. **Event Sourcing / Append-Only Log**:
-   - The wallet ledger is the authoritative fact stream for balance movements.
-   - Wallet balances are projections of the ledger, not mutable fields.
-2. **Materialized View**:
-   - Active, pending, and available balance snapshots can be maintained for read-heavy queries.
-   - Snapshots are rebuildable from the ledger and must not be treated as authoritative.
-3. **Idempotent Receiver**:
-   - Gateway webhook-driven operations must use `gatewayReference` plus `type`/`walletId` uniqueness to prevent duplicate ledger entries.
-4. **Reconciliation / Audit**:
-   - A scheduled job compares ledger entries with Paystack transaction/refund records by gateway reference.
-5. **Dead Letter Channel / Retry**:
-   - Wallet entry posting after a successful external payment event must be queued, retried, and dead-lettered with alerting if persistence repeatedly fails.
-
-## 7. Cross-Cutting Concerns
-
-**Validation**:
-
-- Amount validation is missing. Ledger entries must reject `amountKobo <= 0`.
-- Wallet operations must check computed balances before creating reversal, pending release, available release, and withdrawal entries.
-
-**Transactions**:
-
-- Wallet updates are currently done inside transactions started by other modules.
-- Target behavior: Wallet owns appending ledger entries. Cross-module workflows use events/sagas and idempotent command handlers.
-
-**Error handling**:
-
-- Current code lacks domain errors for insufficient active, pending, and available balances.
-- Target behavior: domain errors are explicit, typed, and separate from infrastructure failures.
-
-## 8. GraphQL-Specific Notes
-
-**No real GraphQL exposure**:
-
-- `WalletResolver` exists but is a stub.
-
-**Should there be a resolver?**
-
-- Yes, for queries such as:
-  - `myWalletBalances` -> returns active, pending, and available balances.
-  - `myLedgerHistory(pagination)` -> ledger query.
-  - `withdrawFunds(amount)` -> mutation to request withdrawal against available balance.
-
-**Authorization**:
-
-- Users can only query/mutate their own wallet.
-- Admin/audit access must be separately authorized and logged.
-
-## 9. Target Structure
-
-```
+```text
 src/wallet/
   domain/
     entities/
       Wallet.ts
       LedgerEntry.ts
+      WalletBalanceSnapshot.ts
     value-objects/
       WalletId.ts
       LedgerEntryId.ts
       LedgerEntryType.ts
-    repositories/
-      IWalletRepository.ts
-      ILedgerEntryRepository.ts
+      CreateLedgerEntryParams.ts
+    errors/
+      InsufficientActiveBalanceError.ts
+      InsufficientPendingBalanceError.ts
+      InsufficientAvailableBalanceError.ts
+      InvalidLedgerAmountError.ts
+      UnsupportedPendingRefundError.ts
+      DuplicateLedgerEntryError.ts
+      WalletNotFoundError.ts
     events/
       ActiveErrandCredited.ts
       MovedToPending.ts
@@ -183,675 +39,382 @@ src/wallet/
       WithdrawalRecorded.ts
       ActiveErrandReversed.ts
       ClientRefunded.ts
-    errors/
-      InsufficientActiveBalanceError.ts
-      InsufficientPendingBalanceError.ts
-      InsufficientAvailableBalanceError.ts
-      InvalidLedgerAmountError.ts
-      UnsupportedPendingRefundError.ts
-
+      LedgerDiscrepancyDetected.ts
+    repositories/
+      IWalletRepository.ts
+      ILedgerEntryRepository.ts
+      IWalletBalanceSnapshotRepository.ts
+    services/
+      LedgerBalanceCalculator.ts
   application/
     commands/
       CreditActiveErrand/
+        CreditActiveErrandCommand.ts
+        CreditActiveErrandHandler.ts
       MoveActiveToPending/
+        MoveActiveToPendingCommand.ts
+        MoveActiveToPendingHandler.ts
       ReleaseToAvailable/
+        ReleaseToAvailableCommand.ts
+        ReleaseToAvailableHandler.ts
       RecordWithdrawal/
+        RecordWithdrawalCommand.ts
+        RecordWithdrawalHandler.ts
       ReverseActiveErrand/
+        ReverseActiveErrandCommand.ts
+        ReverseActiveErrandHandler.ts
       RecordClientRefund/
+        RecordClientRefundCommand.ts
+        RecordClientRefundHandler.ts
+      AppendFailedLedgerEntry/
+        AppendFailedLedgerEntryCommand.ts
+        AppendFailedLedgerEntryHandler.ts
     queries/
       GetWalletBalances/
+        GetWalletBalancesQuery.ts
+        GetWalletBalancesHandler.ts
       GetLedgerHistory/
+        GetLedgerHistoryQuery.ts
+        GetLedgerHistoryHandler.ts
+    sagas/
+      (none)
+    event-handlers/
+      (none)
     jobs/
-      RebuildWalletBalanceSnapshotJob.ts
-      ReconcileLedgerWithPaystackJob.ts
-
+      ReconcileLedgerJob.ts
+      ReconcileLedgerProcessor.ts
+      AppendFailedLedgerEntryJob.ts
+      AppendFailedLedgerEntryProcessor.ts
   infrastructure/
     repositories/
       PrismaWalletRepository.ts
       PrismaLedgerEntryRepository.ts
-
+      PrismaWalletBalanceSnapshotRepository.ts
+    mappers/
+      WalletMapper.ts
+      LedgerEntryMapper.ts
+      WalletBalanceSnapshotMapper.ts
+    adapters/
+      PaystackLedgerAuditAdapter.ts
   presentation/
     resolvers/
       WalletResolver.ts
+    graphql/
+      wallet-balances.type.ts
+      ledger-entry.type.ts
+      ledger-history-page.type.ts
+      mappers/
+        toWalletBalancesType.ts
+        toLedgerEntryGraphQLType.ts
+        toLedgerHistoryPageType.ts
 ```
 
-## Persistence Model (Derived from Domain)
-
-```prisma
-model Wallet {
-  id String @id @map("_id")
-  userId String
-  currency String?
-  createdAt DateTime
-  updatedAt DateTime
-
-  @@unique([userId]) // backs: WalletAlreadyExistsError
-}
-
-model LedgerEntry {
-  id String @id @map("_id")
-  walletId String
-  userId String
-  type LedgerEntryType
-  amountKobo Int
-  currency String
-  escrowId String?
-  gatewayReference String?
-  idempotencyKey String
-  metadata Json?
-  createdAt DateTime
-
-  @@index([walletId, createdAt]) // serves: findByWalletId
-  @@index([escrowId]) // serves: findByEscrowId
-  @@index([gatewayReference]) // serves: findByGatewayReference
-  @@unique([idempotencyKey]) // backs: DuplicateLedgerEntryError
-}
-```
-
-`Wallet` is the aggregate root; `LedgerEntry` has its own append-only lifecycle but is reachable only through `IWalletRepository`/`ILedgerEntryRepository`. References are scalar IDs: `userId`, `walletId`, `escrowId`. Cleanup owners: `UserDeletedPolicyHandler` must soft-delete users with wallet history; `WalletDeletionPolicyHandler` prevents wallet deletion when ledger entries exist; `EscrowDeletedPolicyHandler` prevents deletion of escrow records referenced by ledger entries. `id` serves `findById` implicitly where needed, `userId` serves `findByUserId`, and all ledger indexes map 1:1 to ledger repository methods. `idempotencyKey` is generated by the application command from wallet/type/escrow/gateway context and backs webhook/command idempotency without relying on nullable compound unique fields.
-
----
-
-## 12. Implementation Spec
+## Implementation Spec
 
 ### Domain Layer
 
 ```typescript
-/**
- * Strongly typed wallet identifier backed by the shared EntityId base.
- * The EntityId constructor rejects empty or whitespace-only values, so WalletId.from()
- * cannot rehydrate an invalid persisted ID.
- */
-class WalletId extends EntityId {
-  /**
-   * Creates a new wallet identifier.
-   */
-  static new(): WalletId;
+/** Aggregate root for wallet ownership and ledger-producing behaviors. */
+class Wallet extends AggregateRoot<WalletId> {
+  /** Creates a wallet for a user and currency. */
+  static create(userId: UserId, currency: Currency): Wallet;
 
-  /**
-   * Rehydrates a wallet identifier from the persisted Prisma Wallet.id field.
-   */
-  static from(value: string): WalletId;
+  /** Rehydrates persisted wallet state without recording events. */
+  static reconstitute(id: WalletId, userId: UserId, currency: Currency, createdAt: Date, updatedAt: Date): Wallet;
+
+  /** Records worker active balance for a funded errand; idempotencyKey is ACTIVE_ERRAND_CREDIT:<escrowId>. */
+  recordActiveErrandCredit(amountKobo: number, currency: Currency, escrowId: EscrowId, gatewayReference: string): LedgerEntry;
+
+  /** Moves active errand balance into pending clearance; writes an active reversal and pending credit. */
+  moveActiveToPending(amountKobo: number, currency: Currency, escrowId: EscrowId, computedActiveBalanceKobo: number): LedgerEntry[];
+
+  /** Moves pending clearance balance into available balance after the clearance window matures. */
+  moveToAvailable(amountKobo: number, currency: Currency, escrowId: EscrowId, computedPendingBalanceKobo: number): LedgerEntry[];
+
+  /** Records an external withdrawal; idempotencyKey is WITHDRAWAL_DEBIT:<gatewayReference>. */
+  recordWithdrawal(amountKobo: number, currency: Currency, gatewayReference: string, computedAvailableBalanceKobo: number): LedgerEntry;
+
+  /** Reverses active balance when an active escrow is cancelled or refunded. */
+  recordActiveErrandReversal(amountKobo: number, currency: Currency, escrowId: EscrowId, gatewayReference: string, computedActiveBalanceKobo: number): LedgerEntry;
+
+  /** Records a client refund credit after the payment gateway confirms refund success. */
+  recordClientRefund(amountKobo: number, currency: Currency, escrowId: EscrowId, gatewayReference: string): LedgerEntry;
+
+  /** Returns and clears queued wallet domain events after the ledger write succeeds. */
+  pullDomainEvents(): DomainEvent[];
 }
 
-/**
- * Strongly typed ledger entry identifier backed by the shared EntityId base.
- * The EntityId constructor rejects empty or whitespace-only values, so LedgerEntryId.from()
- * cannot rehydrate an invalid persisted ID.
- */
-class LedgerEntryId extends EntityId {
-  /**
-   * Creates a new ledger entry identifier.
-   */
-  static new(): LedgerEntryId;
-
-  /**
-   * Rehydrates a ledger entry identifier from the persisted Prisma LedgerEntry.id field.
-   */
-  static from(value: string): LedgerEntryId;
-}
-
-/**
- * Immutable ledger entry categories for the wallet three-bucket model.
- * Worker money moves one way in normal operation: active errand balance to pending balance
- * to available balance. Clients do not receive escrow holds in wallet; their wallet credits
- * are refunds only. Reversals are represented by explicit entries rather than mutation.
- */
-enum LedgerEntryType {
-  ACTIVE_ERRAND_CREDIT = 'ACTIVE_ERRAND_CREDIT',
-  ACTIVE_ERRAND_REVERSAL = 'ACTIVE_ERRAND_REVERSAL',
-  PENDING_CREDIT = 'PENDING_CREDIT',
-  AVAILABLE_CREDIT = 'AVAILABLE_CREDIT',
-  WITHDRAWAL_DEBIT = 'WITHDRAWAL_DEBIT',
-  REFUND_CREDIT = 'REFUND_CREDIT',
-}
-
-/**
- * Immutable append-only wallet ledger entry.
- * This is not an aggregate root: Wallet is the aggregate root, and LedgerEntry is the
- * child entity/log record produced by Wallet behavior and persisted append-only.
- * Maps to the proposed Prisma LedgerEntry model fields:
- * id, walletId, userId, type, amountKobo, currency, escrowId, gatewayReference,
- * metadata, createdAt.
- */
+/** Append-only money movement. */
 class LedgerEntry {
-  /**
-   * Private constructor. Use LedgerEntry.create() so amount validation and audit fields
-   * are consistently enforced before persistence.
-   */
-  private constructor(
-    public readonly id: LedgerEntryId,
-    public readonly walletId: WalletId,
-    public readonly userId: UserId,
-    public readonly type: LedgerEntryType,
-    public readonly amountKobo: number,
-    public readonly currency: string,
-    public readonly escrowId: EscrowId | null,
-    public readonly gatewayReference: string | null,
-    public readonly metadata: Record<string, unknown> | null,
-    public readonly createdAt: Date,
-  );
-
-  /**
-   * Creates a new immutable ledger entry and rejects zero or negative amounts.
-   * Entries tied to Paystack charge/refund events must include gatewayReference so the
-   * ledger can be reconciled against Paystack and duplicate webhooks can be ignored.
-   */
+  /** Creates and validates a ledger entry. */
   static create(params: CreateLedgerEntryParams): LedgerEntry;
+
+  /** Rehydrates a persisted ledger entry. */
+  static reconstitute(params: PersistedLedgerEntryParams): LedgerEntry;
 }
 
-/**
- * Parameters used to create a LedgerEntry.
- */
+/** Materialized read model for active, pending, and available balances. */
+class WalletBalanceSnapshot {
+  /** Rebuilds a snapshot from all ledger entries for a wallet. */
+  static fromLedger(walletId: WalletId, entries: LedgerEntry[]): WalletBalanceSnapshot;
+
+  /** Applies newly appended entries after the append succeeds. */
+  apply(entries: LedgerEntry[]): WalletBalanceSnapshot;
+}
+
+/** Strongly typed wallet identifier. */
+class WalletId extends EntityId { static fromString(value: string): WalletId; }
+
+/** Strongly typed ledger entry identifier. */
+class LedgerEntryId extends EntityId { static fromString(value: string): LedgerEntryId; }
+
+/** Enumerates append-only ledger movements. */
+enum LedgerEntryType {
+  ACTIVE_ERRAND_CREDIT,
+  ACTIVE_ERRAND_REVERSAL,
+  PENDING_CREDIT,
+  PENDING_REVERSAL,
+  AVAILABLE_CREDIT,
+  WITHDRAWAL_DEBIT,
+  REFUND_CREDIT,
+}
+
+/** Parameters required to create a ledger entry with replay-safe idempotency. */
 interface CreateLedgerEntryParams {
   walletId: WalletId;
   userId: UserId;
   type: LedgerEntryType;
   amountKobo: number;
-  currency: string;
+  currency: Currency;
   escrowId: EscrowId | null;
   gatewayReference: string | null;
-  metadata: Record<string, unknown> | null;
+  idempotencyKey: string;
+  metadata?: Json;
 }
 
-/**
- * Wallet aggregate root. It owns no stored balance fields; active, pending, and available
- * balances are computed from LedgerEntry rows supplied by ILedgerEntryRepository or a
- * trusted materialized read model rebuilt from those rows.
- */
-class Wallet extends AggregateRoot<WalletId> {
-  /**
-   * Private constructor. Use Wallet.create() for brand-new wallets and Wallet.reconstitute()
-   * for records loaded from the Prisma Wallet model.
-   */
-  private constructor(
-    public readonly id: WalletId,
-    public readonly userId: UserId,
-    public readonly currency: string | null,
-    public readonly createdAt: Date,
-    public readonly updatedAt: Date,
-  );
-
-  /**
-   * Creates a brand-new wallet with no stored balance. The wallet starts at zero because
-   * no LedgerEntry rows exist yet.
-   */
-  static create(userId: UserId, currency: string | null): Wallet;
-
-  /**
-   * Reconstitutes a wallet from persistence. Loading a wallet does not load a mutable
-   * balance column; any balance check must be supplied by computed ledger totals.
-   */
-  static reconstitute(
-    id: WalletId,
-    userId: UserId,
-    currency: string | null,
-    createdAt: Date,
-    updatedAt: Date,
-  ): Wallet;
-
-  /**
-   * Records worker active errand balance when an escrow is funded and work is in progress.
-   * Produces ACTIVE_ERRAND_CREDIT. Depends on idempotency checks by escrowId/gatewayReference
-   * to prevent duplicate credits for the same Paystack-funded escrow.
-   */
-  recordActiveErrandCredit(
-    amountKobo: number,
-    currency: string,
-    escrowId: EscrowId,
-    gatewayReference: string,
-  ): LedgerEntry;
-
-  /**
-   * Moves worker funds from active errand balance to pending balance after completion.
-   * Produces ACTIVE_ERRAND_REVERSAL and PENDING_CREDIT. Requires computed active balance
-   * for this wallet/escrow to be greater than or equal to amount before entries are produced.
-   */
-  moveActiveToPending(
-    amountKobo: number,
-    currency: string,
-    escrowId: EscrowId,
-    computedActiveBalanceKobo: number,
-  ): LedgerEntry[];
-
-  /**
-   * Releases worker funds from pending balance to available balance after the 3-day
-   * clearance window elapses. Produces AVAILABLE_CREDIT. Requires computed pending balance
-   * for this wallet/escrow to be greater than or equal to amount before the entry is produced.
-   */
-  moveToAvailable(
-    amountKobo: number,
-    currency: string,
-    escrowId: EscrowId,
-    computedPendingBalanceKobo: number,
-  ): LedgerEntry;
-
-  /**
-   * Records a withdrawal from available balance. Produces WITHDRAWAL_DEBIT. Requires
-   * computed available balance to be greater than or equal to amount before the entry is
-   * produced.
-   */
-  recordWithdrawal(
-    amountKobo: number,
-    currency: string,
-    gatewayReference: string,
-    computedAvailableBalanceKobo: number,
-  ): LedgerEntry;
-
-  /**
-   * Reverses worker active errand balance before completion, typically when an escrow is
-   * cancelled/refunded before work completes. Produces ACTIVE_ERRAND_REVERSAL. Requires
-   * computed active balance for this wallet/escrow to be greater than or equal to amount.
-   */
-  recordActiveErrandReversal(
-    amountKobo: number,
-    currency: string,
-    escrowId: EscrowId,
-    gatewayReference: string,
-    computedActiveBalanceKobo: number,
-  ): LedgerEntry;
-
-  /**
-   * Records a client-side refund credit. Produces REFUND_CREDIT. Clients do not have
-   * wallet-tracked escrow holds, so this is the only client escrow-related wallet credit.
-   */
-  recordClientRefund(
-    amountKobo: number,
-    currency: string,
-    escrowId: EscrowId,
-    gatewayReference: string,
-  ): LedgerEntry;
+/** Calculates balances by replaying ledger entries. */
+class LedgerBalanceCalculator {
+  /** Returns active, pending, and available kobo balances for the entry set. */
+  calculate(entries: LedgerEntry[]): WalletBalancesDTO;
 }
 
-/**
- * Thrown when a ledger entry amount is zero or negative.
- */
-class InvalidLedgerAmountError extends Error {}
+/** Wallet repository interface for wallet aggregate identity. */
+interface IWalletRepository {
+  /** Loads a wallet by ID. */
+  findById(id: WalletId): Promise<Wallet | null>;
 
-/**
- * Thrown when an active-balance reversal or active-to-pending move exceeds the computed
- * active errand balance.
- */
-class InsufficientActiveBalanceError extends Error {}
+  /** Loads a wallet by owner. */
+  findByUserId(userId: UserId): Promise<Wallet | null>;
 
-/**
- * Thrown when pending-to-available release exceeds the computed pending balance.
- */
-class InsufficientPendingBalanceError extends Error {}
+  /** Persists wallet metadata. */
+  save(wallet: Wallet): Promise<void>;
+}
 
-/**
- * Thrown when withdrawal exceeds computed available balance.
- */
-class InsufficientAvailableBalanceError extends Error {}
-
-/**
- * Thrown when code attempts to refund an escrow already in COMPLETED_PENDING_PAYOUT.
- * This path is intentionally deferred because it needs Dispute module rules to decide
- * whether pending worker credit is reversed, partially reversed, or paid out.
- */
-class UnsupportedPendingRefundError extends Error {}
-```
-
-### Repository Interface
-
-```typescript
-/**
- * Persistence contract for immutable ledger entries.
- */
+/** Append-only ledger repository. */
 interface ILedgerEntryRepository {
-  /**
-   * Appends one ledger entry atomically. Implementations must not update existing entries.
-   */
+  /** Appends one entry and fails with DuplicateLedgerEntryError on duplicate idempotencyKey. */
   append(entry: LedgerEntry): Promise<void>;
 
-  /**
-   * Appends multiple ledger entries atomically for one wallet operation, such as
-   * active-to-pending movement.
-   */
+  /** Appends multiple entries atomically and fails on duplicate idempotencyKey. */
   appendMany(entries: LedgerEntry[]): Promise<void>;
 
-  /**
-   * Finds entries for a wallet so application/query handlers can compute active, pending,
-   * and available balances from the append-only log.
-   */
-  findByWalletId(walletId: WalletId): Promise<LedgerEntry[]>;
+  /** Returns wallet ledger history for reads and balance rebuilds. */
+  findByWalletId(walletId: WalletId, cursor: string | null, limit: number): Promise<LedgerEntry[]>;
 
-  /**
-   * Finds entries related to an escrow for audit, dispute preparation, and reconciliation.
-   */
-  findByEscrowId(escrowId: EscrowId): Promise<LedgerEntry[]>;
-
-  /**
-   * Finds entries with a Paystack gateway reference for webhook idempotency and external
-   * reconciliation.
-   */
+  /** Returns entries with a gateway reference for payment reconciliation. */
   findByGatewayReference(gatewayReference: string): Promise<LedgerEntry[]>;
 }
 
-/**
- * Persistence contract for Wallet aggregate identity and ownership only.
- */
-interface IWalletRepository {
-  /**
-   * Finds a wallet by user ID. Loading a Wallet means loading identity, then reconstructing
-   * computed balances from ILedgerEntryRepository or a ledger-backed materialized view.
-   */
-  findByUserId(userId: UserId): Promise<Wallet | null>;
+/** Balance snapshot repository for the materialized read model. */
+interface IWalletBalanceSnapshotRepository {
+  /** Applies just-appended entries after the ledger append succeeds. */
+  apply(walletId: WalletId, entries: LedgerEntry[]): Promise<void>;
 
-  /**
-   * Saves wallet identity/ownership data. This does not persist balance fields.
-   * EIP Aggregator note: Wallet is the aggregate boundary that coordinates ledger entry
-   * creation, while the ledger is the child log used to compute aggregate state.
-   */
-  save(wallet: Wallet): Promise<void>;
+  /** Loads the current snapshot if present. */
+  findByWalletId(walletId: WalletId): Promise<WalletBalanceSnapshot | null>;
+
+  /** Rebuilds the snapshot from authoritative ledger entries. */
+  rebuild(walletId: WalletId): Promise<WalletBalanceSnapshot>;
+}
+
+/** Emitted after active errand credit is appended and snapshot is updated. */
+class ActiveErrandCredited implements DomainEvent { constructor(public readonly walletId: WalletId, public readonly userId: UserId, public readonly escrowId: EscrowId, public readonly amountKobo: number); }
+/** Emitted after active balance moves into pending clearance. */
+class MovedToPending implements DomainEvent { constructor(public readonly walletId: WalletId, public readonly userId: UserId, public readonly escrowId: EscrowId, public readonly amountKobo: number); }
+/** Emitted after pending balance clears into available balance. */
+class ReleasedToAvailable implements DomainEvent { constructor(public readonly walletId: WalletId, public readonly userId: UserId, public readonly escrowId: EscrowId, public readonly amountKobo: number); }
+/** Emitted after withdrawal debit is appended. */
+class WithdrawalRecorded implements DomainEvent { constructor(public readonly walletId: WalletId, public readonly userId: UserId, public readonly amountKobo: number, public readonly gatewayReference: string); }
+/** Emitted after active errand balance is reversed. */
+class ActiveErrandReversed implements DomainEvent { constructor(public readonly walletId: WalletId, public readonly userId: UserId, public readonly escrowId: EscrowId, public readonly amountKobo: number); }
+/** Emitted after a client refund credit is appended. */
+class ClientRefunded implements DomainEvent { constructor(public readonly walletId: WalletId, public readonly userId: UserId, public readonly escrowId: EscrowId, public readonly amountKobo: number, public readonly gatewayReference: string); }
+/** Emitted by reconciliation when gateway and ledger records disagree. */
+class LedgerDiscrepancyDetected implements DomainEvent { constructor(public readonly gatewayReference: string, public readonly discrepancyType: 'missing' | 'duplicate' | 'amount-mismatch', public readonly amountKobo: number, public readonly occurredAt: Date); }
+```
+
+### Application Layer
+
+```typescript
+import { Command, CommandBus, CommandHandler, EventBus, ICommandHandler, IQueryHandler, Query, QueryHandler } from '@nestjs/cqrs';
+
+/** Command input for crediting active errand balance. */
+class CreditActiveErrandCommand extends Command<void> { constructor(public readonly workerUserId: UserId, public readonly walletId: WalletId, public readonly escrowId: EscrowId, public readonly amountKobo: number, public readonly currency: Currency, public readonly gatewayReference: string); }
+/** Appends ACTIVE_ERRAND_CREDIT, applies WalletBalanceSnapshot, then publishes ActiveErrandCredited. */
+@CommandHandler(CreditActiveErrandCommand)
+class CreditActiveErrandHandler implements ICommandHandler<CreditActiveErrandCommand> {
+  /** Executes with ledgerEntryRepository.append(entry), walletBalanceSnapshotRepository.apply(wallet.id, [entry]), then eventBus.publish(events). */
+  async execute(command: CreditActiveErrandCommand): Promise<void>;
+}
+
+/** Command input for moving active balance to pending. */
+class MoveActiveToPendingCommand extends Command<void> { constructor(public readonly workerUserId: UserId, public readonly walletId: WalletId, public readonly escrowId: EscrowId, public readonly amountKobo: number, public readonly currency: Currency); }
+/** Appends active reversal and pending credit, updates snapshot, then publishes MovedToPending. */
+@CommandHandler(MoveActiveToPendingCommand)
+class MoveActiveToPendingHandler implements ICommandHandler<MoveActiveToPendingCommand> { async execute(command: MoveActiveToPendingCommand): Promise<void>; }
+
+/** Command input for releasing pending balance to available. */
+class ReleaseToAvailableCommand extends Command<void> { constructor(public readonly workerUserId: UserId, public readonly walletId: WalletId, public readonly escrowId: EscrowId, public readonly amountKobo: number, public readonly currency: Currency); }
+/** Appends pending reversal and available credit, updates snapshot, then publishes ReleasedToAvailable. */
+@CommandHandler(ReleaseToAvailableCommand)
+class ReleaseToAvailableHandler implements ICommandHandler<ReleaseToAvailableCommand> { async execute(command: ReleaseToAvailableCommand): Promise<void>; }
+
+/** Command input for a withdrawal that is keyed by gatewayReference, not escrowId. */
+class RecordWithdrawalCommand extends Command<void> { constructor(public readonly userId: UserId, public readonly walletId: WalletId, public readonly amountKobo: number, public readonly currency: Currency, public readonly gatewayReference: string); }
+/** Appends WITHDRAWAL_DEBIT with idempotencyKey WITHDRAWAL_DEBIT:<gatewayReference>, updates snapshot, then publishes WithdrawalRecorded. */
+@CommandHandler(RecordWithdrawalCommand)
+class RecordWithdrawalHandler implements ICommandHandler<RecordWithdrawalCommand> { async execute(command: RecordWithdrawalCommand): Promise<void>; }
+
+/** Command input for reversing active errand balance. */
+class ReverseActiveErrandCommand extends Command<void> { constructor(public readonly workerUserId: UserId, public readonly walletId: WalletId, public readonly escrowId: EscrowId, public readonly amountKobo: number, public readonly currency: Currency, public readonly gatewayReference: string); }
+/** Appends ACTIVE_ERRAND_REVERSAL, updates snapshot, then publishes ActiveErrandReversed. */
+@CommandHandler(ReverseActiveErrandCommand)
+class ReverseActiveErrandHandler implements ICommandHandler<ReverseActiveErrandCommand> { async execute(command: ReverseActiveErrandCommand): Promise<void>; }
+
+/** Command input for recording a successful client refund. */
+class RecordClientRefundCommand extends Command<void> { constructor(public readonly clientUserId: UserId, public readonly walletId: WalletId, public readonly escrowId: EscrowId, public readonly amountKobo: number, public readonly currency: Currency, public readonly gatewayReference: string); }
+/** Appends REFUND_CREDIT, updates snapshot, then publishes ClientRefunded. */
+@CommandHandler(RecordClientRefundCommand)
+class RecordClientRefundHandler implements ICommandHandler<RecordClientRefundCommand> { async execute(command: RecordClientRefundCommand): Promise<void>; }
+
+/** Command input for replaying an externally successful payment whose ledger append failed. */
+class AppendFailedLedgerEntryCommand extends Command<void> { constructor(public readonly payload: AppendFailedLedgerEntryPayload); }
+/** Replays the append through the same idempotencyKey path, making duplicate replay naturally safe. */
+@CommandHandler(AppendFailedLedgerEntryCommand)
+class AppendFailedLedgerEntryHandler implements ICommandHandler<AppendFailedLedgerEntryCommand> { async execute(command: AppendFailedLedgerEntryCommand): Promise<void>; }
+
+/** Query input for current wallet balances. */
+class GetWalletBalancesQuery extends Query<WalletBalancesDTO> { constructor(public readonly userId: UserId); }
+/** Reads WalletBalanceSnapshot; if missing or stale, rebuilds from LedgerEntry before returning DTO. */
+@QueryHandler(GetWalletBalancesQuery)
+class GetWalletBalancesHandler implements IQueryHandler<GetWalletBalancesQuery> { async execute(query: GetWalletBalancesQuery): Promise<WalletBalancesDTO>; }
+
+/** Query input for paginated ledger history. */
+class GetLedgerHistoryQuery extends Query<LedgerHistoryPageDTO> { constructor(public readonly userId: UserId, public readonly cursor: string | null, public readonly limit: number); }
+/** Returns application DTOs for ledger history; never returns GraphQL types or Prisma rows. */
+@QueryHandler(GetLedgerHistoryQuery)
+class GetLedgerHistoryHandler implements IQueryHandler<GetLedgerHistoryQuery> { async execute(query: GetLedgerHistoryQuery): Promise<LedgerHistoryPageDTO>; }
+
+/** DTO returned by GetWalletBalancesQuery. */
+interface WalletBalancesDTO { activeKobo: number; pendingKobo: number; availableKobo: number; currency: Currency; }
+/** DTO returned by GetLedgerHistoryQuery. */
+interface LedgerHistoryPageDTO { entries: LedgerEntryDTO[]; nextCursor: string | null; }
+/** User-facing ledger DTO with typed IDs retained in the application layer. */
+interface LedgerEntryDTO { id: LedgerEntryId; type: LedgerEntryType; amountKobo: number; currency: Currency; escrowId: EscrowId | null; gatewayReference: string | null; createdAt: Date; }
+```
+
+### Application Jobs
+
+```typescript
+/** Payload for one reconciliation window. */
+interface ReconcileLedgerPayload { windowStart: Date; windowEnd: Date; provider: 'paystack' | 'webhook-log'; cursor: string | null; correlationId: string; }
+
+/** Scheduler/query side: partitions time into windows and enqueues one BullMQ reconciliation job per window. */
+class ReconcileLedgerJob {
+  /** Enqueues work by querying configured audit windows; it never compares records inline in the scheduler tick. */
+  async enqueueDueJobs(windowStart: Date, windowEnd: Date): Promise<void>;
+}
+
+/** Processor that compares Paystack transaction API or stored webhook logs against LedgerEntry.gatewayReference. */
+@Processor('wallet_reconcile_ledger')
+class ReconcileLedgerProcessor {
+  /** Detects missing, duplicate, and amount-mismatched ledger rows; publishes LedgerDiscrepancyDetected or writes the audit report after comparison. DLQ payload includes windowStart, windowEnd, provider, cursor, correlationId, and failure reason for replay. */
+  async process(job: Job<ReconcileLedgerPayload>): Promise<void>;
+}
+
+/** Payload needed to safely append a ledger entry after an external payment succeeded but the ledger append failed. */
+interface AppendFailedLedgerEntryPayload { walletId: WalletId; userId: UserId; ledgerEntryType: LedgerEntryType; amountKobo: number; currency: Currency; escrowId: EscrowId | null; gatewayReference: string; idempotencyKey: string; rawGatewayEventId: string; correlationId: string; }
+
+/** Scheduler/query side for retrying failed ledger appends; enqueues one job per persisted failure record. */
+class AppendFailedLedgerEntryJob {
+  /** Enqueues failed append records without processing them inline. */
+  async enqueueDueJobs(): Promise<void>;
+}
+
+/** BullMQ worker for replaying failed ledger appends through CommandBus. */
+@Processor('wallet_append_failed_ledger_entry')
+class AppendFailedLedgerEntryProcessor {
+  /** Calls commandBus.execute(new AppendFailedLedgerEntryCommand(job.data)) with attempts=5 and exponential backoff. After retries, DLQ stores walletId, userId, ledgerEntryType, amountKobo, currency, escrowId, gatewayReference, idempotencyKey, rawGatewayEventId, correlationId, and failure reason; replay is safe because idempotencyKey is unique. */
+  async process(job: Job<AppendFailedLedgerEntryPayload>): Promise<void>;
 }
 ```
 
-### Application Layer (Command/Query Handlers)
+### Infrastructure And Presentation Layers
 
 ```typescript
-/**
- * Called when Escrow funding succeeds and the worker has funds committed to in-progress
- * work. Produces ACTIVE_ERRAND_CREDIT.
- */
-class CreditActiveErrandCommandHandler {
-  /**
-   * Executes the active errand credit use case.
-   */
-  execute(command: CreditActiveErrandCommand): Promise<void>;
-}
+/** Prisma implementation of IWalletRepository. */
+@Injectable()
+class PrismaWalletRepository implements IWalletRepository { async findById(id: WalletId): Promise<Wallet | null>; async findByUserId(userId: UserId): Promise<Wallet | null>; async save(wallet: Wallet): Promise<void>; }
+/** Prisma implementation of ILedgerEntryRepository with idempotencyKey uniqueness handling. */
+@Injectable()
+class PrismaLedgerEntryRepository implements ILedgerEntryRepository { async append(entry: LedgerEntry): Promise<void>; async appendMany(entries: LedgerEntry[]): Promise<void>; async findByWalletId(walletId: WalletId, cursor: string | null, limit: number): Promise<LedgerEntry[]>; async findByGatewayReference(gatewayReference: string): Promise<LedgerEntry[]>; }
+/** Prisma implementation of wallet balance snapshots. */
+@Injectable()
+class PrismaWalletBalanceSnapshotRepository implements IWalletBalanceSnapshotRepository { async apply(walletId: WalletId, entries: LedgerEntry[]): Promise<void>; async findByWalletId(walletId: WalletId): Promise<WalletBalanceSnapshot | null>; async rebuild(walletId: WalletId): Promise<WalletBalanceSnapshot>; }
+/** Injectable mapper for Wallet. */
+@Injectable()
+class WalletMapper { toDomain(row: unknown): Wallet; toPersistence(wallet: Wallet): unknown; }
+/** Injectable mapper for LedgerEntry. */
+@Injectable()
+class LedgerEntryMapper { toDomain(row: unknown): LedgerEntry; toPersistence(entry: LedgerEntry): unknown; }
+/** Injectable mapper for WalletBalanceSnapshot. */
+@Injectable()
+class WalletBalanceSnapshotMapper { toDomain(row: unknown): WalletBalanceSnapshot; toPersistence(snapshot: WalletBalanceSnapshot): unknown; }
+/** Adapter for Paystack transaction audit queries used by ReconcileLedgerProcessor. */
+@Injectable()
+class PaystackLedgerAuditAdapter { fetchTransactions(windowStart: Date, windowEnd: Date, cursor: string | null): Promise<GatewayLedgerTransactionPage>; }
 
-/**
- * Input for CreditActiveErrandCommandHandler.
- */
-interface CreditActiveErrandCommand {
-  workerUserId: UserId;
-  escrowId: EscrowId;
-  amountKobo: number;
-  currency: string;
-  gatewayReference: string;
-}
+/** GraphQL resolver; injects CommandBus and QueryBus, never repositories. */
+@Resolver()
+class WalletResolver { constructor(private readonly commandBus: CommandBus, private readonly queryBus: QueryBus); }
 
-/**
- * Called by MarkEscrowCompletedHandler when an escrow transitions to
- * COMPLETED_PENDING_PAYOUT. Produces ACTIVE_ERRAND_REVERSAL and PENDING_CREDIT.
- */
-class MoveActiveToPendingCommandHandler {
-  /**
-   * Executes active-to-pending movement after verifying computed active balance.
-   */
-  execute(command: MoveActiveToPendingCommand): Promise<void>;
-}
+/** GraphQL type for wallet balances; this is separate from WalletBalancesDTO. */
+@ObjectType()
+class WalletBalancesType implements WalletBalancesDTO { activeKobo: number; pendingKobo: number; availableKobo: number; currency: Currency; }
+/** Explicit balance DTO to GraphQL conversion. */
+function toWalletBalancesType(dto: WalletBalancesDTO): WalletBalancesType;
 
-/**
- * Input for MoveActiveToPendingCommandHandler.
- */
-interface MoveActiveToPendingCommand {
-  workerUserId: UserId;
-  escrowId: EscrowId;
-  amountKobo: number;
-  currency: string;
-}
+/** GraphQL shape overrides EntityId fields from LedgerEntryDTO. */
+type LedgerEntryGraphQLShape = Omit<LedgerEntryDTO, 'id' | 'escrowId'> & { id: string; escrowId: string | null };
+/** GraphQL type for ledger rows with EntityId values converted to strings. */
+@ObjectType()
+class LedgerEntryGraphQLType implements LedgerEntryGraphQLShape { id: string; type: LedgerEntryType; amountKobo: number; currency: Currency; escrowId: string | null; gatewayReference: string | null; createdAt: Date; }
+/** Explicit ledger DTO to GraphQL conversion. */
+function toLedgerEntryGraphQLType(dto: LedgerEntryDTO): LedgerEntryGraphQLType;
 
-/**
- * Called by the clearance job after the 3-day window elapses. Produces AVAILABLE_CREDIT.
- */
-class ReleaseToAvailableCommandHandler {
-  /**
-   * Executes pending-to-available release after verifying computed pending balance.
-   */
-  execute(command: ReleaseToAvailableCommand): Promise<void>;
-}
-
-/**
- * Input for ReleaseToAvailableCommandHandler.
- */
-interface ReleaseToAvailableCommand {
-  workerUserId: UserId;
-  escrowId: EscrowId;
-  amountKobo: number;
-  currency: string;
-}
-
-/**
- * Called by withdrawal flow after withdrawal request validation. Produces WITHDRAWAL_DEBIT.
- */
-class RecordWithdrawalCommandHandler {
-  /**
-   * Executes withdrawal recording after verifying computed available balance.
-   */
-  execute(command: RecordWithdrawalCommand): Promise<void>;
-}
-
-/**
- * Input for RecordWithdrawalCommandHandler.
- */
-interface RecordWithdrawalCommand {
-  userId: UserId;
-  amountKobo: number;
-  currency: string;
-  gatewayReference: string;
-}
-
-/**
- * Called when an active escrow is refunded/cancelled before completion. Produces
- * ACTIVE_ERRAND_REVERSAL.
- */
-class ReverseActiveErrandCommandHandler {
-  /**
-   * Executes active errand reversal after verifying computed active balance.
-   */
-  execute(command: ReverseActiveErrandCommand): Promise<void>;
-}
-
-/**
- * Input for ReverseActiveErrandCommandHandler.
- */
-interface ReverseActiveErrandCommand {
-  workerUserId: UserId;
-  escrowId: EscrowId;
-  amountKobo: number;
-  currency: string;
-  gatewayReference: string;
-}
-
-/**
- * Called when Paystack refund succeeds for a client. Produces REFUND_CREDIT. Does not
- * create or reverse a client escrow hold because clients have no wallet-tracked holds.
- */
-class RecordClientRefundCommandHandler {
-  /**
-   * Executes client refund credit recording.
-   */
-  execute(command: RecordClientRefundCommand): Promise<void>;
-}
-
-/**
- * Input for RecordClientRefundCommandHandler.
- */
-interface RecordClientRefundCommand {
-  clientUserId: UserId;
-  escrowId: EscrowId;
-  amountKobo: number;
-  currency: string;
-  gatewayReference: string;
-}
-
-/**
- * Query handler for current wallet balances. This is where entry summation happens.
- * Advanced EIP Opportunity: maintain a materialized balance snapshot updated on each
- * appended ledger entry, and rebuild it from the ledger if the snapshot is suspected stale.
- */
-class GetWalletBalancesQueryHandler {
-  /**
-   * Returns active, pending, and available balances computed from the ledger or from a
-   * ledger-backed materialized view.
-   */
-  execute(query: GetWalletBalancesQuery): Promise<WalletBalancesDTO>;
-}
-
-/**
- * Input for GetWalletBalancesQueryHandler.
- */
-interface GetWalletBalancesQuery {
-  userId: UserId;
-}
-
-/**
- * Balance DTO returned by the wallet query side.
- */
-interface WalletBalancesDTO {
-  activeKobo: number;
-  pendingKobo: number;
-  availableKobo: number;
-  currency: string;
-}
-
-/**
- * Query handler for paginated wallet transaction history display.
- */
-class GetLedgerHistoryQueryHandler {
-  /**
-   * Returns paginated ledger entries for the wallet owner.
-   */
-  execute(query: GetLedgerHistoryQuery): Promise<LedgerHistoryPageDTO>;
-}
-
-/**
- * Input for GetLedgerHistoryQueryHandler.
- */
-interface GetLedgerHistoryQuery {
-  userId: UserId;
-  cursor: string | null;
-  limit: number;
-}
-
-/**
- * Paginated ledger history DTO.
- */
-interface LedgerHistoryPageDTO {
-  entries: LedgerEntryDTO[];
-  nextCursor: string | null;
-}
-
-/**
- * User-facing ledger entry DTO.
- */
-interface LedgerEntryDTO {
-  id: LedgerEntryId;
-  type: LedgerEntryType;
-  amountKobo: number;
-  currency: string;
-  escrowId: EscrowId | null;
-  createdAt: Date;
-}
-```
-
-### Domain Events
-
-```typescript
-/**
- * Emitted when worker active errand balance is credited. Consumed by notification module
- * and audit logging.
- */
-class ActiveErrandCredited {
-  /**
-   * Creates the event.
-   */
-  constructor(
-    public readonly walletId: WalletId,
-    public readonly userId: UserId,
-    public readonly escrowId: EscrowId,
-    public readonly amountKobo: number,
-  );
-}
-
-/**
- * Emitted when active errand balance moves to pending. Consumed by notification module
- * and audit logging.
- */
-class MovedToPending {
-  /**
-   * Creates the event.
-   */
-  constructor(
-    public readonly walletId: WalletId,
-    public readonly userId: UserId,
-    public readonly escrowId: EscrowId,
-    public readonly amountKobo: number,
-  );
-}
-
-/**
- * Emitted when pending balance clears to available. Consumed by notification module and
- * audit logging.
- */
-class ReleasedToAvailable {
-  /**
-   * Creates the event.
-   */
-  constructor(
-    public readonly walletId: WalletId,
-    public readonly userId: UserId,
-    public readonly escrowId: EscrowId,
-    public readonly amountKobo: number,
-  );
-}
-
-/**
- * Emitted when available balance is debited for withdrawal. Consumed by notification
- * module and audit logging.
- */
-class WithdrawalRecorded {
-  /**
-   * Creates the event.
-   */
-  constructor(
-    public readonly walletId: WalletId,
-    public readonly userId: UserId,
-    public readonly amountKobo: number,
-    public readonly gatewayReference: string,
-  );
-}
-
-/**
- * Emitted when active errand balance is reversed. Consumed by notification module and
- * audit logging.
- */
-class ActiveErrandReversed {
-  /**
-   * Creates the event.
-   */
-  constructor(
-    public readonly walletId: WalletId,
-    public readonly userId: UserId,
-    public readonly escrowId: EscrowId,
-    public readonly amountKobo: number,
-  );
-}
-
-/**
- * Emitted when a client receives a refund credit. Consumed by notification module and
- * audit logging.
- */
-class ClientRefunded {
-  /**
-   * Creates the event.
-   */
-  constructor(
-    public readonly walletId: WalletId,
-    public readonly userId: UserId,
-    public readonly escrowId: EscrowId,
-    public readonly amountKobo: number,
-    public readonly gatewayReference: string,
-  );
-}
+/** GraphQL shape for a ledger history page. */
+type LedgerHistoryPageGraphQLShape = Omit<LedgerHistoryPageDTO, 'entries'> & { entries: LedgerEntryGraphQLType[] };
+/** GraphQL type for paginated ledger history. */
+@ObjectType()
+class LedgerHistoryPageType implements LedgerHistoryPageGraphQLShape { entries: LedgerEntryGraphQLType[]; nextCursor: string | null; }
+/** Explicit page DTO to GraphQL conversion. */
+function toLedgerHistoryPageType(dto: LedgerHistoryPageDTO): LedgerHistoryPageType;
 ```
 
 ## EIP Patterns Applied
 
-- **Event Sourcing / Append-Only Log**: `LedgerEntry` is the authoritative wallet record. Balances are projections of entries, so audit can replay the ledger instead of trusting mutable columns.
-- **Materialized View**: `WalletBalancesDTO` can be served from a `WalletBalanceSnapshot` read model updated on each new entry. If stale, rebuild from `LedgerEntry`.
-- **Idempotent Receiver**: Paystack webhooks can fire more than once. `gatewayReference` plus uniqueness constraints prevent duplicate ledger rows for the same external payment event.
-- **Reconciliation / Audit pattern**: A scheduled job compares Paystack charge/refund records to ledger entries by `gatewayReference` and reports missing, duplicate, or amount-mismatched entries.
-- **Dead Letter Channel**: If an external payment succeeds but the wallet ledger append fails, the operation is retried through the existing BullMQ queue infrastructure. After retries are exhausted, the job moves to a DLQ with enough payload to append the missing `LedgerEntry`; it must never be silently dropped.
+- **Event Sourcing / Append-Only Log**: `LedgerEntry` is the authoritative wallet history and every balance can be replayed. Status: fully specced with concrete signatures in the Implementation Spec.
+- **Materialized View**: `WalletBalanceSnapshot` is updated synchronously after each successful ledger append through `walletBalanceSnapshotRepository.apply(walletId, entries)` and rebuilt on stale/missing reads. Status: fully specced with concrete signatures in the Implementation Spec.
+- **Idempotent Receiver**: Every ledger append has an `idempotencyKey`; escrow flows key off `escrowId`, while `recordWithdrawal()` keys off `gatewayReference` because withdrawals are not escrow-bound. Status: fully specced with concrete signatures in the Implementation Spec.
+- **Reconciliation / Audit**: `ReconcileLedgerJob` and `ReconcileLedgerProcessor` compare Paystack transactions or stored webhook logs against ledger rows by `gatewayReference` and report missing, duplicate, and amount-mismatched entries. Status: fully specced with concrete signatures in the Implementation Spec.
+- **Dead Letter Channel**: `AppendFailedLedgerEntryJob` and `AppendFailedLedgerEntryProcessor` retry externally successful payment events whose ledger append failed; DLQ payloads include all fields needed for replay, and the unique idempotency key prevents double-crediting. Status: fully specced with concrete signatures in the Implementation Spec.

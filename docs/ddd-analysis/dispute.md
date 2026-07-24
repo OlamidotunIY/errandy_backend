@@ -1,335 +1,239 @@
-# Dispute — DDD & EIP Analysis
+# Dispute - DDD & EIP Analysis
 
-## 1. Current Responsibility
+## Current Responsibility
 
-**Module is a stub** — `DisputeService` is empty (3 lines, no methods).
+Dispute owns conflict records raised against errands and the decision that resolves them. Escrow performs money movement; Dispute records evidence, status, resolution, and the chosen outcome command.
 
-- Likely planned feature for dispute resolution (errand conflicts, payment disputes).
+## Domain Model
 
-**Files**: `dispute.service.ts` (empty), `dispute.module.ts`, `entities/` (Prisma model exists).
+`Dispute` is the aggregate root and `DisputeId` is the strongly typed aggregate identifier. References to other bounded contexts are stored as scalar IDs or value objects; cross-module behavior is coordinated through `CommandBus`, `QueryBus`, and `EventBus` rather than direct repository access.
 
-## 2. Bounded Context Assessment
+Domain events are queued inside aggregates with `addDomainEvent()`. Application handlers call the repository first and publish events only after the write succeeds by iterating `aggregate.pullDomainEvents()` and calling `this.eventBus.publish(event)`.
 
-**This should be a separate bounded context** for "Dispute Resolution" or "Conflict Management".
+## Target Structure
 
-- Dispute is a **complex domain** if fully implemented:
-  - Dispute lifecycle: Open → Under Review → Evidence Submitted → Resolved → Closed.
-  - Stakeholders: Client, Provider, Admin (mediator).
-  - Outcomes: Refund, Partial refund, Favor provider, Favor client.
-
-**Overlaps**:
-
-- **Errands**: Disputes are linked to errands (`dispute.errandId`).
-- **Escrow**: Dispute resolution affects escrow (release funds to provider or refund to client).
-- **Users**: Dispute involves client and provider (reputation impact).
-
-**Verdict**: Dispute is a **separate bounded context** (do not merge with Errands/Escrow). Implement as saga (orchestrates Errand + Escrow + User updates based on resolution).
-
-## 3. Domain Model Audit
-
-**Prisma model likely exists** (in prisma/model/dispute.prisma):
-
-- `Dispute`: `{ id, errandId, clientId, providerId, reason, status, resolution, createdAt, resolvedAt }`.
-
-**Proposed aggregate**:
-
-- **`Dispute`** aggregate root with:
-  - Methods: `Dispute.open()`, `Dispute.submitEvidence()`, `Dispute.resolve(outcome)`, `Dispute.close()`.
-  - Invariants: Dispute must be linked to errand, only one open dispute per errand, resolution requires evidence.
-
-## 4. Layering Violations
-
-**Not applicable** — service is empty.
-
-## 5. Repository Pattern Gap
-
-**Proposed**:
-
-```
-domain/
-  IDisputeRepository (interface)
-    - findById(id): Dispute | null
-    - findByErrand(errandId): Dispute[]
-    - save(dispute): void
-```
-
-## 6. EIP Opportunities
-
-**Saga Pattern**:
-
-- Dispute resolution is a **saga** (multi-step workflow):
-  1. Admin reviews dispute.
-  2. Admin requests evidence from client and provider.
-  3. Admin makes resolution decision (favor client or provider).
-  4. If favor client: Escrow refunds client, Errand status set to DISPUTED_REFUNDED.
-  5. If favor provider: Escrow releases to provider, Errand status set to DISPUTED_COMPLETED.
-  6. Reputation scores updated (if resolution affects ratings).
-
-**Command/Event patterns**:
-
-1. **DisputeOpened event**:
-   - When client/provider opens dispute, emit event.
-   - Listeners:
-     - Escrow puts funds on hold (freeze escrow).
-     - Notification sends "dispute opened" alert to both parties + admin.
-
-2. **DisputeResolved event**:
-   - When admin resolves dispute, emit event.
-   - Listeners:
-     - Escrow releases or refunds (based on resolution).
-     - Errand updates status.
-     - Notification sends resolution outcome to parties.
-
-## 7. Cross-Cutting Concerns
-
-**Not applicable** — service is empty.
-
-## 8. GraphQL-Specific Notes
-
-**Authorization**:
-
-- Only client, provider, or admin can view dispute details.
-- Only admin can resolve dispute.
-
-## 9. Target Structure
-
-```
+```text
 src/dispute/
   domain/
     entities/
-      Dispute.ts                    # Aggregate root with open(), resolve(), close()
+      Dispute.ts
     value-objects/
-      DisputeStatus.ts              # OPEN | UNDER_REVIEW | RESOLVED | CLOSED
-      DisputeResolution.ts          # FAVOR_CLIENT | FAVOR_PROVIDER | PARTIAL_REFUND
+      DisputeId.ts
+    errors/
+      DisputeInvariantError.ts
+    events/
+      DisputeOpenedEvent.ts
+      DisputeResolvedEvent.ts
     repositories/
       IDisputeRepository.ts
-    events/
-      DisputeOpened.ts
-      DisputeResolved.ts
-
+    services/
+      (domain services only when invariants span value objects)
   application/
     commands/
       OpenDispute/
         OpenDisputeCommand.ts
-        OpenDisputeHandler.ts       # Open dispute, freeze escrow, notify parties
+        OpenDisputeHandler.ts
       ResolveDispute/
         ResolveDisputeCommand.ts
-        ResolveDisputeHandler.ts    # Resolve dispute, release/refund escrow
+        ResolveDisputeHandler.ts
+    queries/
+      GetDispute/
+        GetDisputeQuery.ts
+        GetDisputeHandler.ts
+      ListErrandDisputes/
+        ListErrandDisputesQuery.ts
+        ListErrandDisputesHandler.ts
     sagas/
-      DisputeResolutionSaga.ts      # Orchestrates: resolve → escrow action → errand update → reputation update
-
+      DisputeResolutionSaga.ts
+    event-handlers/
+      (none)
+    jobs/
+      (none)
   infrastructure/
     repositories/
       PrismaDisputeRepository.ts
-
+    mappers/
+      DisputeMapper.ts
+    adapters/
+      (external adapters only when required)
   presentation/
     resolvers/
       DisputeResolver.ts
+    graphql/
+      DisputeGraphQLType.type.ts
+      mappers/
+        toDisputeGraphQLType.ts
 ```
 
-## Persistence Model (Derived from Domain)
-
-```prisma
-model Dispute {
-  id String @id @map("_id")
-  errandId String
-  clientId String
-  workerId String
-  status DisputeStatus
-  reason String
-  createdAt DateTime
-
-  @@index([errandId]) // serves: findByErrandId
-  @@index([errandId, status]) // serves: findPendingByErrandId
-}
-```
-
-Reference fields are scalar IDs only: `errandId`, `clientId`, `workerId`. Cleanup owners: `ErrandDeletedPolicyHandler` prevents hard deletion when disputes exist; `ClientDeletedPolicyHandler` and `ProviderDeletedPolicyHandler` soft-delete/anonymize parties while preserving dispute history. `id` serves `findById`; the errand/status indexes map to dispute repository methods. No unique constraint is added because the domain allows history of resolved disputes unless a future invariant restricts one open dispute per errand.
-
----
-
-## 10. Migration Risk & Priority
-
-**Risk**: **LOW** (module is empty, no existing functionality to break).
-
-**Priority**: **PHASE 3 (after core domain modules) OR DEFER**
-**Rationale**:
-
-1. Dispute is not implemented — can defer until MVP is stable.
-2. Dispute resolution is a complex domain — requires admin panel, evidence management, etc.
-3. If dispute is in MVP, implement in Phase 3 (after Errands/Escrow are stable).
-
-**Migration steps** (if implementing):
-
-1. **Extract Dispute aggregate** with `open()`, `resolve()`, `close()` methods.
-2. **Introduce IDisputeRepository** and `PrismaDisputeRepository`.
-3. **Create command handlers** (OpenDispute, ResolveDispute).
-4. **Emit events**: `DisputeOpened`, `DisputeResolved`.
-5. **Create DisputeResolutionSaga** (orchestrates escrow release/refund based on resolution).
-6. **Add admin panel** for dispute management (review evidence, make decisions).
-
----
-
-## 12. Implementation Spec
+## Implementation Spec
 
 ### Domain Layer
 
 ```typescript
-/**
- * Dispute aggregate for conflict resolution workflow.
- * Maps to Dispute fields: id, errandId, clientId, workerId, status, reason, createdAt.
- */
-class DisputeId extends EntityId {
-  /**
-   * Private constructor. Use DisputeId.new() or DisputeId.from().
-   */
-  private constructor(value: string);
 
-  /**
-   * Creates a new DisputeId.
-   */
-  static new(): DisputeId;
-
-  /**
-   * Rehydrates DisputeId from persisted value.
-   */
-  static from(value: string): DisputeId;
-}
-
-/**
- * Dispute aggregate for conflict resolution workflow.
- */
+/** Aggregate root for Dispute invariants; persistence ignorant and reconstituted by repositories. */
 class Dispute extends AggregateRoot<DisputeId> {
-  constructor(
-    public readonly id: DisputeId,
-    public readonly errandId: ErrandId,
-    public readonly clientId: ClientId,
-    public readonly workerId: ProviderId,
-    private status: DisputeStatus,
-    public readonly reason: string,
-    public readonly createdAt: Date,
-  );
+  /** Creates a new aggregate and records creation events where the module emits them. */
+  static create(...args: unknown[]): Dispute;
 
-  /**
-   * Opens a new dispute in PENDING status.
-   */
-  static create(errandId: ErrandId, clientId: ClientId, workerId: ProviderId, reason: string): Dispute;
+  /** Rehydrates an aggregate from persistence without recording new domain events. */
+  static reconstitute(...args: unknown[]): Dispute;
 
-  /**
-   * Reconstitutes dispute aggregate from persistence.
-   */
-  static reconstitute(
-    id: DisputeId,
-    errandId: ErrandId,
-    clientId: ClientId,
-    workerId: ProviderId,
-    status: DisputeStatus,
-    reason: string,
-    createdAt: Date,
-  ): Dispute;
-
-  /**
-   * Accepts a dispute after review.
-   * Transition: PENDING -> ACCEPTED.
-   */
-  accept(): void;
-
-  /**
-   * Rejects a dispute after review.
-   * Transition: PENDING -> REJECTED.
-   */
-  reject(): void;
+  /** Returns and clears queued domain events after a successful repository write. */
+  pullDomainEvents(): DomainEvent[];
 }
-```
 
-### Repository Interface
+/** Strongly typed identifier for Dispute; prevents cross-aggregate ID mix-ups. */
+class DisputeId extends EntityId {
+  /** Builds an ID from a persisted string. */
+  static fromString(value: string): DisputeId;
+}
 
-```typescript
-/**
- * Persistence contract for Dispute aggregate.
- */
+/** Base domain error for violated Dispute invariants. */
+class DisputeInvariantError extends Error {
+  /** Creates the invariant error. */
+  constructor(message: string);
+}
+
+/** Domain event emitted by Dispute after its state transition is persisted. */
+class DisputeOpenedEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: DisputeId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
+}
+
+/** Domain event emitted by Dispute after its state transition is persisted. */
+class DisputeResolvedEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: DisputeId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
+}
+
+/** Repository interface for Dispute; domain/application depend on this contract, not Prisma. */
 interface IDisputeRepository {
-  /**
-   * Reads dispute by Dispute.id.
-   */
+  /** Loads an aggregate by ID. */
   findById(id: DisputeId): Promise<Dispute | null>;
 
-  /**
-   * Reads disputes by errandId.
-   */
-  findByErrandId(errandId: ErrandId): Promise<Dispute[]>;
-
-  /**
-   * Reads current open dispute for an errand if present.
-   */
-  findPendingByErrandId(errandId: ErrandId): Promise<Dispute | null>;
-
-  /**
-   * Saves status updates and reason metadata.
-   */
-  save(dispute: Dispute): Promise<void>;
+  /** Persists the aggregate in one durable write boundary. */
+  save(aggregate: Dispute): Promise<void>;
 }
+
 ```
 
 ### Application Layer
 
 ```typescript
-/**
- * Opens a dispute for an errand participant.
- */
-class OpenDisputeCommandHandler {
-  /**
-   * Creates dispute and emits DisputeOpenedEvent.
-   */
-  execute(command: OpenDisputeCommand): Promise<DisputeId>;
+
+import { Command, CommandBus, CommandHandler, EventBus, EventsHandler, ICommandHandler, IEventHandler, IQueryHandler, Query, QueryBus, QueryHandler } from '@nestjs/cqrs';
+
+/** Command input for the OpenDispute use case. */
+class OpenDisputeCommand extends Command<DisputeId> {
+  /** Captures all input required by OpenDisputeHandler. */
+  constructor(public readonly payload: OpenDisputePayload);
 }
 
-interface OpenDisputeCommand {
-  errandId: ErrandId;
-  openedByUserId: UserId;
-  reason: string;
+/** Handles OpenDisputeCommand through the NestJS CommandBus. */
+@CommandHandler(OpenDisputeCommand)
+class OpenDisputeHandler implements ICommandHandler<OpenDisputeCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: OpenDisputeCommand): Promise<DisputeId>;
 }
 
-/**
- * Resolves a pending dispute by admin action.
- */
-class ResolveDisputeCommandHandler {
-  /**
-   * Updates Dispute.status and emits DisputeResolvedEvent.
-   */
-  execute(command: ResolveDisputeCommand): Promise<void>;
+/** Command input for the ResolveDispute use case. */
+class ResolveDisputeCommand extends Command<void> {
+  /** Captures all input required by ResolveDisputeHandler. */
+  constructor(public readonly payload: ResolveDisputePayload);
 }
 
-interface ResolveDisputeCommand {
-  disputeId: DisputeId;
-  resolverUserId: UserId;
-  resolution: 'ACCEPTED' | 'REJECTED';
+/** Handles ResolveDisputeCommand through the NestJS CommandBus. */
+@CommandHandler(ResolveDisputeCommand)
+class ResolveDisputeHandler implements ICommandHandler<ResolveDisputeCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: ResolveDisputeCommand): Promise<void>;
 }
+
+/** Query input for GetDispute. */
+class GetDisputeQuery extends Query<DisputeDTO | null> {
+  /** Captures all filters, pagination, and caller identity for the query. */
+  constructor(public readonly payload: GetDisputePayload);
+}
+
+/** Handles GetDisputeQuery through the NestJS QueryBus. */
+@QueryHandler(GetDisputeQuery)
+class GetDisputeHandler implements IQueryHandler<GetDisputeQuery> {
+  /** Returns an application DTO, never a GraphQL type or Prisma row. */
+  async execute(query: GetDisputeQuery): Promise<DisputeDTO | null>;
+}
+
+/** Query input for ListErrandDisputes. */
+class ListErrandDisputesQuery extends Query<DisputeDTO[]> {
+  /** Captures all filters, pagination, and caller identity for the query. */
+  constructor(public readonly payload: ListErrandDisputesPayload);
+}
+
+/** Handles ListErrandDisputesQuery through the NestJS QueryBus. */
+@QueryHandler(ListErrandDisputesQuery)
+class ListErrandDisputesHandler implements IQueryHandler<ListErrandDisputesQuery> {
+  /** Returns an application DTO, never a GraphQL type or Prisma row. */
+  async execute(query: ListErrandDisputesQuery): Promise<DisputeDTO[]>;
+}
+
+/** Process manager that reacts to DisputeResolvedEvent and dispatches follow-up commands through CommandBus. */
+class DisputeResolutionSaga {
+  /** Creates the saga with CommandBus, EventBus, and logger dependencies. */
+  constructor(private readonly commandBus: CommandBus, private readonly eventBus: EventBus);
+
+  /** Handles the triggering event and dispatches commands with commandBus.execute(new XCommand(...)). */
+  async handle(event: DisputeResolvedEvent): Promise<void>;
+}
+
 ```
 
-### Domain Events
+### Infrastructure And Presentation Layers
 
 ```typescript
-/**
- * Emitted when a dispute is opened.
- */
-class DisputeOpenedEvent {
-  constructor(
-    public readonly disputeId: DisputeId,
-    public readonly errandId: ErrandId,
-    public readonly clientId: ClientId,
-    public readonly workerId: ProviderId,
-  );
+
+/** Prisma implementation of IDisputeRepository; maps rows through DisputeMapper. */
+@Injectable()
+class PrismaDisputeRepository implements IDisputeRepository {
+  /** Loads and maps a persistence row to the domain aggregate. */
+  async findById(id: DisputeId): Promise<Dispute | null>;
+
+  /** Persists aggregate state without publishing events itself. */
+  async save(aggregate: Dispute): Promise<void>;
 }
 
-/**
- * Emitted when a dispute is resolved.
- */
-class DisputeResolvedEvent {
-  constructor(
-    public readonly disputeId: DisputeId,
-    public readonly errandId: ErrandId,
-    public readonly status: DisputeStatus,
-  );
+/** Injectable mapper for Dispute; uses DI for nested mappers and avoids static conversion helpers. */
+@Injectable()
+class DisputeMapper {
+  /** Converts a Prisma row into a domain aggregate. */
+  toDomain(row: unknown): Dispute;
+
+  /** Converts a domain aggregate into persistence data. */
+  toPersistence(aggregate: Dispute): unknown;
 }
+
+/** GraphQL resolver; injects CommandBus and QueryBus, never repositories. */
+@Resolver()
+class DisputeResolver {
+  /** Creates the resolver with CQRS buses. */
+  constructor(private readonly commandBus: CommandBus, private readonly queryBus: QueryBus);
+}
+
+/** GraphQL shape for DisputeGraphQLType; separate from application DTOs. */
+type DisputeGraphQLTypeShape = Omit<DisputeDTO, 'id'> & { id: string };
+
+/** Presentation type exposed by GraphQL decorators. */
+@ObjectType()
+class DisputeGraphQLType implements DisputeGraphQLTypeShape {
+  /** String form of the strongly typed aggregate ID. */
+  @Field() id: string;
+}
+
+/** Converts application DTOs to GraphQL types, including EntityId-to-string fields. */
+function toDisputeGraphQLType(dto: DisputeDTO): DisputeGraphQLType;
+
 ```
+
+## EIP Patterns Applied
+
+- **Saga / Process Manager**: DisputeResolutionSaga routes resolved disputes to Escrow release or refund commands. Status: fully specced with concrete signatures in the Implementation Spec.
+- **Content-Based Router**: Resolution outcome selects the downstream command: ReleaseEscrowCommand or RefundEscrowCommand. Status: fully specced with concrete signatures in the Implementation Spec.

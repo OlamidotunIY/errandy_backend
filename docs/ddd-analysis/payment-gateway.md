@@ -1,472 +1,283 @@
-# Payment-Gateway — DDD & EIP Analysis
+# Payment Gateway - DDD & EIP Analysis
 
-## 1. Current Responsibility
+## Current Responsibility
 
-Manages payment method storage (card tokenization) via Paystack:
+Payment Gateway owns saved payment methods, provider customer mappings, webhook normalization, and gateway adapter contracts. It wraps Paystack-specific behavior behind infrastructure adapters while domain/application code works with normalized payment outcomes.
 
-- **Payment method retrieval**: `getPaymentMethods` (line 14-27) fetches saved cards for a client.
-- **Tokenization flow**:
-  - `initializeAddPaymentMethod` (line 29-71): Starts 50 Naira verification charge, returns Paystack checkout URL.
-  - `verifyAndSavePaymentMethod` (line 73-149+): Verifies transaction, saves authorization code (token), refunds 50 Naira.
-- **Paystack integration**: Uses `PaymentGatewayFactory` (line 11) to get provider-specific gateway (abstraction for multi-gateway support).
+## Domain Model
 
-**Files**: `payment-gateway.service.ts` (~150+ lines), `payment-gateway.resolver.ts`, `payment-gateway.module.ts`, `payment-gateway.factory.ts`, `providers/paystack.provider.ts`.
+`PaymentMethod` is the aggregate root and `PaymentMethodId` is the strongly typed aggregate identifier. References to other bounded contexts are stored as scalar IDs or value objects; cross-module behavior is coordinated through `CommandBus`, `QueryBus`, and `EventBus` rather than direct repository access.
 
-## 2. Bounded Context Assessment
+Domain events are queued inside aggregates with `addDomainEvent()`. Application handlers call the repository first and publish events only after the write succeeds by iterating `aggregate.pullDomainEvents()` and calling `this.eventBus.publish(event)`.
 
-**This is infrastructure**, NOT a bounded context.
+## Target Structure
 
-- Payment-Gateway is a **technical adapter** for Paystack API — it has no domain logic.
-- Payment method storage is a **supporting concern** for Escrow (funding) and Wallet (deposits).
-
-**Overlaps**:
-
-- **Client**: Payment methods belong to clients (`PaymentMethod.userId → Client.id`).
-- **Escrow**: Escrow uses payment methods to fund jobs (charge card via authorization code).
-- **Wallet**: Wallet could use payment methods to top up balance (not implemented yet).
-
-**Verdict**: Payment-Gateway is an **infrastructure layer** (Ports & Adapters outer layer). Should be renamed to `infrastructure/payment/` or `common/payment/`.
-
-## 3. Domain Model Audit
-
-**No domain model** — Payment-Gateway is purely infrastructure.
-
-- `PaymentMethod` (Prisma model) is a persistence model, not a domain entity:
-  - Stores tokenization metadata: `providerRef` (authorization_code), `cardBrand`, `last4`, `expMonth`, `expYear`.
-  - No behavior: No `PaymentMethod.charge()`, `PaymentMethod.expire()` methods.
-
-**Invariants (if PaymentMethod were a domain entity)**:
-
-1. **Expiry validation**: Card expiry should be checked before charging (line 126: `expMonth` and `expYear` stored, but not validated).
-2. **Uniqueness**: Only one payment method per card per user (line 104-112: checks for duplicates, but logic is in service, not domain).
-3. **Default payment method**: If first card, set as default (line 139-146) — this is domain logic, should be in aggregate.
-
-## 4. Layering Violations
-
-**Business logic in service**:
-
-- `verifyAndSavePaymentMethod` (line 73-149+) orchestrates:
-  1. Verify Paystack transaction (infrastructure).
-  2. Check card reusability (business rule, line 97-99).
-  3. Deduplicate existing cards (business logic, line 104-112).
-  4. Create PaymentMethod (persistence).
-  5. Set default if first card (business logic, line 139-146).
-  6. Refund 50 Naira (infrastructure, line 149+).
-
-  This is a **use case** (command handler), not a domain service. Should be `AddPaymentMethodCommandHandler`.
-
-**Infrastructure in service**:
-
-- `gateway.initializeTransaction` (line 59), `gateway.verifyTransaction` (line 90), `gateway.refundTransaction` (line 149+) — direct infrastructure calls in service layer.
-
-**Persistence leaking**:
-
-- Direct Prisma calls throughout (`this.prisma.client.*`, `this.prisma.paymentMethod.*`).
-- No repository abstraction.
-
-**Event emission missing**:
-
-- When payment method is added, should emit `PaymentMethodAdded` event:
-  - Listeners:
-    - Client module updates dashboard requirements (payment method requirement completed).
-    - Notification sends "card added successfully" push notification.
-- Current: No events emitted (uses `globalEventEmitter` elsewhere, but not here).
-
-## 5. Repository Pattern Gap
-
-**Current state**: No repository. Direct Prisma usage.
-
-**Proposed**:
-
-```
-domain/
-  IPaymentMethodRepository (interface)
-    - findById(id): PaymentMethod | null
-    - findByClientId(clientId): PaymentMethod[]
-    - save(paymentMethod): void
-infrastructure/
-  PrismaPaymentMethodRepository (implementation)
-```
-
-**Consolidation**: All `prisma.paymentMethod.*` calls move to repository.
-
-## 6. EIP Opportunities
-
-**Command/Event patterns**:
-
-1. **PaymentMethodAdded event**:
-   - When card is saved, emit event.
-   - Listeners:
-     - Client module marks payment method requirement as completed.
-     - Notification sends "card added" push notification.
-     - Analytics tracks conversion (user onboarding).
-
-2. **PaymentMethodRemoved event**:
-   - When user deletes card, emit event.
-   - Listeners:
-     - If last card, Client module marks payment method requirement as incomplete.
-
-**Adapter Pattern** (already implemented):
-
-- `PaymentGatewayFactory` (line 11) returns provider-specific gateway (Paystack, Stripe, Flutterwave, etc.).
-- This is correct — allows switching payment providers without changing service code.
-
-**Dead Letter / Retry**:
-
-- `initializeTransaction` (line 59) can fail (Paystack API timeout).
-  - No retry — user sees error and must retry manually.
-  - Recommendation: Queue in BullMQ, retry 3x.
-- `refundTransaction` (line 149+) can fail after card is saved.
-  - If refund fails, user is charged 50 Naira without refund — critical bug.
-  - Recommendation: Queue refund as separate job, retry until success, alert ops if fails.
-
-**Saga Pattern**:
-
-- `verifyAndSavePaymentMethod` is a mini-saga (multi-step workflow):
-  1. Verify transaction.
-  2. Save payment method.
-  3. Refund 50 Naira.
-
-  If step 3 fails, need compensating transaction (manual refund). Should be a saga with compensation logic.
-
-## 7. Cross-Cutting Concerns
-
-**Validation**:
-
-- No validation of client profile existence before initializing transaction (line 29-48: checks, but throws generic error).
-- No validation of card expiry (line 126-127: stores expMonth/expYear, but doesn't check if expired).
-
-**Transactions**:
-
-- `verifyAndSavePaymentMethod` creates PaymentMethod, then updates it to set default (line 141-144) — two separate Prisma calls, no transaction.
-- Race condition: If two cards are added concurrently, both could be set as default.
-
-**Error handling**:
-
-- Throws `BadRequestException` (line 44, line 82, line 97-99) — HTTP-specific exceptions in service layer.
-- Should throw domain exceptions (`InvalidPaymentMethod`, `CardNotReusable`).
-
-**Security**:
-
-- Authorization code (line 120: `providerRef`) is sensitive — should be encrypted at rest.
-- No PCI compliance considerations (Paystack handles card data, so server never sees PAN — good).
-
-## 8. GraphQL-Specific Notes
-
-**GraphQL mutations** (likely in resolver):
-
-- `initializeAddPaymentMethod` mutation: Returns Paystack checkout URL (client redirects user to Paystack).
-- `verifyAndSavePaymentMethod` mutation: Called after user completes payment on Paystack (callback URL).
-
-**Authorization**:
-
-- No auth checks in service (assumes resolver validates user can only manage their own payment methods).
-
-## 9. Target Structure
-
-```
-src/infrastructure/payment/  # OR src/common/payment/
+```text
+src/payment-gateway/
+  domain/
+    entities/
+      PaymentMethod.ts
+    value-objects/
+      PaymentMethodId.ts
+    errors/
+      PaymentMethodInvariantError.ts
+    events/
+      PaymentMethodAddedEvent.ts
+      PaymentMethodRemovedEvent.ts
+      PaymentSucceededEvent.ts
+      PaymentFailedEvent.ts
+    repositories/
+      IPaymentMethodRepository.ts
+    services/
+      (domain services only when invariants span value objects)
   application/
     commands/
       AddPaymentMethod/
         AddPaymentMethodCommand.ts
-        AddPaymentMethodHandler.ts  # Use case: initialize → verify → save → refund → emit event
+        AddPaymentMethodHandler.ts
       RemovePaymentMethod/
         RemovePaymentMethodCommand.ts
         RemovePaymentMethodHandler.ts
+      InitializePayment/
+        InitializePaymentCommand.ts
+        InitializePaymentHandler.ts
+      RecordWebhookEvent/
+        RecordWebhookEventCommand.ts
+        RecordWebhookEventHandler.ts
     queries/
       GetPaymentMethods/
         GetPaymentMethodsQuery.ts
         GetPaymentMethodsHandler.ts
-    events/
-      PaymentMethodAdded.ts
-      PaymentMethodRemoved.ts
     sagas/
-      AddPaymentMethodSaga.ts       # Orchestrates: verify → save → refund (with compensation)
-
-  domain/
-    entities/
-      PaymentMethod.ts              # Aggregate: isExpired(), setDefault()
-    repositories/
-      IPaymentMethodRepository.ts
-
+      (none)
+    event-handlers/
+      OnPaymentSucceededCreditWalletHandler.ts
+    jobs/
+      (none)
   infrastructure/
     repositories/
       PrismaPaymentMethodRepository.ts
-    gateways/
-      IPaymentGateway.ts            # Interface (port)
-      PaymentGatewayFactory.ts      # Factory
-      providers/
-        PaystackGateway.ts          # Adapter (implementation)
-        StripeGateway.ts            # Future: Stripe support
-    queues/
-      RefundQueue.ts                # BullMQ queue for async refunds (retry on failure)
-
+    mappers/
+      PaymentMethodMapper.ts
+    adapters/
+      (external adapters only when required)
   presentation/
     resolvers/
-      PaymentResolver.ts
-    types/
-      PaymentMethodType.ts
+      PaymentGatewayResolver.ts
+    graphql/
+      PaymentMethodGraphQLType.type.ts
+      PaymentInitializationGraphQLType.type.ts
+      mappers/
+        toPaymentMethodGraphQLType.ts
+        toPaymentInitializationGraphQLType.ts
 ```
 
-## Persistence Model (Derived from Domain)
-
-```prisma
-model PaymentMethod {
-  id String @id @map("_id")
-  userId String
-  provider String
-  providerRef String
-  type String
-  cardBrand String?
-  last4 String?
-  expMonth Int?
-  expYear Int?
-  isDefault Boolean
-  verified Boolean
-  createdAt DateTime
-
-  @@unique([provider, providerRef]) // backs: DuplicatePaymentMethodError
-  @@index([userId]) // serves: findByUserId
-  @@index([userId, isDefault]) // serves: findDefaultByUserId
-}
-
-model PaystackCustomer {
-  id String @id @map("_id")
-  userId String
-  customerCode String
-  customerId String
-
-  @@unique([userId]) // backs: DuplicatePaystackCustomerError
-  @@unique([customerCode]) // backs: DuplicatePaystackCustomerCodeError
-}
-```
-
-Reference fields are scalar IDs only: `userId`. Cleanup owner: `UserDeletedPolicyHandler` disables payment methods and customer mappings through `IPaymentMethodRepository`; gateway-side deletion is an infrastructure adapter concern triggered by the same handler. `id` serves `findById`, user/default indexes serve payment method repository reads, and provider/customer uniqueness constraints back idempotent provider mapping invariants.
-
----
-
-## 10. Migration Risk & Priority
-
-**Risk**: **HIGH**
-
-- Payment is critical infrastructure — bugs can cause financial loss (refund failures).
-- Refactoring could break tokenization flow (users unable to add cards → can't post errands).
-
-**Priority**: **PHASE 1 (parallel with Escrow/Wallet)**
-**Rationale**:
-
-1. Payment-Gateway is tightly coupled to Escrow (card charging) — refactor together.
-2. Refund bug (line 149+: no retry if fails) is a critical financial risk — must be fixed.
-3. Queueing refunds in BullMQ improves reliability.
-
-**Migration steps**:
-
-1. **Extract PaymentMethod aggregate** with `isExpired()`, `setDefault()` methods.
-2. **Introduce IPaymentMethodRepository** and `PrismaPaymentMethodRepository`.
-3. **Create AddPaymentMethodCommandHandler** (move orchestration out of service).
-4. **Emit events**: `PaymentMethodAdded`, `PaymentMethodRemoved`.
-5. **Queue refunds** in BullMQ (retry 3x on failure, alert ops if fails).
-6. **Wrap tokenization flow in saga** with compensation logic (if save fails, don't refund).
-7. **Add card expiry validation** (prevent charging expired cards).
-8. **Encrypt authorization codes** at rest (PCI compliance).
-9. **Add DataLoader** for payment methods (prevent N+1 if needed).
-
----
-
-## 12. Implementation Spec
+## Implementation Spec
 
 ### Domain Layer
 
 ```typescript
-/**
- * Payment method aggregate.
- * Maps to PaymentMethod fields: id, userId, provider, providerRef, type, cardBrand, last4, expMonth, expYear, isDefault, verified, createdAt.
- */
+
+/** Aggregate root for Payment Gateway invariants; persistence ignorant and reconstituted by repositories. */
+class PaymentMethod extends AggregateRoot<PaymentMethodId> {
+  /** Creates a new aggregate and records creation events where the module emits them. */
+  static create(...args: unknown[]): PaymentMethod;
+
+  /** Rehydrates an aggregate from persistence without recording new domain events. */
+  static reconstitute(...args: unknown[]): PaymentMethod;
+
+  /** Returns and clears queued domain events after a successful repository write. */
+  pullDomainEvents(): DomainEvent[];
+}
+
+/** Strongly typed identifier for PaymentMethod; prevents cross-aggregate ID mix-ups. */
 class PaymentMethodId extends EntityId {
-  /**
-   * Private constructor. Use PaymentMethodId.new() or PaymentMethodId.from().
-   */
-  private constructor(value: string);
-
-  /**
-   * Creates a new PaymentMethodId.
-   */
-  static new(): PaymentMethodId;
-
-  /**
-   * Rehydrates PaymentMethodId from persisted value.
-   */
-  static from(value: string): PaymentMethodId;
+  /** Builds an ID from a persisted string. */
+  static fromString(value: string): PaymentMethodId;
 }
 
-/**
- * Payment method aggregate.
- */
-class PaymentMethodAggregate extends AggregateRoot<PaymentMethodId> {
-  constructor(
-    public readonly id: PaymentMethodId,
-    public readonly userId: UserId,
-    public readonly provider: string,
-    public readonly providerRef: string,
-    public readonly type: string,
-    public readonly cardBrand: string | null,
-    public readonly last4: string | null,
-    public readonly expMonth: number | null,
-    public readonly expYear: number | null,
-    private isDefault: boolean,
-    private verified: boolean,
-    public readonly createdAt: Date,
-  );
-
-  /**
-   * Creates a new payment method aggregate.
-   */
-  static create(
-    userId: UserId,
-    provider: string,
-    providerRef: string,
-    type: string,
-    cardBrand: string | null,
-    last4: string | null,
-    expMonth: number | null,
-    expYear: number | null,
-    isDefault: boolean,
-    verified: boolean,
-    createdAt: Date,
-  ): PaymentMethodAggregate;
-
-  /**
-   * Reconstitutes payment method aggregate from persistence.
-   */
-  static reconstitute(
-    id: PaymentMethodId,
-    userId: UserId,
-    provider: string,
-    providerRef: string,
-    type: string,
-    cardBrand: string | null,
-    last4: string | null,
-    expMonth: number | null,
-    expYear: number | null,
-    isDefault: boolean,
-    verified: boolean,
-    createdAt: Date,
-  ): PaymentMethodAggregate;
-
-  /**
-   * Marks this method as default for owner userId.
-   */
-  setDefault(): void;
-
-  /**
-   * Marks method as verified once authorization succeeds.
-   */
-  markVerified(): void;
-
-  /**
-   * Checks card expiry from expMonth and expYear.
-   */
-  isExpired(now: Date): boolean;
+/** Base domain error for violated Payment Gateway invariants. */
+class PaymentMethodInvariantError extends Error {
+  /** Creates the invariant error. */
+  constructor(message: string);
 }
-```
 
-### Repository Interface
+/** Domain event emitted by PaymentMethod after its state transition is persisted. */
+class PaymentMethodAddedEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: PaymentMethodId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
+}
 
-```typescript
-/**
- * Persistence contract for payment methods and provider customer mapping.
- */
+/** Domain event emitted by PaymentMethod after its state transition is persisted. */
+class PaymentMethodRemovedEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: PaymentMethodId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
+}
+
+/** Domain event emitted by PaymentMethod after its state transition is persisted. */
+class PaymentSucceededEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: PaymentMethodId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
+}
+
+/** Domain event emitted by PaymentMethod after its state transition is persisted. */
+class PaymentFailedEvent implements DomainEvent {
+  /** Creates the event payload used by EventBus subscribers. */
+  constructor(public readonly aggregateId: PaymentMethodId, public readonly occurredAt: Date, public readonly payload: Record<string, unknown>);
+}
+
+/** Repository interface for PaymentMethod; domain/application depend on this contract, not Prisma. */
 interface IPaymentMethodRepository {
-  /**
-   * Finds payment method by PaymentMethod.id.
-   */
-  findById(id: PaymentMethodId): Promise<PaymentMethodAggregate | null>;
+  /** Loads an aggregate by ID. */
+  findById(id: PaymentMethodId): Promise<PaymentMethod | null>;
 
-  /**
-   * Finds methods by PaymentMethod.userId.
-   */
-  findByUserId(userId: UserId): Promise<PaymentMethodAggregate[]>;
-
-  /**
-   * Finds default method for user (isDefault = true).
-   */
-  findDefaultByUserId(userId: UserId): Promise<PaymentMethodAggregate | null>;
-
-  /**
-   * Persists PaymentMethod updates.
-   */
-  save(method: PaymentMethodAggregate): Promise<void>;
-
-  /**
-   * Saves/updates PaystackCustomer mapping (customer_code, customer_id, userId).
-   */
-  savePaystackCustomer(
-    customerCode: string,
-    customerId: string,
-    userId: UserId,
-  ): Promise<void>;
+  /** Persists the aggregate in one durable write boundary. */
+  save(aggregate: PaymentMethod): Promise<void>;
 }
+
 ```
 
 ### Application Layer
 
 ```typescript
-/**
- * Orchestrates card authorization verification and persistence.
- */
-class AddPaymentMethodCommandHandler {
-  /**
-   * Verifies provider reference, saves method, enqueues refund compensation if needed.
-   */
-  execute(command: AddPaymentMethodCommand): Promise<PaymentMethodId>;
+
+import { Command, CommandBus, CommandHandler, EventBus, EventsHandler, ICommandHandler, IEventHandler, IQueryHandler, Query, QueryBus, QueryHandler } from '@nestjs/cqrs';
+
+/** Command input for the AddPaymentMethod use case. */
+class AddPaymentMethodCommand extends Command<PaymentMethodId> {
+  /** Captures all input required by AddPaymentMethodHandler. */
+  constructor(public readonly payload: AddPaymentMethodPayload);
 }
 
-interface AddPaymentMethodCommand {
-  userId: UserId;
-  provider: 'paystack';
-  authorizationCode: string;
-  setAsDefault?: boolean;
+/** Handles AddPaymentMethodCommand through the NestJS CommandBus. */
+@CommandHandler(AddPaymentMethodCommand)
+class AddPaymentMethodHandler implements ICommandHandler<AddPaymentMethodCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: AddPaymentMethodCommand): Promise<PaymentMethodId>;
 }
 
-/**
- * Removes payment method owned by user.
- */
-class RemovePaymentMethodCommandHandler {
-  /**
-   * Deletes method and emits PaymentMethodRemovedEvent.
-   */
-  execute(command: RemovePaymentMethodCommand): Promise<void>;
+/** Command input for the RemovePaymentMethod use case. */
+class RemovePaymentMethodCommand extends Command<void> {
+  /** Captures all input required by RemovePaymentMethodHandler. */
+  constructor(public readonly payload: RemovePaymentMethodPayload);
 }
 
-interface RemovePaymentMethodCommand {
-  paymentMethodId: PaymentMethodId;
-  userId: UserId;
+/** Handles RemovePaymentMethodCommand through the NestJS CommandBus. */
+@CommandHandler(RemovePaymentMethodCommand)
+class RemovePaymentMethodHandler implements ICommandHandler<RemovePaymentMethodCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: RemovePaymentMethodCommand): Promise<void>;
 }
+
+/** Command input for the InitializePayment use case. */
+class InitializePaymentCommand extends Command<PaymentInitializationDTO> {
+  /** Captures all input required by InitializePaymentHandler. */
+  constructor(public readonly payload: InitializePaymentPayload);
+}
+
+/** Handles InitializePaymentCommand through the NestJS CommandBus. */
+@CommandHandler(InitializePaymentCommand)
+class InitializePaymentHandler implements ICommandHandler<InitializePaymentCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: InitializePaymentCommand): Promise<PaymentInitializationDTO>;
+}
+
+/** Command input for the RecordWebhookEvent use case. */
+class RecordWebhookEventCommand extends Command<void> {
+  /** Captures all input required by RecordWebhookEventHandler. */
+  constructor(public readonly payload: RecordWebhookEventPayload);
+}
+
+/** Handles RecordWebhookEventCommand through the NestJS CommandBus. */
+@CommandHandler(RecordWebhookEventCommand)
+class RecordWebhookEventHandler implements ICommandHandler<RecordWebhookEventCommand> {
+  /** Executes the use case, persists aggregates first, then publishes aggregate.pullDomainEvents(). */
+  async execute(command: RecordWebhookEventCommand): Promise<void>;
+}
+
+/** Query input for GetPaymentMethods. */
+class GetPaymentMethodsQuery extends Query<PaymentMethodDTO[]> {
+  /** Captures all filters, pagination, and caller identity for the query. */
+  constructor(public readonly payload: GetPaymentMethodsPayload);
+}
+
+/** Handles GetPaymentMethodsQuery through the NestJS QueryBus. */
+@QueryHandler(GetPaymentMethodsQuery)
+class GetPaymentMethodsHandler implements IQueryHandler<GetPaymentMethodsQuery> {
+  /** Returns an application DTO, never a GraphQL type or Prisma row. */
+  async execute(query: GetPaymentMethodsQuery): Promise<PaymentMethodDTO[]>;
+}
+
+/** Event handler for PaymentSucceededEvent; uses buses rather than handler classes. */
+@EventsHandler(PaymentSucceededEvent)
+class OnPaymentSucceededCreditWalletHandler implements IEventHandler<PaymentSucceededEvent> {
+  /** Reacts to the event by dispatching commands/queries through the buses. */
+  async handle(event: PaymentSucceededEvent): Promise<void>;
+}
+
 ```
 
-### Domain Events
+### Infrastructure And Presentation Layers
 
 ```typescript
-/**
- * Emitted when payment method is successfully added and verified.
- */
-class PaymentMethodAddedEvent {
-  constructor(
-    public readonly paymentMethodId: PaymentMethodId,
-    public readonly userId: UserId,
-    public readonly provider: string,
-    public readonly isDefault: boolean,
-  );
+
+/** Prisma implementation of IPaymentMethodRepository; maps rows through PaymentMethodMapper. */
+@Injectable()
+class PrismaPaymentMethodRepository implements IPaymentMethodRepository {
+  /** Loads and maps a persistence row to the domain aggregate. */
+  async findById(id: PaymentMethodId): Promise<PaymentMethod | null>;
+
+  /** Persists aggregate state without publishing events itself. */
+  async save(aggregate: PaymentMethod): Promise<void>;
 }
 
-/**
- * Emitted when payment method is removed.
- */
-class PaymentMethodRemovedEvent {
-  constructor(
-    public readonly paymentMethodId: PaymentMethodId,
-    public readonly userId: UserId,
-  );
+/** Injectable mapper for PaymentMethod; uses DI for nested mappers and avoids static conversion helpers. */
+@Injectable()
+class PaymentMethodMapper {
+  /** Converts a Prisma row into a domain aggregate. */
+  toDomain(row: unknown): PaymentMethod;
+
+  /** Converts a domain aggregate into persistence data. */
+  toPersistence(aggregate: PaymentMethod): unknown;
 }
+
+/** GraphQL resolver; injects CommandBus and QueryBus, never repositories. */
+@Resolver()
+class PaymentGatewayResolver {
+  /** Creates the resolver with CQRS buses. */
+  constructor(private readonly commandBus: CommandBus, private readonly queryBus: QueryBus);
+}
+
+/** GraphQL shape for PaymentMethodGraphQLType; separate from application DTOs. */
+type PaymentMethodGraphQLTypeShape = Omit<PaymentMethodDTO, 'id'> & { id: string };
+
+/** Presentation type exposed by GraphQL decorators. */
+@ObjectType()
+class PaymentMethodGraphQLType implements PaymentMethodGraphQLTypeShape {
+  /** String form of the strongly typed aggregate ID. */
+  @Field() id: string;
+}
+
+/** Converts application DTOs to GraphQL types, including EntityId-to-string fields. */
+function toPaymentMethodGraphQLType(dto: PaymentMethodDTO): PaymentMethodGraphQLType;
+
+/** GraphQL shape for PaymentInitializationGraphQLType; separate from application DTOs. */
+type PaymentInitializationGraphQLTypeShape = Omit<PaymentInitializationDTO, 'id'> & { id: string };
+
+/** Presentation type exposed by GraphQL decorators. */
+@ObjectType()
+class PaymentInitializationGraphQLType implements PaymentInitializationGraphQLTypeShape {
+  /** String form of the strongly typed aggregate ID. */
+  @Field() id: string;
+}
+
+/** Converts application DTOs to GraphQL types, including EntityId-to-string fields. */
+function toPaymentInitializationGraphQLType(dto: PaymentInitializationDTO): PaymentInitializationGraphQLType;
+
 ```
+
+## EIP Patterns Applied
+
+- **Canonical Data Model**: Gateway payloads are translated to normalized payment events before other modules consume them. Status: fully specced with concrete signatures in the Implementation Spec.
+- **Idempotent Receiver**: Webhook event IDs and gateway references are stored uniquely before publishing PaymentSucceededEvent. Status: fully specced with concrete signatures in the Implementation Spec.
+- **Dead Letter Channel**: Webhook processing failures are retried with raw payload, provider event ID, and gatewayReference for replay. Status: fully specced with concrete signatures in the Implementation Spec.
