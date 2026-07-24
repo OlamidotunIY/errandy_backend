@@ -15,7 +15,6 @@ import { CreateErrandInput } from './dto/create-errand.input';
 import { UpdateErrandInput } from './dto/update-errand.input';
 import { ErrandQueryInput } from './dto/errand-query.input';
 import { PaginatedErrands } from './entities/paginated-errands.entity';
-import { ErrandSubscriptionPayload } from './entities/errand-subscription.entity';
 import { UseGuards, Inject } from '@nestjs/common';
 import { GetAllErrandInput } from './dto/get-all-errand.input';
 import { GetErrandInput } from './dto/get-errand.input';
@@ -42,16 +41,12 @@ import {
 } from './dto/errand-bundle.dto';
 import { CreateListingInput, UpdateListingInput } from './dto/listing.input';
 import { DispatchErrandInput } from './dto/dispatch.input';
-import { EscrowService } from 'src/escrow/escrow.service';
 import { RecurringContract } from './entities/recurring-contract.entity';
 import { ErrandAssignment } from './entities/errand-assignment.entity';
 
 @Resolver(() => Errand)
 export class ErrandsResolver {
-  constructor(
-    private readonly errandsService: ErrandsService,
-    private readonly escrowService: EscrowService,
-  ) {}
+  constructor(private readonly errandsService: ErrandsService) {}
 
   @UseGuards(GqlAuthGuard)
   @Mutation(() => Errand)
@@ -101,14 +96,14 @@ export class ErrandsResolver {
     return this.errandsService.remove(id);
   }
 
-  @UseGuards(GqlAuthGuard)
-  @Mutation(() => Errand)
-  markErrandCompleted(
-    @Args('errandId', { type: () => ID }) errandId: string,
-    @CurrentUser() user: User,
-  ) {
-    return this.escrowService.markErrandCompleted(errandId, user.id);
-  }
+  // @UseGuards(GqlAuthGuard)
+  // @Mutation(() => Errand)
+  // markErrandCompleted(
+  //   @Args('errandId', { type: () => ID }) errandId: string,
+  //   @CurrentUser() user: User,
+  // ) {
+  //   return this.escrowService.markErrandCompleted(errandId, user.id);
+  // }
 
   @UseGuards(GqlAuthGuard)
   @Mutation(() => SavedErrand)
