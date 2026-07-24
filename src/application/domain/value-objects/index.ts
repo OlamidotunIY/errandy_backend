@@ -1,1 +1,1 @@
-export * from './ApplicationId'
+export * from './ApplicationId';

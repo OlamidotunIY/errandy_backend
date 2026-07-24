@@ -1,1 +1,1 @@
-export * from "./verificationId"
+export * from './verificationId';

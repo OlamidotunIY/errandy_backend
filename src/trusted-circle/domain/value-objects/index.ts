@@ -1,1 +1,1 @@
-export * from "./TrustedCircleId"
+export * from './TrustedCircleId';

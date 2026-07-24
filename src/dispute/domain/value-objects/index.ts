@@ -1,1 +1,1 @@
-export * from "./DisputeId"
+export * from './DisputeId';

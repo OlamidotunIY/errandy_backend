@@ -1,2 +1,2 @@
 export * from './graphql';
-export * from './resolvers/WalletResolver';
+export * from './resolvers';

@@ -1,1 +1,1 @@
-export { Escrow } from './Escrow';
+export * from './Escrow';
