@@ -40,7 +40,7 @@ copy_nginx_config() {
   mkdir -p "$DST_CONF_DIR"
 
   # Copy config into the compose project directory when needed.
-  # This is important if only docker-compose.prod.yml is deployed to $APP_DIR.
+  # This is important if only docker-compose.yml is deployed to $APP_DIR.
   if [ "$(cd "$SRC_CONF_DIR" && pwd)" = "$(cd "$DST_CONF_DIR" && pwd)" ]; then
     info "Nginx config already present at: $DST_CONF_DIR"
     return

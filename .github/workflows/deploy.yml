@@ -69,10 +69,10 @@
 #           ssh -i ~/.ssh/do_droplet_key "${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}" \
 #             "mkdir -p '${{ env.APP_DIR }}'"
 
-#       - name: Upload docker-compose.prod.yml (droplet)
+#       - name: Upload docker-compose.yml (droplet)
 #         run: |
-#           scp -i ~/.ssh/do_droplet_key docker-compose.prod.yml \
-#             "${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}:${{ env.APP_DIR }}/docker-compose.prod.yml"
+#           scp -i ~/.ssh/do_droplet_key docker-compose.yml \
+#             "${{ secrets.DROPLET_USER }}@${{ secrets.DROPLET_HOST }}:${{ env.APP_DIR }}/docker-compose.yml"
 
 #       - name: Upload nginx config (droplet)
 #         run: |
@@ -97,8 +97,8 @@
 #           mkdir -p "$DOCKER_CONFIG"
 #           echo "$DO_ACCESS_TOKEN" | docker login registry.digitalocean.com -u token --password-stdin
 
-#           docker compose -f docker-compose.prod.yml pull
-#           docker compose -f docker-compose.prod.yml up -d --remove-orphans
+#           docker compose -f docker-compose.yml pull
+#           docker compose -f docker-compose.yml up -d --remove-orphans
 
 #           # Safe if droplet is dedicated to this app
 #           docker image prune -af || true
@@ -117,8 +117,8 @@
 
 #           if [ "$ok" -ne 1 ]; then
 #             echo "Health check failed: $HEALTH_URL"
-#             docker compose -f docker-compose.prod.yml ps || true
-#             docker compose -f docker-compose.prod.yml logs --tail 300 api worker redis || true
+#             docker compose -f docker-compose.yml ps || true
+#             docker compose -f docker-compose.yml logs --tail 300 api worker redis || true
 #             exit 1
 #           fi
 

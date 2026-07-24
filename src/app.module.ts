@@ -1,7 +1,5 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { AddressModule } from './address/address.module';
@@ -10,7 +8,7 @@ import { ApplicationModule } from './application/application.module';
 import { ChatModule } from './chat/chat.module';
 import { WalletModule } from './wallet/wallet.module';
 import { ErrandsModule } from './errands/errands.module';
-import { PubSubModule } from './pubsub/pubsub.module';
+// import { PubSubModule } from './pubsub/pubsub.module';
 import { ConfigModule } from '@nestjs/config';
 import { ClientModule } from './client/client.module';
 import { RatingResolver } from './rating/rating.resolver';
@@ -29,6 +27,7 @@ import { PresenceModule } from './presence/presence.module';
 import { GqlConfig } from './config/graphql-ws';
 import { RedisModule } from './redis/redis.module';
 import { GraphqlExceptionFilter } from './common/filters/graphql-exception.filter';
+import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
   imports: [
@@ -38,7 +37,7 @@ import { GraphqlExceptionFilter } from './common/filters/graphql-exception.filte
     GqlConfig,
     EventEmitterModule.forRoot(),
     RedisModule,
-    PubSubModule,
+    // PubSubModule,
     AuthModule,
     UsersModule,
     AddressModule,
@@ -59,10 +58,10 @@ import { GraphqlExceptionFilter } from './common/filters/graphql-exception.filte
     PushModule,
     ProviderModule,
     PresenceModule,
+    PrismaModule,
   ],
-  controllers: [AppController],
+  controllers: [],
   providers: [
-    AppService,
     RatingResolver,
     {
       provide: APP_FILTER,

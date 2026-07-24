@@ -1,3 +1,1 @@
-export class AppendFailedLedgerEntryJob {
-
-}
+export class AppendFailedLedgerEntryJob {}
