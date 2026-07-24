@@ -2,11 +2,6 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
-input AcceptApplicationInput {
-  applicationId: ID!
-  paymentMethodId: ID
-}
-
 input AddBundleItemInput {
   bundleId: ID!
   templateId: ID!
@@ -42,29 +37,6 @@ type AddressSuggestion {
   placeId: String!
 }
 
-type Application {
-  acceptedAt: DateTime
-  createdAt: DateTime!
-  errandId: String!
-  id: ID!
-  source: ApplicationSource!
-  status: ApplicationStatus!
-  worker: Provider
-  workerId: String!
-}
-
-enum ApplicationSource {
-  INVITED
-  PUBLIC
-}
-
-enum ApplicationStatus {
-  ACCEPTED
-  CANCELLED
-  PENDING
-  REJECTED
-}
-
 enum AssignmentRole {
   LEAD
   MEMBER
@@ -75,13 +47,6 @@ enum AssignmentStatus {
   ASSIGNED
   COMPLETED
   REJECTED
-}
-
-type BankTransferDetails {
-  accountName: String!
-  accountNumber: String!
-  bankName: String!
-  expiresAt: String
 }
 
 type BundleItem {
@@ -120,30 +85,11 @@ type Client {
   userId: ID!
 }
 
-type ClientDashboard {
-  activeErrands: [Errand!]!
-  activeErrandsCount: Int!
-  completedErrandsCount: Int!
-  completedRequirementsCount: Int!
-  draftErrands: [Errand!]!
-  draftErrandsCount: Int!
-  marketTrends: [String!]!
-  requirements: [DashboardRequirement!]!
-  totalErrandsCount: Int!
-  totalRequirementsCount: Int!
-  totalSpent: Float!
-  walletBalance: Float!
-}
-
 input CreateAddressInput {
   address: String!
   label: String!
   latitude: Float!
   longitude: Float!
-}
-
-input CreateApplicationInput {
-  errandId: String!
 }
 
 input CreateChatInput {
@@ -206,19 +152,6 @@ input CreateRecurringErrandInput {
   templateId: ID!
 }
 
-input CreateWalletInput {
-  """Example field (placeholder)"""
-  exampleField: Int!
-}
-
-type DashboardRequirement {
-  description: String!
-  isCompleted: Boolean!
-  key: String!
-  requiredTo: String!
-  title: String!
-}
-
 """
 A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
 """
@@ -263,16 +196,6 @@ type Errand {
   title: String!
   transportAllowance: Float
   updatedAt: DateTime!
-}
-
-type ErrandApplicationSummary {
-  acceptedApplications: Int!
-  cancelledApplications: Int!
-  chattingApplicants: Int!
-  myApplicationStatus: ApplicationStatus
-  pendingApplications: Int!
-  rejectedApplications: Int!
-  totalApplications: Int!
 }
 
 type ErrandAssignment {
@@ -412,6 +335,31 @@ The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://
 """
 scalar JSON
 
+type LedgerEntryGraphQLType {
+  amountKobo: Int!
+  createdAt: DateTime!
+  currency: String!
+  escrowId: String
+  gatewayReference: String
+  id: String!
+  type: LedgerEntryType!
+}
+
+enum LedgerEntryType {
+  ACTIVE_ERRAND_CREDIT
+  ACTIVE_ERRAND_REVERSAL
+  AVAILABLE_CREDIT
+  PENDING_CREDIT
+  PENDING_REVERSAL
+  REFUND_CREDIT
+  WITHDRAWAL_DEBIT
+}
+
+type LedgerHistoryPageType {
+  entries: [LedgerEntryGraphQLType!]!
+  nextCursor: String
+}
+
 enum ListingPublishState {
   ARCHIVED
   DRAFT
@@ -448,14 +396,12 @@ enum MessageType {
 }
 
 type Mutation {
-  acceptApplication(input: AcceptApplicationInput!): Errand!
   acceptSharedProvider(providerId: ID!): TrustedCircle!
   addAddress(dto: CreateAddressInput!): User!
   addBundleItem(input: AddBundleItemInput!): BundleItem!
   addRatingReply(input: AddRatingReplyInput!): RatingReply!
   addToCircle(input: AddToCircleInput!): TrustedCircle!
   addWorkerServices(dto: AddWorkerServicesInput!): User!
-  apply(createApplicationInput: CreateApplicationInput!): Application!
   cancelRecurringErrand(id: ID!): RecurringContract!
 
   """Clear user search history"""
@@ -469,7 +415,6 @@ type Mutation {
   createRecurringContractFromListing(frequency: String!, templateId: ID!): RecurringContract!
   createRecurringErrand(input: CreateRecurringErrandInput!): RecurringContract!
   createUserRole(role: UserRole!): User!
-  createWallet(createWalletInput: CreateWalletInput!): Wallet!
 
   """Delete a user address"""
   deleteAddress(addressId: String!): Boolean!
@@ -480,15 +425,6 @@ type Mutation {
   dispatchErrand(input: DispatchErrandInput!): ErrandAssignment!
   getOrCreateChat(createChatInput: CreateChatInput!): ChatRoom!
   hireFromListing(templateId: ID!): Errand!
-  initializePaymentMethod(provider: String = "paystack"): PaymentInitializationResponse!
-  initializeWalletFunding(
-    """Amount in kobo"""
-    amount: Float!
-
-    """Payment channel: card, transfer, or qr"""
-    channel: WalletFundingChannel!
-  ): WalletFundingResponse!
-  markErrandCompleted(errandId: ID!): Errand!
   markMessageAsDelivered(messageId: String!): Message!
   markMessageAsSeen(messageId: String!): Message!
   publishListing(id: ID!): ErrandTemplate!
@@ -496,7 +432,6 @@ type Mutation {
   removeBundleItem(input: RemoveBundleItemInput!): BundleItem!
   removeErrand(id: ID!): Errand!
   removeFromCircle(providerId: ID!): TrustedCircle!
-  removeWallet(id: Int!): Wallet!
   saveErrand(errandId: ID!): SavedErrand!
   saveUserAddress(dto: SaveUserAddressInput!): User!
   sendMessage(sendMessageInput: SendMessageInput!): Message!
@@ -508,9 +443,7 @@ type Mutation {
   updateListing(input: UpdateListingInput!): ErrandTemplate!
   updateRecurringErrand(input: UpdateRecurringErrandInput!): RecurringContract!
   updateUser(updateUserInput: UpdateUserInput!): User!
-  updateWallet(updateWalletInput: UpdateWalletInput!): Wallet!
   useCurrentAddress(input: ReverseGeocodeInput!): User!
-  verifyAndSavePaymentMethod(provider: String = "paystack", reference: String!): PaymentMethod!
 }
 
 """Type of errands to retrieve for My Errands view"""
@@ -575,18 +508,6 @@ input PaginationInput {
   page: Int! = 1
 }
 
-type PaymentInitializationData {
-  access_code: String
-  authorization_url: String
-  reference: String!
-}
-
-type PaymentInitializationResponse {
-  data: PaymentInitializationData
-  message: String!
-  status: Boolean!
-}
-
 type PaymentMethod {
   cardBrand: String
   client: Client
@@ -601,14 +522,6 @@ type PaymentMethod {
   type: String!
   userId: String!
   verified: Boolean!
-}
-
-type PaystackCustomer {
-  customer_code: String!
-  customer_id: String!
-  id: ID!
-  paystackData: JSON
-  userId: String!
 }
 
 input PlaceDetailsInput {
@@ -657,21 +570,10 @@ enum ProviderType {
   PROFESSIONAL
 }
 
-type QRCodeDetails {
-  displayText: String
-  qrCode: String!
-}
-
 type Query {
-  application(id: ID!): Application!
-
-  """Get client dashboard data including requirements and errands"""
-  clientDashboard: ClientDashboard!
   clientRatings(clientId: ID!): [Rating!]!
   dispatchQueue(providerOrgId: ID!): [Errand!]!
   errand(input: GetErrandInput!): Errand!
-  errandApplicationSummary(errandId: ID!): ErrandApplicationSummary!
-  errandApplications(errandId: ID!): [Application!]!
   errandBundle(id: ID!): ErrandBundle
   errandBundles: [ErrandBundle!]!
   errandRatings(errandId: ID!): [Rating!]!
@@ -692,13 +594,11 @@ type Query {
   getTrustedCircle: TrustedCircle
   getUserAddresses: [UserAddress!]!
   getUserChats: [ChatRoom!]!
+  ledgerHistory(cursor: String, limit: Float! = 20): LedgerHistoryPageType!
   listing(id: ID!): ErrandTemplate
   listings(providerOrgId: ID): [ErrandTemplate!]!
-  myApplicationForErrand(errandId: ID!): Application
   myErrandTemplates: [ErrandTemplate!]!
   myOrganization: Organization
-  myPaymentMethods: [PaymentMethod!]!
-  myPaystackCustomer: PaystackCustomer
   myRecurringErrands: [RecurringContract!]!
   placeDetails(input: PlaceDetailsInput!): AddressDetails!
   presence(userId: ID!): UserPresence!
@@ -711,7 +611,7 @@ type Query {
 
   """Get user search history for workers"""
   userSearchHistory: [Search!]!
-  wallet(id: Int!): Wallet!
+  walletBalances: WalletBalancesType!
 }
 
 enum RateeType {
@@ -971,12 +871,6 @@ input UpdateUserInput {
   username: String
 }
 
-input UpdateWalletInput {
-  """Example field (placeholder)"""
-  exampleField: Int
-  id: Int!
-}
-
 """The `Upload` scalar type represents a file upload."""
 scalar Upload
 
@@ -1023,37 +917,9 @@ enum UserRole {
   PROVIDER
 }
 
-type Wallet {
-  available: Float!
-  createdAt: DateTime!
-  currency: String
-  held: Float!
-  id: ID!
-  ownerId: String!
-  ownerType: UserRole!
-  updatedAt: DateTime!
-}
-
-"""Payment channel for wallet funding"""
-enum WalletFundingChannel {
-  CARD
-  QR
-  TRANSFER
-}
-
-type WalletFundingResponse {
-  amount: Float!
-
-  """For card channel - redirect URL"""
-  authorizationUrl: String
-
-  """For transfer channel - bank details"""
-  bankDetails: BankTransferDetails
-  channel: WalletFundingChannel!
-  message: String!
-
-  """For QR channel - QR code data"""
-  qrDetails: QRCodeDetails
-  reference: String!
-  status: Boolean!
+type WalletBalancesType {
+  activeKobo: Int!
+  availableKobo: Int!
+  currency: String!
+  pendingKobo: Int!
 }
