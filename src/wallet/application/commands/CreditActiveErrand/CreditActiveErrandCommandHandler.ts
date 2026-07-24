@@ -17,18 +17,6 @@ class CreditActiveErrandCommandHandler {
   ) {}
 
   async execute(command: CreditActiveErrandCommand): Promise<void> {
-    const alreadyExists = await this.ledgerEntryRepository.existsForEscrow(
-      command.escrowId,
-      LedgerEntryType.ACTIVE_ERRAND_CREDIT,
-    );
-
-    if (alreadyExists) {
-      throw new DuplicateLedgerEntryError(
-        command.escrowId.toString(),
-        LedgerEntryType.ACTIVE_ERRAND_CREDIT,
-      );
-    }
-
     const wallet = await this.walletRepository.findById(command.walletId);
 
     if (!wallet) {
