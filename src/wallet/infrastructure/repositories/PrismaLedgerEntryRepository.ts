@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import {
   BucketType,
-  computeBalanceForBucket,
   DuplicateLedgerEntryError,
-  ILedgerEntryRepository,
   InsufficientBalanceError,
+  LedgerBalanceCalculator,
   LedgerEntry,
   LedgerEntryPage,
+  LedgerEntryRepository,
   WalletId,
 } from '@wallet';
 import {
@@ -17,17 +17,26 @@ import {
 import { LedgerEntryMapper } from '../mappers';
 
 @Injectable()
-class PrismaLedgerEntryRepository implements ILedgerEntryRepository {
+class PrismaLedgerEntryRepository implements LedgerEntryRepository {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mapper: LedgerEntryMapper,
+    private readonly ledgerBalanceCalculator: LedgerBalanceCalculator,
   ) {}
 
-  async append(entry: LedgerEntry): Promise<void> {
+  async append(entry: LedgerEntry): Promise<LedgerEntry[]> {
     try {
-      await this.prisma.ledgerEntry.create({
-        data: this.mapper.toPersistence(entry),
+      const sequence = await this.sequenceGeneratorNext(entry.walletId);
+      entry.assignSequence(sequence);
+
+      const appendedEntry = await this.prisma.ledgerEntry.create({
+        data: {
+          ...this.mapper.toPersistence(entry),
+          sequence: entry.sequence ?? 0,
+        },
       });
+
+      return [this.mapper.toDomain(appendedEntry)];
     } catch (e) {
       if (isUniqueConstraintViolation(e, 'idempotencyKey')) {
         throw new DuplicateLedgerEntryError(entry.idempotencyKey);
@@ -95,7 +104,7 @@ class PrismaLedgerEntryRepository implements ILedgerEntryRepository {
     bucket: BucketType,
     requiredAmountKobo: number,
     entries: LedgerEntry[],
-  ): Promise<void> {
+  ): Promise<LedgerEntry[]> {
     const maxRetries = 3;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -104,10 +113,25 @@ class PrismaLedgerEntryRepository implements ILedgerEntryRepository {
           const rows = await tx.ledgerEntry.findMany({
             where: { walletId: walletId.toString() },
           });
-          const liveBalance = computeBalanceForBucket(
-            bucket,
-            rows.map((r) => this.mapper.toDomain(r)),
-          );
+          let liveBalance = 0;
+
+          switch (bucket) {
+            case BucketType.ACTIVE:
+              liveBalance = this.ledgerBalanceCalculator.calculateActive(
+                rows.map((r) => this.mapper.toDomain(r)),
+              );
+              break;
+            case BucketType.PENDING:
+              liveBalance = this.ledgerBalanceCalculator.calculatePending(
+                rows.map((r) => this.mapper.toDomain(r)),
+              );
+              break;
+            case BucketType.AVAILABLE:
+              liveBalance = this.ledgerBalanceCalculator.calculateAvailable(
+                rows.map((r) => this.mapper.toDomain(r)),
+              );
+              break;
+          }
 
           if (liveBalance < requiredAmountKobo) {
             throw new InsufficientBalanceError(
@@ -121,7 +145,7 @@ class PrismaLedgerEntryRepository implements ILedgerEntryRepository {
             data: entries.map((e) => this.mapper.toPersistence(e)),
           });
         });
-        return; // success
+        return entries; // success
       } catch (err) {
         if (isTransientTransactionError(err) && attempt < maxRetries) {
           continue;
@@ -129,6 +153,38 @@ class PrismaLedgerEntryRepository implements ILedgerEntryRepository {
         throw err;
       }
     }
+
+    throw new Error(
+      'appendManyIfBalanceSufficient: retry loop exited without resolving — this should never happen',
+    );
+  }
+
+  async sequenceGeneratorNext(walletId: WalletId): Promise<number> {
+    return this.prisma.$transaction(async (tx) => {
+      const current = await tx.walletLedgerSequence.findUnique({
+        where: {
+          walletId: walletId.value,
+        },
+      });
+
+      const next = (current?.sequence ?? 0) + 1;
+
+      await tx.walletLedgerSequence.upsert({
+        where: {
+          walletId: walletId.value,
+        },
+        create: {
+          id: crypto.randomUUID(),
+          walletId: walletId.value,
+          sequence: next,
+        },
+        update: {
+          sequence: next,
+        },
+      });
+
+      return next;
+    });
   }
 }
 

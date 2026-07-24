@@ -1,8 +1,8 @@
-import { IWalletRepository, Wallet, WalletId, WalletMapper } from '@wallet';
+import { WalletRepository, Wallet, WalletId, WalletMapper } from '@wallet';
 import { PrismaService } from '../../../prisma.service';
 import { UserId } from '@user';
 
-class PrismaWalletRepository implements IWalletRepository {
+export class PrismaWalletRepository implements WalletRepository {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mapper: WalletMapper,
