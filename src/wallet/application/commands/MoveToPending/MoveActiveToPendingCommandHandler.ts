@@ -1,20 +1,21 @@
 import {
   BucketType,
-  DuplicateLedgerEntryError,
-  ILedgerEntryRepository,
-  IWalletBalanceRepository,
-  IWalletRepository,
-  LedgerEntryType,
+  LedgerEntryRepository,
+  WalletBalanceRepository,
+  WalletRepository,
+  LedgerEntry,
   WalletNotFoundError,
 } from '@wallet';
 import { MoveActiveToPendingCommand } from './';
-import { EventBus } from '@nestjs/cqrs';
+import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
+import { isTransientTransactionError } from '../../../../prisma.service';
 
-class MoveActiveToPendingCommandHandler {
+@CommandHandler(MoveActiveToPendingCommand)
+class MoveActiveToPendingCommandHandler implements ICommandHandler<MoveActiveToPendingCommand> {
   constructor(
-    private readonly ledgerEntryRepository: ILedgerEntryRepository,
-    private readonly walletRepository: IWalletRepository,
-    private readonly walletBalanceRepository: IWalletBalanceRepository,
+    private readonly ledgerEntryRepository: LedgerEntryRepository,
+    private readonly walletRepository: WalletRepository,
+    private readonly walletBalanceRepository: WalletBalanceRepository,
     private readonly eventBus: EventBus,
   ) {}
 
@@ -27,22 +28,42 @@ class MoveActiveToPendingCommandHandler {
       throw new WalletNotFoundError();
     }
 
-    const currentActiveBalance =
-      await this.walletBalanceRepository.getActiveErrandBalance(wallet.id);
+    const snapshotBalance =
+      await this.walletBalanceRepository.getSnapshotForDisplay(wallet.id);
 
     const [debitEntry, creditEntry] = wallet.moveActiveToPending(
       command.amountKobo,
       command.currency,
       command.escrowId,
-      currentActiveBalance,
+      snapshotBalance.activeKobo,
     );
 
-    await this.ledgerEntryRepository.appendManyIfBalanceSufficient(
-      wallet.id,
-      BucketType.ACTIVE,
-      currentActiveBalance,
-      [debitEntry, creditEntry],
-    );
+    const maxRetries = 3;
+
+    const persistedEntry: LedgerEntry[] = [];
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        await this.ledgerEntryRepository
+          .appendManyIfBalanceSufficient(
+            wallet.id,
+            BucketType.ACTIVE,
+            snapshotBalance.activeKobo,
+            [debitEntry, creditEntry],
+          )
+          .then((entries) => {
+            persistedEntry.push(...entries);
+          });
+        break; // Exit the loop if successful
+      } catch (e) {
+        if (isTransientTransactionError(e) && attempt < maxRetries - 1) {
+          continue;
+        }
+        throw e;
+      }
+    }
+
+    await this.walletBalanceRepository.apply(wallet.id, persistedEntry);
 
     const events = wallet.pullDomainEvents();
     for (const event of events) {

@@ -1,18 +1,18 @@
+import { CreditActiveErrandCommand } from './';
+import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 import {
-  ILedgerEntryRepository,
-  IWalletRepository,
-  LedgerEntryType,
-  DuplicateLedgerEntryError,
+  LedgerEntryRepository,
+  WalletBalanceRepository,
   WalletNotFoundError,
-  ActiveErrandCredited,
-} from '@wallet';
-import { CreditActiveErrandCommand } from './CreditActiveErrandCommand';
-import { EventBus } from '@nestjs/cqrs';
+  WalletRepository,
+} from '@wallet/domain';
 
-class CreditActiveErrandCommandHandler {
+@CommandHandler(CreditActiveErrandCommand)
+class CreditActiveErrandCommandHandler implements ICommandHandler<CreditActiveErrandCommand> {
   constructor(
-    private readonly ledgerEntryRepository: ILedgerEntryRepository,
-    private readonly walletRepository: IWalletRepository,
+    private readonly ledgerEntryRepository: LedgerEntryRepository,
+    private readonly walletRepository: WalletRepository,
+    private readonly walletBalanceSnapshotRepository: WalletBalanceRepository,
     private readonly eventBus: EventBus,
   ) {}
 
@@ -30,7 +30,12 @@ class CreditActiveErrandCommandHandler {
       command.gatewayReference,
     );
 
-    await this.ledgerEntryRepository.append(entry);
+    const persistedEntry = await this.ledgerEntryRepository.append(entry);
+
+    await this.walletBalanceSnapshotRepository.apply(
+      command.walletId,
+      persistedEntry,
+    );
 
     const events = wallet.pullDomainEvents();
     for (const event of events) {
