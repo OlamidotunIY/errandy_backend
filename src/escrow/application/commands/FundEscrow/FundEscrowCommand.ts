@@ -1,16 +1,10 @@
-import { ErrandId } from '@errands';
-import { ClientId } from '@client';
-import { ProviderId } from '@provider';
-import { Money } from '@escrow';
-import { PaymentMethodId } from '@payments';
+import { FundEscrowPayload, FundEscrowResult } from '@escrow';
+import { Command } from '@nestjs/cqrs';
 
-interface FundEscrowCommand {
-  errandId: ErrandId;
-  clientId: ClientId;
-  workerId: ProviderId;
-  amountGross: Money;
-  paymentMethodId: PaymentMethodId;
-  platformFeeRate: number;
+class FundEscrowCommand extends Command<FundEscrowResult> {
+  constructor(public readonly payload: FundEscrowPayload) {
+    super();
+  }
 }
 
 export { FundEscrowCommand };
