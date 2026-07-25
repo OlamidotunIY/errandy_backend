@@ -28,6 +28,7 @@ class CreditActiveErrandCommandHandler implements ICommandHandler<CreditActiveEr
       command.currency,
       command.escrowId,
       command.gatewayReference,
+      command.correlationId,
     );
 
     const persistedEntry = await this.ledgerEntryRepository.append(entry);
