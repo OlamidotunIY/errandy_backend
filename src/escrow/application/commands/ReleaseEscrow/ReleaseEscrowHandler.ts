@@ -1,4 +1,4 @@
-import { ReleaseEscrowCommand } from '@escrow/application';
+import { ReleaseEscrowCommand } from './';
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 import { EscrowInvariantError, EscrowRepository } from '@escrow/domain';
 import { ILogger } from '@shared';

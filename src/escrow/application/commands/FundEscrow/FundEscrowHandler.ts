@@ -2,7 +2,7 @@ import { Escrow, EscrowInvariantError, EscrowRepository } from '@escrow/domain';
 import { ILogger } from '@shared';
 import { FundEscrowResult } from './FundEscrowResult';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { FundEscrowCommand } from '../';
+import { FundEscrowCommand } from './';
 
 @CommandHandler(FundEscrowCommand)
 class FundEscrowHandler {

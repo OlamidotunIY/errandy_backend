@@ -1,7 +1,8 @@
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { EscrowDTO, GetEscrowByErrandQuery } from '@escrow/application';
+import { GetEscrowByErrandQuery } from './GetEscrowByErrandQuery';
 import { EscrowInvariantError, EscrowRepository } from '@escrow/domain';
 import { ILogger } from '@shared';
+import { EscrowDTO } from '@escrow/application';
 
 @QueryHandler(GetEscrowByErrandQuery)
 export class GetEscrowByErrandHandler implements IQueryHandler<GetEscrowByErrandQuery> {
