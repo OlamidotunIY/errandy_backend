@@ -25,9 +25,11 @@ import { ProviderModule } from './provider/provider.module';
 import { FirebaseModule } from './firebase/firebase.module';
 import { PresenceModule } from './presence/presence.module';
 import { GqlConfig } from './config/graphql-ws';
-import { RedisModule } from './redis/redis.module';
+import { RedisModule } from './infrastructure/redis/redis.module';
 import { GraphqlExceptionFilter } from './common/filters/graphql-exception.filter';
 import { PrismaModule } from './prisma/prisma.module';
+import { CommonModule } from './common/common.module';
+import { QueueModule } from './infrastructure/queue/queue.module';
 
 @Module({
   imports: [
@@ -59,6 +61,8 @@ import { PrismaModule } from './prisma/prisma.module';
     ProviderModule,
     PresenceModule,
     PrismaModule,
+    CommonModule,
+    QueueModule,
   ],
   controllers: [],
   providers: [

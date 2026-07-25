@@ -33,6 +33,7 @@ class RecordWithdrawalCommandHandler implements ICommandHandler<RecordWithdrawal
       command.currency,
       command.gatewayReference,
       snapshotBalance.availableKobo,
+      command.correlationId,
     );
 
     const maxRetries = 3;

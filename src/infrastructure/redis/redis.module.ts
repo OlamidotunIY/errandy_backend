@@ -12,8 +12,7 @@ export const REDIS = Symbol('REDIS');
       provide: REDIS,
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
-        const url = config.get<string>('REDIS_URL'); // e.g. redis://localhost:6379
-        console.log(url);
+        const url = config.get<string>('REDIS_URL');
 
         const redis = new Redis(url as string, {
           maxRetriesPerRequest: null,

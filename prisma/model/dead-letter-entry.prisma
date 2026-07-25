@@ -1,0 +1,11 @@
+model DeadLetterEntry {
+  id            String   @id @map("_id")
+  queueName     String
+  payload       Json
+  failureReason String
+  attemptsMade  Int
+  isPermanent   Boolean
+  createdAt     DateTime @default(now())
+
+  @@index([queueName, createdAt])
+}

@@ -1,8 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import { EscrowModule } from './escrow/escrow.module';
-import { QueuesModule } from './queues/queues.module';
 
 @Module({
   imports: [
@@ -10,8 +8,6 @@ import { QueuesModule } from './queues/queues.module';
       isGlobal: true,
     }),
     EventEmitterModule.forRoot(),
-    EscrowModule,
-    QueuesModule,
   ],
 })
 export class WorkerModule {}

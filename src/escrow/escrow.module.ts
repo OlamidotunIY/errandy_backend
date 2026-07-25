@@ -1,10 +1,27 @@
-import { Module } from '@nestjs/common';
+import { Module, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from 'src/prisma.service';
-import { PaymentGatewayModule } from 'src/payment-gateway/payment-gateway.module';
+import { MarkEscrowCompletedCommand } from '@escrow/application';
+import { EscrowId } from '@escrow/domain';
+import { CommandRetryRegistry } from '@shared';
+import { EscrowResolver } from '@escrow/presentation/resolvers';
+import { QueryBus } from '@nestjs/cqrs';
 
 @Module({
-  imports: [PaymentGatewayModule],
-  providers: [PrismaService],
+  imports: [],
+  providers: [PrismaService, EscrowResolver, QueryBus],
   exports: [],
 })
-export class EscrowModule {}
+export class EscrowModule implements OnModuleInit {
+  constructor(private readonly commandRetryRegistry: CommandRetryRegistry) {}
+
+  onModuleInit() {
+    this.commandRetryRegistry.register('MarkEscrowCompletedCommand', {
+      reconstruct: (payload) =>
+        new MarkEscrowCompletedCommand({
+          escrowId: EscrowId.fromString(payload.escrowId as string),
+          completedAt: new Date(payload.completedAt as string),
+          correlationId: payload.correlationId as string,
+        }),
+    });
+  }
+}

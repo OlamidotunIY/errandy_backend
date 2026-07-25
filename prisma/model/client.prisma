@@ -8,7 +8,6 @@ model Client {
     ratings            Rating[]
     trustedCircles     TrustedCircle[]
     recurringContracts RecurringContract[]
-    escrows            Escrow[]
 
     @@map("clients")
 }

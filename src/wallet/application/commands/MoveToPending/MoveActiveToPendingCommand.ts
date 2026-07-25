@@ -8,6 +8,7 @@ class MoveActiveToPendingCommand extends Command<void> {
     public readonly escrowId: EscrowId,
     public readonly amountKobo: number,
     public readonly currency: Currency,
+    public readonly correlationId: string,
   ) {
     super();
   }

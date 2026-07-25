@@ -1,3 +1,4 @@
+export * from './EscrowCompletedEvent';
 export * from './EscrowDisputedEvent';
 export * from './EscrowFundedEvent';
 export * from './EscrowRefundedEvent';

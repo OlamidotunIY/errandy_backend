@@ -1,5 +1,5 @@
 import { AggregateRoot } from '@shared';
-import { LedgerEntryType, WalletId } from '../value-objects';
+import { LedgerEntryType, WalletId } from '../';
 import { UserId } from '@user';
 import { Currency, CurrencyMismatchError, EscrowId } from '@escrow';
 import { LedgerEntry } from './LedgerEntry';
@@ -60,6 +60,7 @@ class Wallet extends AggregateRoot<WalletId> {
     currency: Currency,
     escrowId: EscrowId,
     gatewayReference: string,
+    correlationId: string,
   ): LedgerEntry {
     const idempotencyKey = `${LedgerEntryType.ACTIVE_ERRAND_CREDIT}_${escrowId.toString()}`;
     const entries = LedgerEntry.create({
@@ -74,7 +75,7 @@ class Wallet extends AggregateRoot<WalletId> {
     });
 
     this.addDomainEvent(
-      new ActiveErrandCredited(this.id, this.userId, escrowId, amountKobo),
+      ActiveErrandCredited.fromAggregate(this, escrowId, correlationId),
     );
 
     return entries;
@@ -85,6 +86,7 @@ class Wallet extends AggregateRoot<WalletId> {
     currency: Currency,
     escrowId: EscrowId,
     computedActiveBalanceKobo: number,
+    correlationId: string,
   ): LedgerEntry[] {
     if (computedActiveBalanceKobo < amountKobo) {
       throw new InsufficientActiveBalanceError(
@@ -115,7 +117,7 @@ class Wallet extends AggregateRoot<WalletId> {
     });
 
     this.addDomainEvent(
-      new MovedToPending(this.id, this.userId, escrowId, amountKobo),
+      MovedToPending.fromAggregate(this, escrowId, correlationId),
     );
 
     return [debitEntry, creditEntry];
@@ -126,6 +128,7 @@ class Wallet extends AggregateRoot<WalletId> {
     currency: Currency,
     escrowId: EscrowId,
     computedPendingBalanceKobo: number,
+    correlationId: string,
   ): LedgerEntry[] {
     if (computedPendingBalanceKobo < amountKobo) {
       throw new InsufficientPendingBalanceError(
@@ -159,7 +162,7 @@ class Wallet extends AggregateRoot<WalletId> {
     });
 
     this.addDomainEvent(
-      new ReleasedToAvailable(this.id, this.userId, escrowId, amountKobo),
+      ReleasedToAvailable.fromAggregate(this, escrowId, correlationId),
     );
 
     return [debitEntry, creditEntry];
@@ -170,6 +173,7 @@ class Wallet extends AggregateRoot<WalletId> {
     currency: Currency,
     gatewayReference: string,
     computedAvailableBalanceKobo: number,
+    correlationId: string,
   ): LedgerEntry {
     if (computedAvailableBalanceKobo < amountKobo) {
       throw new InsufficientAvailableBalanceError(
@@ -191,12 +195,7 @@ class Wallet extends AggregateRoot<WalletId> {
     });
 
     this.addDomainEvent(
-      new WithdrawalRecorded(
-        this.id,
-        this.userId,
-        amountKobo,
-        gatewayReference,
-      ),
+      WithdrawalRecorded.fromAggregate(this, gatewayReference, correlationId),
     );
 
     return entry;
@@ -208,6 +207,7 @@ class Wallet extends AggregateRoot<WalletId> {
     escrowId: EscrowId,
     gatewayReference: string,
     computedActiveBalanceKobo: number,
+    correlationId: string,
   ): LedgerEntry {
     if (computedActiveBalanceKobo < amountKobo) {
       throw new InsufficientActiveBalanceError(
@@ -228,7 +228,7 @@ class Wallet extends AggregateRoot<WalletId> {
       idempotencyKey: debitIdempotencyKey,
     });
     this.addDomainEvent(
-      new ActiveErrandReversed(this.id, this.userId, escrowId, amountKobo),
+      ActiveErrandReversed.fromAggregate(this, escrowId, correlationId),
     );
     return entry;
   }
@@ -238,6 +238,7 @@ class Wallet extends AggregateRoot<WalletId> {
     currency: Currency,
     escrowId: EscrowId,
     gatewayReference: string,
+    correlationId: string,
   ): LedgerEntry {
     if (currency !== this.currency) {
       throw new CurrencyMismatchError(this.currency, currency);
@@ -256,12 +257,11 @@ class Wallet extends AggregateRoot<WalletId> {
       idempotencyKey: creditIdempotencyKey,
     });
     this.addDomainEvent(
-      new ClientRefunded(
-        this.id,
-        this.userId,
+      ClientRefunded.fromAggregate(
+        this,
         escrowId,
-        amountKobo,
         gatewayReference,
+        correlationId,
       ),
     );
     return entry;

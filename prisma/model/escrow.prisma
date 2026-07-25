@@ -8,16 +8,13 @@ model Escrow {
     platformFee     Int
     amountNetWorker Int
     currency        String
-    paymentRef      String
     status          EscrowStatus
     holdUntil       DateTime?
     releasedAt      DateTime?
+    refundedAt      DateTime?
+    completedAt     DateTime?
     createdAt       DateTime     @default(now())
     updatedAt       DateTime     @updatedAt
-
-    errand Errand   @relation(fields: [errandId], references: [id])
-    client Client   @relation(fields: [clientId], references: [id])
-    worker Provider @relation(fields: [workerId], references: [id])
 
     @@index([clientId])
     @@index([workerId])
@@ -26,10 +23,12 @@ model Escrow {
 }
 
 enum EscrowStatus {
-    FUNDED
-    HELD
-    RELEASING
-    RELEASED
-    REFUNDED
-    DISPUTED
+     PENDING
+     FUNDED
+     COMPLETED_PENDING_PAYOUT
+     RELEASING
+     RELEASED
+     REFUNDING
+     REFUNDED
+     DISPUTED
 }

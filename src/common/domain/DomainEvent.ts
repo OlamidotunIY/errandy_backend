@@ -5,6 +5,7 @@ interface DomainEvent<TId extends EntityId = EntityId> {
   readonly occurredAt: Date;
   readonly aggregateId: TId;
   readonly eventName: string;
+  readonly correlationId?: string;
 }
 
 export { DomainEvent };

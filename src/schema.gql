@@ -304,6 +304,34 @@ type ErrandWithClient {
   updatedAt: DateTime!
 }
 
+type EscrowGraphQLType {
+  amountGross: Float!
+  amountNetWorker: Float!
+  clientId: String!
+  completedAt: DateTime
+  createdAt: DateTime!
+  errandId: String!
+  holdUntil: DateTime
+  id: String!
+  platformFee: Float!
+  refundedAt: DateTime
+  releasedAt: DateTime
+  status: EscrowStatus!
+  updatedAt: DateTime!
+  workerId: String!
+}
+
+enum EscrowStatus {
+  COMPLETED_PENDING_PAYOUT
+  DISPUTED
+  FUNDED
+  PENDING
+  REFUNDED
+  REFUNDING
+  RELEASED
+  RELEASING
+}
+
 type GeoPoint {
   coordinates: [Float!]!
   type: String!
@@ -579,6 +607,7 @@ type Query {
   errandRatings(errandId: ID!): [Rating!]!
   errandTemplate(id: ID!): ErrandTemplate
   errands(dto: GetAllErrandInput!): [Errand!]!
+  escrowById(errandId: String!): EscrowGraphQLType!
 
   """
   Advanced errand query with personalized feeds and location-based filtering

@@ -1,5 +1,5 @@
 export * from './commands';
-export * from './event-handlers';
+export * from './events';
 export * from './jobs';
 export * from './queries';
 export * from './sagas';

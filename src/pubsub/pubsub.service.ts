@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { RedisPubSub } from 'graphql-redis-subscriptions';
 import Redis from 'ioredis';
-import { REDIS } from '../redis/redis.module';
+import { REDIS } from '../infrastructure/redis/redis.module';
 
 export interface PubSubInterface {
   publish(event: string, data: any): Promise<void>;

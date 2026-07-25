@@ -1,6 +1,13 @@
 import { AggregateRoot } from '@shared';
 import {
+  EscrowCompletedEvent,
+  EscrowDisputedEvent,
+  EscrowFundedEvent,
   EscrowId,
+  EscrowRefundedEvent,
+  EscrowRefundingEvent,
+  EscrowReleasedEvent,
+  EscrowReleasingEvent,
   EscrowStatus,
   InvalidAmountError,
   InvalidFeeRateError,
@@ -8,13 +15,16 @@ import {
   Money,
   RefundReason,
 } from '../';
+import { ErrandId } from '@errands';
+import { ClientId } from '@client';
+import { ProviderId } from '@provider';
 
 class Escrow extends AggregateRoot<EscrowId> {
   constructor(
     public readonly id: EscrowId,
-    public readonly errandId: string,
-    public readonly clientId: string,
-    public readonly workerId: string,
+    public readonly errandId: ErrandId,
+    public readonly clientId: ClientId,
+    public readonly workerId: ProviderId,
     private _amountGross: Money,
     private _platformFee: Money,
     private _amountNetWorker: Money,
@@ -32,9 +42,9 @@ class Escrow extends AggregateRoot<EscrowId> {
   static readonly HOLD_PERIOD_DAYS = 3;
 
   static create(
-    errandId: string,
-    clientId: string,
-    workerId: string,
+    errandId: ErrandId,
+    clientId: ClientId,
+    workerId: ProviderId,
     amountGross: Money,
     platformFeeRate: number,
   ): Escrow {
@@ -75,9 +85,9 @@ class Escrow extends AggregateRoot<EscrowId> {
 
   static reconstitute(props: {
     id: EscrowId;
-    errandId: string;
-    clientId: string;
-    workerId: string;
+    errandId: ErrandId;
+    clientId: ClientId;
+    workerId: ProviderId;
     amountGross: Money;
     platformFee: Money;
     amountNetWorker: Money;
@@ -107,7 +117,7 @@ class Escrow extends AggregateRoot<EscrowId> {
     );
   }
 
-  markCompleted(completedAt: Date = new Date()): void {
+  markCompleted(completedAt: Date = new Date(), correlationId: string): void {
     if (this._status !== EscrowStatus.FUNDED) {
       throw new InvalidStatusTransitionError(
         this._status,
@@ -120,17 +130,21 @@ class Escrow extends AggregateRoot<EscrowId> {
     );
     this._completedAt = completedAt;
     this._status = EscrowStatus.COMPLETED_PENDING_PAYOUT;
+    this.addDomainEvent(
+      EscrowCompletedEvent.fromAggregate(this, correlationId),
+    );
   }
 
-  fund(): void {
+  fund(correlationId: string): void {
     if (this._status !== EscrowStatus.PENDING) {
       throw new InvalidStatusTransitionError(this._status, EscrowStatus.FUNDED);
     }
 
     this._status = EscrowStatus.FUNDED;
+    this.addDomainEvent(EscrowFundedEvent.fromAggregate(this, correlationId));
   }
 
-  beginRelease(): void {
+  beginRelease(correlationId: string): void {
     if (this._status !== EscrowStatus.COMPLETED_PENDING_PAYOUT) {
       throw new InvalidStatusTransitionError(
         this._status,
@@ -139,9 +153,12 @@ class Escrow extends AggregateRoot<EscrowId> {
     }
 
     this._status = EscrowStatus.RELEASING;
+    this.addDomainEvent(
+      EscrowReleasingEvent.fromAggregate(this, correlationId),
+    );
   }
 
-  beginRefund(reason: RefundReason): void {
+  beginRefund(reason: RefundReason, correlationId: string): void {
     if (this._status !== EscrowStatus.COMPLETED_PENDING_PAYOUT) {
       throw new InvalidStatusTransitionError(
         this._status,
@@ -149,10 +166,12 @@ class Escrow extends AggregateRoot<EscrowId> {
       );
     }
     this._status = EscrowStatus.REFUNDING;
-    // this.addDomainEvent(new EscrowRefundingEvent(this, reason));
+    this.addDomainEvent(
+      EscrowRefundingEvent.fromAggregate(this, reason, correlationId),
+    );
   }
 
-  completeRelease(releasedAt: Date): void {
+  completeRelease(releasedAt: Date, correlationId: string): void {
     if (this._status !== EscrowStatus.RELEASING) {
       throw new InvalidStatusTransitionError(
         this._status,
@@ -161,10 +180,10 @@ class Escrow extends AggregateRoot<EscrowId> {
     }
     this._status = EscrowStatus.RELEASED;
     this._releasedAt = releasedAt;
-    // this.addDomainEvent(new EscrowReleasedEvent());
+    this.addDomainEvent(EscrowReleasedEvent.fromAggregate(this, correlationId));
   }
 
-  completeRefund(refundedAt: Date): void {
+  completeRefund(refundedAt: Date, correlationId: string): void {
     if (this._status !== EscrowStatus.REFUNDING) {
       throw new InvalidStatusTransitionError(
         this._status,
@@ -173,10 +192,10 @@ class Escrow extends AggregateRoot<EscrowId> {
     }
     this._status = EscrowStatus.REFUNDED;
     this._refundedAt = refundedAt;
-    // this.addDomainEvent(new EscrowRefundedEvent(this));
+    this.addDomainEvent(EscrowRefundedEvent.fromAggregate(this, correlationId));
   }
 
-  dispute(): void {
+  dispute(correlationId: string): void {
     if (this._status !== EscrowStatus.COMPLETED_PENDING_PAYOUT) {
       throw new InvalidStatusTransitionError(
         this._status,
@@ -184,7 +203,7 @@ class Escrow extends AggregateRoot<EscrowId> {
       );
     }
     this._status = EscrowStatus.DISPUTED;
-    // this.addDomainEvent(new EscrowDisputedEvent(this));
+    this.addDomainEvent(EscrowDisputedEvent.fromAggregate(this, correlationId));
   }
 
   isHoldExpired(): boolean {

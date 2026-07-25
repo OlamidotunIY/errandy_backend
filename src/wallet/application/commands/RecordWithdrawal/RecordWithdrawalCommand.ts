@@ -8,6 +8,7 @@ class RecordWithdrawalCommand extends Command<void> {
     public readonly amountKobo: number,
     public readonly currency: Currency,
     public readonly gatewayReference: string,
+    public readonly correlationId: string,
   ) {
     super();
   }
