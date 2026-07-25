@@ -1,10 +1,9 @@
 import { Module } from '@nestjs/common';
-import { PaymentGatewayFactory } from './payment-gateway.factory';
-import { PrismaService } from '../prisma.service';
+import { PaymentGatewayErrorClassifier } from '@payments/domain';
 
 @Module({
   controllers: [],
-  providers: [PaymentGatewayFactory, PrismaService],
-  exports: [],
+  providers: [PaymentGatewayErrorClassifier],
+  exports: [PaymentGatewayErrorClassifier],
 })
 export class PaymentGatewayModule {}
