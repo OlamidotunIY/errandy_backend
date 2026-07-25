@@ -36,6 +36,7 @@ class MoveActiveToPendingCommandHandler implements ICommandHandler<MoveActiveToP
       command.currency,
       command.escrowId,
       snapshotBalance.activeKobo,
+      command.correlationId,
     );
 
     const maxRetries = 3;
