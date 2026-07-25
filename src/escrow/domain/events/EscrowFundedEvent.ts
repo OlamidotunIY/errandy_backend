@@ -1,37 +1,35 @@
 import { DomainEvent, EntityId } from '@shared';
 import { Escrow, EscrowId, Money } from '../';
 
-class EscrowFundedEvent implements DomainEvent {
+export class EscrowFundedEvent implements DomainEvent {
   readonly eventId: string;
-  readonly aggregateId: EntityId;
+  readonly aggregateId: EscrowId;
   readonly eventName: string;
+  readonly correlationId: string;
+  readonly occurredAt: Date;
 
   constructor(
     public readonly escrowId: EscrowId,
-    public readonly errandId: string,
-    public readonly clientId: string,
-    public readonly workerId: string,
-    public readonly amountGross: Money,
-    public readonly platformFee: Money,
-    public readonly amountNetWorker: Money,
-    public readonly occurredAt: Date,
+    occurredAt: Date,
+    correlationId: string,
+    public readonly payload: Record<string, unknown>,
   ) {
     this.eventName = 'EscrowFundedEvent';
     this.occurredAt = occurredAt;
     this.aggregateId = escrowId;
+    this.correlationId = correlationId;
     this.eventId = crypto.randomUUID();
   }
 
-  static fromAggregate(escrow: Escrow): EscrowFundedEvent {
-    return new EscrowFundedEvent(
-      escrow.id,
-      escrow.errandId,
-      escrow.clientId,
-      escrow.workerId,
-      escrow.amountGross,
-      escrow.platformFee,
-      escrow.amountNetWorker,
-      new Date(),
-    );
+  static fromAggregate(
+    escrow: Escrow,
+    correlationId: string,
+  ): EscrowFundedEvent {
+    return new EscrowFundedEvent(escrow.id, new Date(), correlationId, {
+      errandId: escrow.errandId,
+      clientId: escrow.clientId,
+      workerId: escrow.workerId,
+      amountGross: escrow.amountGross,
+    });
   }
 }

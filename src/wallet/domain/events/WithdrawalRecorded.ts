@@ -1,24 +1,40 @@
 import { UserId } from '@user';
 import { WalletId } from '../value-objects';
 import { DomainEvent } from '@shared';
+import { Wallet } from '@wallet/domain';
+import { EscrowId } from '@escrow';
 
 class WithdrawalRecorded implements DomainEvent {
   readonly eventId: string;
+  readonly aggregateId: WalletId;
   readonly eventName: string;
+  readonly correlationId: string;
   readonly occurredAt: Date;
 
   constructor(
     public readonly walletId: WalletId,
     public readonly userId: UserId,
-    public readonly amountKobo: number,
     public readonly gatewayReference: string,
+    correlationId: string,
   ) {
     this.eventName = WithdrawalRecorded.name;
     this.occurredAt = new Date();
     this.eventId = crypto.randomUUID();
+    this.aggregateId = walletId;
+    this.correlationId = correlationId;
   }
-  get aggregateId(): WalletId {
-    return this.walletId;
+
+  static fromAggregate(
+    wallet: Wallet,
+    gatewayReference: string,
+    correlationId: string,
+  ): WithdrawalRecorded {
+    return new WithdrawalRecorded(
+      wallet.id,
+      wallet.userId,
+      gatewayReference,
+      correlationId,
+    );
   }
 }
 

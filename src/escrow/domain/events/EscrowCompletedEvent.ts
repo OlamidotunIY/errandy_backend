@@ -1,7 +1,7 @@
-import { DomainEvent, EntityId } from '@shared';
-import { Escrow, EscrowId, Money } from '../';
+import { DomainEvent } from '@shared';
+import { Escrow, EscrowId } from '@escrow/domain';
 
-export class EscrowReleasingEvent implements DomainEvent {
+export class EscrowCompletedEvent implements DomainEvent {
   readonly eventId: string;
   readonly aggregateId: EscrowId;
   readonly eventName: string;
@@ -14,21 +14,21 @@ export class EscrowReleasingEvent implements DomainEvent {
     correlationId: string,
     public readonly payload: Record<string, unknown>,
   ) {
-    this.eventName = 'EscrowReleasingEvent';
+    this.eventName = 'EscrowCompletedEvent';
     this.occurredAt = occurredAt;
-    this.correlationId = correlationId;
     this.aggregateId = escrowId;
     this.eventId = crypto.randomUUID();
+    this.correlationId = correlationId;
   }
 
   static fromAggregate(
     escrow: Escrow,
     correlationId: string,
-  ): EscrowReleasingEvent {
-    return new EscrowReleasingEvent(escrow.id, new Date(), correlationId, {
+  ): EscrowCompletedEvent {
+    return new EscrowCompletedEvent(escrow.id, new Date(), correlationId, {
       errandId: escrow.errandId,
-      workerId: escrow.workerId,
-      amount: escrow.amountNetWorker,
+      clientId: escrow.clientId,
+      amount: escrow.amountGross,
     });
   }
 }
