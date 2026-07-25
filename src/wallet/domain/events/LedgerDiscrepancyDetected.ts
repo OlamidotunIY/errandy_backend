@@ -1,7 +1,9 @@
 import { DomainEvent, EntityId } from '@shared';
+import { Wallet, WalletId } from '@wallet/domain';
 
 export class LedgerDiscrepancyDetected implements DomainEvent {
   readonly eventId: string;
+  readonly aggregateId: WalletId;
   readonly eventName: string;
   readonly occurredAt: Date;
 
@@ -15,5 +17,4 @@ export class LedgerDiscrepancyDetected implements DomainEvent {
     this.eventName = LedgerDiscrepancyDetected.name;
     this.occurredAt = new Date();
   }
-  aggregateId: EntityId;
 }
