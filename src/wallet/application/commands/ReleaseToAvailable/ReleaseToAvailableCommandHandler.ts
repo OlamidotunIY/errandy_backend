@@ -36,6 +36,7 @@ class ReleaseToAvailableCommandHandler implements ICommandHandler<ReleaseToAvail
       command.currency,
       command.escrowId,
       snapshotBalance.pendingKobo,
+      command.correlationId,
     );
 
     const maxRetries = 3;

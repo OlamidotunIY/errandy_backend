@@ -38,6 +38,7 @@ class ReverseActiveErrandCommandHandler implements ICommandHandler<ReverseActive
       command.escrowId,
       command.gatewayReference,
       snapshotBalance.activeKobo,
+      command.correlationId,
     );
 
     const maxRetries = 3;
