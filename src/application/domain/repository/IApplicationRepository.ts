@@ -8,6 +8,7 @@ export abstract class IApplicationRepository {
   abstract findById(id: ApplicationId): Promise<Application | null>;
   abstract findByErrandId(errandId: ErrandId): Promise<Application[]>;
   abstract findByWorkerId(workerId: ProviderId): Promise<Application[]>;
+  abstract findPendingByErrandId(errandId: ErrandId): Promise<Application[]>;
   abstract existsByErrandAndWorker(
     errandId: ErrandId,
     workerId: ProviderId,
