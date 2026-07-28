@@ -1,14 +1,10 @@
-import {
-  CommandBus,
-  CommandHandler,
-  EventBus,
-  ICommandHandler,
-} from '@nestjs/cqrs';
+import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 import { SubmitApplicationCommand } from './';
 import {
   Application,
   ApplicationId,
   ApplicationInvariantError,
+  DuplicateApplicationError,
   IApplicationRepository,
 } from '@application/domain';
 import { ILogger } from '@shared';
@@ -22,8 +18,14 @@ class SubmitApplicationHandler implements ICommandHandler<SubmitApplicationComma
   ) {}
 
   async execute(command: SubmitApplicationCommand): Promise<ApplicationId> {
-    const { errandId, workerId, proposedAmountKobo, proposal, currency } =
-      command.payload;
+    const {
+      errandId,
+      workerId,
+      proposedAmountKobo,
+      proposal,
+      currency,
+      applicantType,
+    } = command.payload;
 
     if (!errandId && !workerId) {
       throw new ApplicationInvariantError(
@@ -37,9 +39,7 @@ class SubmitApplicationHandler implements ICommandHandler<SubmitApplicationComma
     );
 
     if (application) {
-      throw new ApplicationInvariantError(
-        'Cannot create double entry application for the same errand',
-      );
+      throw new DuplicateApplicationError(errandId.value, workerId.value);
     }
 
     const newApplication = Application.create(
@@ -48,6 +48,7 @@ class SubmitApplicationHandler implements ICommandHandler<SubmitApplicationComma
       proposal,
       proposedAmountKobo,
       currency,
+      applicantType,
     );
 
     await this.repository.save(newApplication);
@@ -58,7 +59,9 @@ class SubmitApplicationHandler implements ICommandHandler<SubmitApplicationComma
       this.event.publish(event);
     }
 
-    this.logger.info(`Application ${newApplication.id.value} submitted successfully`);
+    this.logger.info(
+      `Application ${newApplication.id.value} submitted successfully`,
+    );
     return newApplication.id;
   }
 }

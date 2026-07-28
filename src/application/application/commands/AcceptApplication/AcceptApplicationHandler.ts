@@ -35,5 +35,7 @@ export class AcceptApplicationHandler implements ICommandHandler<AcceptApplicati
     for (const event of events) {
       this.event.publish(event);
     }
+
+    this.logger.info('Application accepted', { applicationId: id });
   }
 }

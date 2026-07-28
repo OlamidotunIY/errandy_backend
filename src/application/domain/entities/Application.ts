@@ -1,5 +1,5 @@
 import { AggregateRoot } from '@shared';
-import { ApplicationId, ApplicationStatus } from '../value-objects';
+import { ApplicationId, ApplicationStatus, ApplicationType } from '../value-objects';
 import { ErrandId } from '@errands';
 import { ProviderId } from '@provider';
 import { ApplicationInvariantError } from '../errors';
@@ -15,6 +15,7 @@ export class Application extends AggregateRoot<ApplicationId> {
     public readonly errandId: ErrandId,
     public readonly workerId: ProviderId,
     private _status: ApplicationStatus,
+    private _type: ApplicationType,
     private readonly _proposal: string,
     private readonly _proposedAmountKobo: number,
     private readonly _currency: string,
@@ -32,6 +33,7 @@ export class Application extends AggregateRoot<ApplicationId> {
     proposal: string,
     proposedAmountKobo: number,
     currency: string,
+    applicationType: ApplicationType
   ): Application {
     if (proposedAmountKobo <= 0) {
       throw new ApplicationInvariantError(
@@ -54,6 +56,7 @@ export class Application extends AggregateRoot<ApplicationId> {
       errandId,
       workerId,
       status,
+      applicationType,
       proposal,
       proposedAmountKobo,
       currency,
@@ -75,6 +78,7 @@ export class Application extends AggregateRoot<ApplicationId> {
     errandId: ErrandId;
     workerId: ProviderId;
     status: ApplicationStatus;
+    type: ApplicationType;
     proposal: string;
     proposedAmountKobo: number;
     currency: string;
@@ -88,6 +92,7 @@ export class Application extends AggregateRoot<ApplicationId> {
       props.errandId,
       props.workerId,
       props.status,
+      props.type,
       props.proposal,
       props.proposedAmountKobo,
       props.currency,

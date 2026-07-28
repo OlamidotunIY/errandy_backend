@@ -1,5 +1,6 @@
 import { ErrandId } from '@errands';
 import { ProviderId } from '@provider';
+import { ApplicationType } from '@application/domain';
 
 export interface SubmitApplicationPayload {
   errandId: ErrandId;
@@ -7,4 +8,5 @@ export interface SubmitApplicationPayload {
   proposal: string;
   proposedAmountKobo: number;
   currency: string;
+  applicantType: ApplicationType;
 }
