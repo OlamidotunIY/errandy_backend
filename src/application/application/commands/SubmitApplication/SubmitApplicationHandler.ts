@@ -58,7 +58,7 @@ class SubmitApplicationHandler implements ICommandHandler<SubmitApplicationComma
       this.event.publish(event);
     }
 
-    this.logger.info(`Application ${newApplication.id} submitted successfully`);
+    this.logger.info(`Application ${newApplication.id.value} submitted successfully`);
     return newApplication.id;
   }
 }
