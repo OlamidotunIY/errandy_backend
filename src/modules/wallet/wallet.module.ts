@@ -1,13 +1,13 @@
 import { Module } from '@nestjs/common';
 import { WalletResolver } from 'src/modules/wallet/presentation';
 import { CqrsModule } from '@nestjs/cqrs';
-import { CreditActiveErrandCommandHandler } from 'src/modules/wallet/application';
+import { CreditActiveErrandCommandHandler } from '@module/wallet/application';
 import {
   LedgerBalanceCalculator,
   LedgerEntryRepository,
   WalletBalanceRepository,
   WalletRepository,
-} from 'src/modules/wallet/domain';
+} from '@module/wallet/domain';
 import {
   LedgerEntryMapper,
   PrismaLedgerEntryRepository,
@@ -15,7 +15,7 @@ import {
   PrismaWalletRepository,
   WalletBalanceSnapshotMapper,
   WalletMapper,
-} from 'src/modules/wallet/infrastructure';
+} from '@module/wallet/infrastructure';
 
 @Module({
   imports: [CqrsModule],

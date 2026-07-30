@@ -1,4 +1,4 @@
-import { ErrorClassification, IErrorClassifier } from '@shared';
+import { ErrorClassification, IErrorClassifier } from '@src/common';
 import {
   DuplicateLedgerEntryError,
   InsufficientActiveBalanceError,
@@ -7,7 +7,7 @@ import {
   InvalidLedgerAmountError,
   UnsupportedPendingRefundError,
   WalletNotFoundError,
-} from 'src/modules/wallet/domain';
+} from '@module/wallet/domain';
 
 export class WalletErrorClassifier implements IErrorClassifier {
   private static readonly PERMANENT_ERROR_TYPES = [

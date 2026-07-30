@@ -1,6 +1,9 @@
-import { LedgerEntry, LedgerEntryType } from 'src/modules/wallet/domain';
-import { WalletBalancesDTO } from 'src/modules/wallet/application';
-import { Currency } from 'src/modules/escrow';
+import {
+  LedgerEntry,
+  LedgerEntryType,
+  WalletBalancesDTO,
+} from '@module/wallet';
+import { Currency } from '@module/escrow';
 
 class LedgerBalanceCalculator {
   calculate(entries: LedgerEntry[], currency: Currency): WalletBalancesDTO {

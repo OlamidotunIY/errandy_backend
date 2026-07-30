@@ -1,5 +1,5 @@
+import { PaymentGatewayErrorClassifier } from '@module/payments';
 import { Module } from '@nestjs/common';
-import { PaymentGatewayErrorClassifier } from '@payments/domain';
 
 @Module({
   controllers: [],

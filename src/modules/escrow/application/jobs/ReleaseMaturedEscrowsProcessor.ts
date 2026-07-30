@@ -1,16 +1,20 @@
 import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
-import { Job, tryCatch } from 'bullmq';
+import { Job } from 'bullmq';
 import { CommandBus } from '@nestjs/cqrs';
-import { ErrorClassification, IDeadLetterRepository, ILogger } from '@shared';
+import {
+  ErrorClassification,
+  IDeadLetterRepository,
+  ILogger,
+} from '@src/common';
+import {
+  EscrowErrorClassifier,
+  EscrowInvariantError,
+} from '@module/escrow/domain';
 import {
   ReleaseEscrowCommand,
   ReleaseEscrowPayload,
   ReleaseMaturedEscrowsPayload,
-} from 'src/modules/escrow/application';
-import {
-  EscrowErrorClassifier,
-  EscrowInvariantError,
-} from 'src/modules/escrow/domain';
+} from '@module/escrow';
 
 @Processor('release-matured-escrows')
 export class ReleaseMaturedEscrowsProcessor extends WorkerHost {

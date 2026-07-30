@@ -1,5 +1,5 @@
-import { UserId } from '@user';
 import { Query } from '@nestjs/cqrs';
+import { UserId } from '@src/users';
 
 class GetWalletBalancesQuery extends Query<WalletBalancesDTO> {
   constructor(public readonly userId: UserId) {

@@ -5,10 +5,10 @@ import {
   WalletNotFoundError,
   BucketType,
   LedgerEntry,
-} from 'src/modules/wallet';
+} from '@module/wallet';
 import { ReleaseToAvailableCommand } from '.';
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import { isTransientTransactionError } from '../../../../../prisma.service';
+import { isTransientTransactionError } from '@src/prisma.service';
 
 @CommandHandler(ReleaseToAvailableCommand)
 class ReleaseToAvailableCommandHandler implements ICommandHandler<ReleaseToAvailableCommand> {

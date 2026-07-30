@@ -1,8 +1,8 @@
-import { UserId } from '@user';
-import { WalletId } from '..';
-import { EscrowId } from 'src/modules/escrow';
-import { DomainEvent } from '@shared';
-import { Wallet } from 'src/modules/wallet/domain';
+import { DomainEvent } from '@src/common';
+import { WalletId } from '../value-objects';
+import { UserId } from '@src/users';
+import { EscrowId } from '@module/escrow';
+import { Wallet } from '../entities';
 
 class ActiveErrandReversed implements DomainEvent {
   readonly eventId: string;

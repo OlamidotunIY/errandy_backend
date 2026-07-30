@@ -1,30 +1,30 @@
 import { ObjectType, Field, Int, registerEnumType } from '@nestjs/graphql';
-import { LedgerEntryDTO, LedgerEntryType } from 'src/modules/wallet';
+import { LedgerEntryDTO, LedgerEntryType } from '@module/wallet';
 
 registerEnumType(LedgerEntryType, { name: 'LedgerEntryType' });
 
 @ObjectType()
 class LedgerEntryGraphQLType implements LedgerEntryDTO {
   @Field()
-  id: string;
+  id!: string;
 
   @Field(() => LedgerEntryType)
-  type: LedgerEntryType;
+  type!: LedgerEntryType;
 
   @Field(() => Int)
-  amountKobo: number;
+  amountKobo!: number;
 
   @Field()
-  currency: string;
+  currency!: string;
 
   @Field(() => String, { nullable: true })
-  escrowId: string | null;
+  escrowId!: string | null;
 
   @Field(() => String, { nullable: true })
-  gatewayReference: string | null;
+  gatewayReference!: string | null;
 
   @Field()
-  createdAt: Date;
+  createdAt!: Date;
 }
 
 export { LedgerEntryGraphQLType };

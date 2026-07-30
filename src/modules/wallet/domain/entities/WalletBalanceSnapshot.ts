@@ -6,7 +6,7 @@ import {
   WalletId,
 } from 'src/modules/wallet/domain';
 import { Currency } from 'src/modules/escrow';
-import { AggregateRoot } from '@shared';
+import { AggregateRoot } from '@src/common';
 import * as crypto from 'node:crypto';
 
 class WalletBalanceSnapshot extends AggregateRoot<WalletBalanceSnapshotId> {

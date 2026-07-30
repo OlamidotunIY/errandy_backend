@@ -1,5 +1,5 @@
-import { DomainEvent, EntityId } from '@shared';
-import { Wallet, WalletId } from 'src/modules/wallet/domain';
+import { DomainEvent } from '@src/common';
+import { WalletId } from '../value-objects';
 
 export class LedgerDiscrepancyDetected implements DomainEvent {
   readonly eventId: string;
@@ -12,9 +12,11 @@ export class LedgerDiscrepancyDetected implements DomainEvent {
     public readonly discrepancyType:
       'missing' | 'duplicate' | 'amount-mismatch',
     public readonly amountKobo: number,
+    walletId: WalletId,
   ) {
     this.eventId = crypto.randomUUID();
     this.eventName = LedgerDiscrepancyDetected.name;
     this.occurredAt = new Date();
+    this.aggregateId = walletId;
   }
 }

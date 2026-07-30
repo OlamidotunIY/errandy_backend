@@ -1,13 +1,13 @@
-import { EscrowId } from 'src/modules/escrow';
+import { EscrowId } from '@module/escrow';
 import {
   CreateLedgerEntryParams,
   LedgerEntryId,
   LedgerEntryType,
   WalletId,
-} from 'src/modules/wallet';
-import { UserId } from '@user';
+} from '@module/wallet';
 import { InvalidLedgerAmountError } from '../errors';
-import { Json } from '@shared';
+import { UserId } from '@src/users';
+import { Json } from '@src/common';
 
 class LedgerEntry {
   private constructor(

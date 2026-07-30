@@ -1,4 +1,4 @@
-import { UserId } from '@user';
+import { UserId } from '@src/users';
 import { Wallet, WalletId } from '..';
 
 export abstract class WalletRepository {

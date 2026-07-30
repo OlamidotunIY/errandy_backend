@@ -1,5 +1,5 @@
 import { ApplicationId } from '@module/application';
-import { ErrandId } from '@src/errands';
+import { ErrandId } from '@module/errand';
 
 export interface AcceptApplicationPayload {
   id: ApplicationId;

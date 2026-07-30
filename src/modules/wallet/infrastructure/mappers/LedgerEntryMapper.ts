@@ -4,11 +4,11 @@ import {
   LedgerEntryId,
   LedgerEntryType,
   WalletId,
-} from 'src/modules/wallet/domain';
+} from '@module/wallet/domain';
 import { Prisma, LedgerEntry as PrismaLedgerEntryRow } from '@prisma/client';
-import { UserId } from '@user';
-import { EscrowId } from 'src/modules/escrow';
-import { Json } from '@shared';
+import { UserId } from '@src/users';
+import { EscrowId } from '@module/escrow';
+import { Json } from '@src/common';
 
 @Injectable()
 class LedgerEntryMapper {

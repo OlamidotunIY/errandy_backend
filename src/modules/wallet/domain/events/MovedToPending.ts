@@ -1,8 +1,8 @@
-import { UserId } from '@user';
 import { WalletId } from '../value-objects';
 import { EscrowId } from 'src/modules/escrow';
-import { DomainEvent } from '@shared';
-import { Wallet } from 'src/modules/wallet/domain';
+import { Wallet } from '../entities';
+import { DomainEvent } from '@src/common';
+import { UserId } from '@src/users';
 
 class MovedToPending implements DomainEvent {
   readonly eventId: string;
@@ -21,6 +21,7 @@ class MovedToPending implements DomainEvent {
     this.occurredAt = new Date();
     this.eventId = crypto.randomUUID();
     this.correlationId = correlationId;
+    this.aggregateId = walletId;
   }
 
   static fromAggregate(

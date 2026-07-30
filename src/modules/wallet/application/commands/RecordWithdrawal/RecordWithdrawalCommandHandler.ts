@@ -5,10 +5,10 @@ import {
   WalletRepository,
   LedgerEntry,
   WalletNotFoundError,
-} from 'src/modules/wallet';
+} from '@module/wallet';
 import { RecordWithdrawalCommand } from '.';
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import { isTransientTransactionError } from '../../../../../prisma.service';
+import { isTransientTransactionError } from '@src/prisma.service';
 
 @CommandHandler(RecordWithdrawalCommand)
 class RecordWithdrawalCommandHandler implements ICommandHandler<RecordWithdrawalCommand> {

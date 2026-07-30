@@ -1,5 +1,5 @@
+import { ErrorClassification, IErrorClassifier } from '@src/common';
 import { InvalidApiKeyError, PaystackAuthenticationError } from '..';
-import { ErrorClassification, IErrorClassifier } from '@shared';
 
 export class PaymentGatewayErrorClassifier implements IErrorClassifier {
   private static readonly PERMANENT_ERROR_TYPES = [

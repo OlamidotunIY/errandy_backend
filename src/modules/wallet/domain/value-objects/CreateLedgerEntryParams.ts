@@ -1,8 +1,8 @@
-import { UserId } from '@user';
 import { WalletId } from './WalletId';
 import { LedgerEntryType } from './LedgerEntryType';
-import { Currency, EscrowId } from 'src/modules/escrow';
-import { Json } from '@shared';
+import { Currency, EscrowId } from '@module/escrow';
+import { Json } from '@src/common';
+import { UserId } from '@src/users';
 
 interface CreateLedgerEntryParams {
   walletId: WalletId;

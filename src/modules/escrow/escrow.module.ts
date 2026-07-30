@@ -1,10 +1,10 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from 'src/prisma.service';
-import { MarkEscrowCompletedCommand } from 'src/modules/escrow/application';
-import { EscrowId } from 'src/modules/escrow/domain';
-import { CommandRetryRegistry } from '@shared';
-import { EscrowResolver } from 'src/modules/escrow/presentation/resolvers';
 import { QueryBus } from '@nestjs/cqrs';
+import { EscrowResolver } from './presentation/resolvers';
+import { CommandRetryRegistry } from '@src/common';
+import { MarkEscrowCompletedCommand } from './application';
+import { EscrowId } from './domain';
 
 @Module({
   imports: [],

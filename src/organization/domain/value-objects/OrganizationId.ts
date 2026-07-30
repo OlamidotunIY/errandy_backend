@@ -1,16 +1,16 @@
-import { EntityId } from "@shared";
+import { EntityId } from '@src/common';
 
-class OrganizationId extends EntityId{
-    constructor(value: string){
-        super(value);
-    }
+class OrganizationId extends EntityId {
+  constructor(value: string) {
+    super(value);
+  }
 
-    static create(): OrganizationId{
-        return new OrganizationId(crypto.randomUUID());
-    }
+  static create(): OrganizationId {
+    return new OrganizationId(crypto.randomUUID());
+  }
 
-    static fromString(value: string): OrganizationId{
-        return new OrganizationId(value);
-    }
+  static fromString(value: string): OrganizationId {
+    return new OrganizationId(value);
+  }
 }
-export{ OrganizationId }
+export { OrganizationId };

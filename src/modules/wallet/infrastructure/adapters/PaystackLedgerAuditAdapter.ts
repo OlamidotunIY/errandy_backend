@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { ILogger, PaystackTransactionType } from '@shared';
 import {
   GatewayLedgerTransaction,
   GatewayLedgerTransactionPage,
-} from 'src/modules/wallet';
+} from '@module/wallet';
 import { Paystack } from '@paystack/paystack-sdk';
+import { ILogger, PaystackTransactionType } from '@src/common';
 
 @Injectable()
 export class PaystackLedgerAuditAdapter {

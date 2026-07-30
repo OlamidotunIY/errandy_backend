@@ -10,11 +10,15 @@ import {
   PaystackLedgerAuditAdapter,
   ReconcileLedgerPayload,
   WalletErrorClassifier,
-} from 'src/modules/wallet';
+} from '@module/wallet';
 import { EventBus } from '@nestjs/cqrs';
-import { ErrorClassification, IDeadLetterRepository, ILogger } from '@shared';
 import { Job, Queue } from 'bullmq';
-import { PaymentGatewayErrorClassifier } from '@payments';
+import {
+  ErrorClassification,
+  IDeadLetterRepository,
+  ILogger,
+} from '@src/common';
+import { PaymentGatewayErrorClassifier } from '@module/payments';
 
 @Processor('wallet_reconcile_ledger')
 export class ReconcileLedgerProcessor extends WorkerHost {

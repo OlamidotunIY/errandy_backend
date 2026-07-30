@@ -1,6 +1,4 @@
-import { AggregateRoot } from '@shared';
 import { LedgerEntryType, WalletId } from '..';
-import { UserId } from '@user';
 import { Currency, CurrencyMismatchError, EscrowId } from 'src/modules/escrow';
 import { LedgerEntry } from './LedgerEntry';
 import {
@@ -16,6 +14,8 @@ import {
   ReleasedToAvailable,
   WithdrawalRecorded,
 } from '../events';
+import { UserId } from '@src/users';
+import { AggregateRoot } from '@src/common';
 
 class Wallet extends AggregateRoot<WalletId> {
   private constructor(

@@ -1,6 +1,6 @@
-import { Currency } from 'src/modules/escrow';
-import { UserId } from '@user';
+import { Currency } from '@module/escrow';
 import { Command } from '@nestjs/cqrs';
+import { UserId } from '@src/users';
 
 class RecordWithdrawalCommand extends Command<void> {
   constructor(

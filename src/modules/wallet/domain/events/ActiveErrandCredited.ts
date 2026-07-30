@@ -1,7 +1,7 @@
-import { UserId } from '@user';
 import { EscrowId } from 'src/modules/escrow';
-import { DomainEvent } from '@shared';
-import { LedgerEntry, Wallet, WalletId } from 'src/modules/wallet';
+import { Wallet, WalletId } from '@module/wallet';
+import { DomainEvent } from '@src/common';
+import { UserId } from '@src/users';
 
 class ActiveErrandCredited implements DomainEvent {
   readonly eventId: string;

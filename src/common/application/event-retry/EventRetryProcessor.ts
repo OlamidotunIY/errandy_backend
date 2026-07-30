@@ -1,8 +1,8 @@
 import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { CommandBus } from '@nestjs/cqrs';
 import { CommandRetryRegistry, EventRetryPayload } from './';
-import { IDeadLetterRepository } from '@shared/domain';
 import { Job } from 'bullmq';
+import { IDeadLetterRepository } from '@src/common/domain';
 
 @Processor('event-retry')
 class EventRetryProcessor extends WorkerHost {

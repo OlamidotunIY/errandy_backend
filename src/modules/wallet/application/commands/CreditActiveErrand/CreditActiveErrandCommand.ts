@@ -1,7 +1,7 @@
-import { Currency, EscrowId } from 'src/modules/escrow';
-import { UserId } from '@user';
-import { WalletId } from 'src/modules/wallet';
+import { Currency, EscrowId } from '@module/escrow';
+import { WalletId } from '@module/wallet/domain';
 import { Command } from '@nestjs/cqrs';
+import { UserId } from '@src/users';
 
 class CreditActiveErrandCommand extends Command<void> {
   constructor(

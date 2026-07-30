@@ -1,10 +1,7 @@
+import { EscrowInvariantError, EscrowRepository } from '@module/escrow/domain';
 import { ReleaseEscrowCommand } from '.';
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import {
-  EscrowInvariantError,
-  EscrowRepository,
-} from 'src/modules/escrow/domain';
-import { ILogger } from '@shared';
+import { ILogger } from '@src/common';
 
 @CommandHandler(ReleaseEscrowCommand)
 export class ReleaseEscrowHandler implements ICommandHandler<ReleaseEscrowCommand> {

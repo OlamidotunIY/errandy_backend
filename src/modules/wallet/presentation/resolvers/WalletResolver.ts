@@ -1,17 +1,15 @@
-import { QueryBus } from '@nestjs/cqrs';
-import { Args, Query, Resolver } from '@nestjs/graphql';
-import {
-  LedgerHistoryPageType,
-  WalletBalancesType,
-} from 'src/modules/wallet/presentation';
-import { CurrentUser } from '../../../../auth/decorator/current-user.decorator';
-import { User } from '@user/entities/user.entity';
 import {
   GetLedgerHistoryQuery,
   GetWalletBalancesQuery,
   LedgerHistoryPageDTO,
-} from 'src/modules/wallet/application';
-import { UserId } from '@user';
+  LedgerHistoryPageType,
+  WalletBalancesType,
+} from '@module/wallet';
+import { QueryBus } from '@nestjs/cqrs';
+import { Args, Query, Resolver } from '@nestjs/graphql';
+import { CurrentUser } from '@src/auth/decorator/current-user.decorator';
+import { UserId } from '@src/users';
+import { User } from '@src/users/entities/user.entity';
 
 @Resolver()
 class WalletResolver {

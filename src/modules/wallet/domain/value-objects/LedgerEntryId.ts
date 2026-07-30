@@ -1,4 +1,4 @@
-import { EntityId } from '@shared';
+import { EntityId } from '@src/common';
 
 class LedgerEntryId extends EntityId {
   constructor(value: string) {

@@ -5,7 +5,7 @@ import {
   WalletBalanceRepository,
   WalletNotFoundError,
   WalletRepository,
-} from 'src/modules/wallet/domain';
+} from '@module/wallet/domain';
 
 @CommandHandler(CreditActiveErrandCommand)
 class CreditActiveErrandCommandHandler implements ICommandHandler<CreditActiveErrandCommand> {

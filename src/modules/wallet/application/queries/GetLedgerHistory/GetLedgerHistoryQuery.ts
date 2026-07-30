@@ -1,7 +1,6 @@
-import { EscrowId } from 'src/modules/escrow';
-import { UserId } from '@user';
-import { LedgerEntryId, LedgerEntryType, WalletId } from 'src/modules/wallet';
+import { LedgerEntryType } from '@module/wallet/domain';
 import { Query } from '@nestjs/cqrs';
+import { UserId } from '@src/users';
 
 class GetLedgerHistoryQuery extends Query<LedgerHistoryPageDTO> {
   constructor(

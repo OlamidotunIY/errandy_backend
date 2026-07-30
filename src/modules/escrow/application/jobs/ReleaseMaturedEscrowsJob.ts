@@ -1,7 +1,7 @@
-import { EscrowRepository } from 'src/modules/escrow/domain';
-import { ILogger } from '@shared';
+import { ReleaseMaturedEscrowsPayload } from '@module/escrow';
+import { EscrowRepository } from '@module/escrow/domain';
+import { ILogger } from '@src/common';
 import { Queue } from 'bullmq';
-import { ReleaseMaturedEscrowsPayload } from 'src/modules/escrow/application';
 
 export class ReleaseMaturedEscrowsJob {
   constructor(

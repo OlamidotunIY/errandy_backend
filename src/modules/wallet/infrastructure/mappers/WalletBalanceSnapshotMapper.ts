@@ -7,7 +7,7 @@ import {
   WalletBalanceSnapshot,
   WalletBalanceSnapshotId,
   WalletId,
-} from 'src/modules/wallet';
+} from '@module/wallet';
 
 @Injectable()
 export class WalletBalanceSnapshotMapper {

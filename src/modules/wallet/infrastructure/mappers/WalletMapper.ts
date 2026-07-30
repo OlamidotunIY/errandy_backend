@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, Wallet as PrismaWalletRow } from '@prisma/client';
-import { Wallet, WalletId } from 'src/modules/wallet';
-import { UserId } from '@user';
-import { Currency } from 'src/modules/escrow';
+import { Wallet, WalletId } from '@module/wallet';
+import { Currency } from '@module/escrow';
+import { UserId } from '@src/users';
 
 @Injectable()
 class WalletMapper {

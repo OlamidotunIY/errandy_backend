@@ -1,9 +1,8 @@
-import { UserId } from '@user';
 import { WalletId } from '../value-objects';
-import { EscrowId } from 'src/modules/escrow';
-
-import { DomainEvent } from '@shared';
-import { Wallet } from 'src/modules/wallet/domain';
+import { Wallet } from '../entities';
+import { DomainEvent } from '@src/common';
+import { UserId } from '@src/users';
+import { EscrowId } from '@module/escrow';
 
 class ReleasedToAvailable implements DomainEvent {
   readonly eventId: string;

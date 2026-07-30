@@ -1,6 +1,6 @@
-import { Currency, EscrowId } from 'src/modules/escrow';
-import { UserId } from '@user';
+import { Currency, EscrowId } from '@module/escrow';
 import { Command } from '@nestjs/cqrs';
+import { UserId } from '@src/users';
 
 class ReverseActiveErrandCommand extends Command<void> {
   constructor(
