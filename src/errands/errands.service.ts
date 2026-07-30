@@ -14,7 +14,7 @@ import { UsersService } from 'src/users/users.service';
 import { GetMyErrandsInput } from './dto/get-my-errands.input';
 import { MyErrandsType } from './dto/my-errands-type.enum';
 import { ErrandStatus } from './entities/errandStatus.enum';
-import { ApplicationStatus } from 'src/application/entities/applicationStatus.enum';
+import { ApplicationStatus } from 'src/modules/application/entities/applicationStatus.enum';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 
 export interface ErrandUpdatedEvent {
