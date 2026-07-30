@@ -1,4 +1,4 @@
-import { ErrorClassification, IErrorClassifier } from '@shared';
+import { ErrorClassification, IErrorClassifier } from '@src/common';
 import {
   CurrencyMismatchError,
   EscrowInvariantError,
@@ -6,7 +6,7 @@ import {
   InvalidFeeRateError,
   InvalidStatusTransitionError,
   NegativeAmountError,
-} from 'src/modules/escrow/domain';
+} from './';
 
 export class EscrowErrorClassifier implements IErrorClassifier {
   private static readonly PERMANENT_ERROR_TYPES = [

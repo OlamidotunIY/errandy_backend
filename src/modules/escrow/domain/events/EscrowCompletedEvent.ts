@@ -1,5 +1,6 @@
-import { DomainEvent } from '@shared';
-import { Escrow, EscrowId } from 'src/modules/escrow/domain';
+import { DomainEvent } from '@src/common';
+import { EscrowId } from '../value-objects';
+import { Escrow } from '../entities';
 
 export class EscrowCompletedEvent implements DomainEvent {
   readonly eventId: string;

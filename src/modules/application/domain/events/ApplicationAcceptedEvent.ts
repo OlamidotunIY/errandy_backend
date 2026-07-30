@@ -1,6 +1,6 @@
-import { DomainEvent } from '@shared';
 import { ApplicationId } from '../value-objects';
 import { Application } from '../entities';
+import { DomainEvent } from '@src/common';
 
 class ApplicationAcceptedEvent implements DomainEvent {
   readonly eventId: string;

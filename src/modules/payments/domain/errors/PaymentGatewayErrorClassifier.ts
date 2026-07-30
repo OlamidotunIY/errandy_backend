@@ -1,4 +1,4 @@
-import { InvalidApiKeyError, PaystackAuthenticationError } from '../';
+import { InvalidApiKeyError, PaystackAuthenticationError } from '..';
 import { ErrorClassification, IErrorClassifier } from '@shared';
 
 export class PaymentGatewayErrorClassifier implements IErrorClassifier {

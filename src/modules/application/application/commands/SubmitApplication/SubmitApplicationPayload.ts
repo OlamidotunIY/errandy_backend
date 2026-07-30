@@ -1,6 +1,6 @@
-import { ErrandId } from '@errands';
-import { ProviderId } from '@provider';
-import { ApplicationType } from 'src/modules/application/domain';
+import { ApplicationType } from '@module/application/domain';
+import { ErrandId } from '@module/errand';
+import { ProviderId } from '@module/providers';
 
 export interface SubmitApplicationPayload {
   errandId: ErrandId;

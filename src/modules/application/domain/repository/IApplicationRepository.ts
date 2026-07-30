@@ -1,7 +1,7 @@
-import { ErrandId } from '@errands';
+import { ErrandId } from '@module/errand';
 import { Application } from '../entities';
 import { ApplicationId } from '../value-objects';
-import { ProviderId } from '@provider';
+import { ProviderId } from '@module/providers';
 
 export abstract class IApplicationRepository {
   abstract save(application: Application): Promise<void>;

@@ -1,7 +1,7 @@
 import { EventBus, ICommandHandler } from '@nestjs/cqrs';
-import { RejectApplicationCommand } from 'src/modules/application/application';
-import { IApplicationRepository } from 'src/modules/application/domain';
-import { ILogger } from '@shared';
+import { RejectApplicationCommand } from './RejectApplicationCommand';
+import { IApplicationRepository } from '@module/application/domain';
+import { ILogger } from '@src/common';
 
 export class RejectApplicationHandler implements ICommandHandler<RejectApplicationCommand> {
   constructor(

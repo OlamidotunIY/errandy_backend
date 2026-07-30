@@ -1,17 +1,17 @@
-import { AggregateRoot } from '@shared';
 import {
   ApplicationId,
   ApplicationStatus,
   ApplicationType,
 } from '../value-objects';
-import { ErrandId } from '@errands';
-import { ProviderId } from '@provider';
 import { ApplicationInvariantError } from '../errors';
 import {
   ApplicationAcceptedEvent,
   ApplicationRejectedEvent,
   ApplicationSubmittedEvent,
 } from '../events';
+import { AggregateRoot } from '@src/common';
+import { ErrandId } from '@module/errand';
+import { ProviderId } from '@module/providers';
 
 export class Application extends AggregateRoot<ApplicationId> {
   constructor(

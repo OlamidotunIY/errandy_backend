@@ -1,10 +1,7 @@
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 import { MarkEscrowCompletedCommand } from '.';
-import {
-  EscrowInvariantError,
-  EscrowRepository,
-} from 'src/modules/escrow/domain';
-import { ILogger } from '@shared';
+import { EscrowInvariantError, EscrowRepository } from '@module/escrow/domain';
+import { ILogger } from '@src/common';
 
 @CommandHandler(MarkEscrowCompletedCommand)
 export class MarkEscrowCompletedHandler implements ICommandHandler<MarkEscrowCompletedCommand> {
@@ -18,7 +15,7 @@ export class MarkEscrowCompletedHandler implements ICommandHandler<MarkEscrowCom
     const { payload } = command;
 
     if (!payload.escrowId) {
-      this.logger.error('Escrow ID is required in the payload', {} as Error);
+      this.logger.error('Escrow ID is required in the payload');
       throw new EscrowInvariantError('Missing required payload fields');
     }
 
@@ -28,10 +25,7 @@ export class MarkEscrowCompletedHandler implements ICommandHandler<MarkEscrowCom
 
     const escrow = await this.escrowRepository.findById(payload.escrowId);
     if (!escrow) {
-      this.logger.error(
-        `Escrow with ID ${payload.escrowId.value} not found`,
-        {} as Error,
-      );
+      this.logger.error(`Escrow with ID ${payload.escrowId.value} not found`);
       throw new EscrowInvariantError('Escrow not found');
     }
 

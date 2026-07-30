@@ -2,9 +2,9 @@ import { Args, Query, Resolver } from '@nestjs/graphql';
 import { QueryBus } from '@nestjs/cqrs';
 import { EscrowGraphQLType } from '../graphql';
 import { CurrentUser } from '../../../../auth/decorator/current-user.decorator';
-import { User } from '@user/entities/user.entity';
-import { GetEscrowByErrandQuery } from 'src/modules/escrow/application';
-import { ErrandId } from '@errands';
+import { User } from '@src/users/entities/user.entity';
+import { GetEscrowByErrandQuery } from '@module/escrow';
+import { ErrandId } from '@module/errand';
 
 @Resolver()
 export class EscrowResolver {

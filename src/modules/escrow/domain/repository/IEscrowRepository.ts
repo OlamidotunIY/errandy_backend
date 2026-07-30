@@ -1,4 +1,4 @@
-import { ErrandId } from '@errands';
+import { ErrandId } from '@module/errand';
 import { Escrow, EscrowId } from '..';
 
 abstract class EscrowRepository {

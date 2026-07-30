@@ -1,12 +1,12 @@
+import { FundEscrowResult } from './FundEscrowResult';
+import { CommandHandler, EventBus } from '@nestjs/cqrs';
+import { FundEscrowCommand } from '.';
 import {
   Escrow,
   EscrowInvariantError,
   EscrowRepository,
-} from 'src/modules/escrow/domain';
-import { ILogger } from '@shared';
-import { FundEscrowResult } from './FundEscrowResult';
-import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { FundEscrowCommand } from '.';
+} from '@module/escrow/domain';
+import { ILogger } from '@src/common';
 
 @CommandHandler(FundEscrowCommand)
 class FundEscrowHandler {

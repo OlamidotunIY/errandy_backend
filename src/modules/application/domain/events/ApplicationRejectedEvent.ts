@@ -1,4 +1,4 @@
-import { DomainEvent } from '@shared';
+import { DomainEvent } from '@src/common';
 import { ApplicationId } from '../value-objects';
 import { Application } from '../entities';
 

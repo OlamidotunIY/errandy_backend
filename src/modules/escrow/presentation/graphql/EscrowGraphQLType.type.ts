@@ -1,50 +1,50 @@
-import { EscrowDTO } from 'src/modules/escrow/application';
+import { EscrowDTO } from '@module/escrow';
+import { EscrowStatus } from '@module/escrow/domain';
 import { Field, ObjectType, registerEnumType } from '@nestjs/graphql';
-import { EscrowStatus } from 'src/modules/escrow/domain';
 
 registerEnumType(EscrowStatus, { name: 'EscrowStatus' });
 
 @ObjectType()
 export class EscrowGraphQLType implements EscrowDTO {
   @Field()
-  id: string;
+  id!: string;
 
   @Field(() => Number)
-  amountNetWorker: number;
+  amountNetWorker!: number;
 
   @Field(() => Date)
-  createdAt: Date;
+  createdAt!: Date;
 
   @Field(() => Date, { nullable: true })
-  releasedAt: Date;
+  releasedAt!: Date;
 
   @Field(() => Date, { nullable: true })
-  holdUntil: Date;
+  holdUntil!: Date;
 
   @Field(() => String)
-  errandId: string;
+  errandId!: string;
 
   @Field(() => String)
-  workerId: string;
+  workerId!: string;
 
   @Field(() => String)
-  clientId: string;
+  clientId!: string;
 
   @Field(() => Number)
-  amountGross: number;
+  amountGross!: number;
 
   @Field(() => Number)
-  platformFee: number;
+  platformFee!: number;
 
   @Field(() => EscrowStatus)
-  status: EscrowStatus;
+  status!: EscrowStatus;
 
   @Field(() => Date, { nullable: true })
-  completedAt: Date | null;
+  completedAt!: Date | null;
 
   @Field(() => Date, { nullable: true })
-  refundedAt: Date | null;
+  refundedAt!: Date | null;
 
   @Field(() => Date)
-  updatedAt: Date;
+  updatedAt!: Date;
 }

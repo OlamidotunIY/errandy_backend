@@ -1,4 +1,4 @@
-import { FundEscrowPayload, FundEscrowResult } from 'src/modules/escrow';
+import { FundEscrowPayload, FundEscrowResult } from '@module/escrow';
 import { Command } from '@nestjs/cqrs';
 
 class FundEscrowCommand extends Command<FundEscrowResult> {

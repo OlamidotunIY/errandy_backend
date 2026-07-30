@@ -1,13 +1,13 @@
+import { ILogger } from '@src/common';
+import { PrismaService } from '../../../../prisma.service';
+import { EscrowMapper } from 'src/modules/escrow/infrastructure';
 import {
   Escrow,
   EscrowId,
   EscrowInvariantError,
   EscrowRepository,
-} from 'src/modules/escrow/domain';
-import { ErrandId } from '@errands';
-import { PrismaService } from '../../../../prisma.service';
-import { ILogger } from '@shared';
-import { EscrowMapper } from 'src/modules/escrow/infrastructure';
+} from '@module/escrow/domain';
+import { ErrandId } from '@module/errand';
 
 export class PrismaEscrowRepository implements EscrowRepository {
   constructor(

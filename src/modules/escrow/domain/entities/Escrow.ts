@@ -1,4 +1,4 @@
-import { AggregateRoot } from '@shared';
+import { AggregateRoot } from '@src/common';
 import {
   EscrowCompletedEvent,
   EscrowDisputedEvent,
@@ -15,9 +15,9 @@ import {
   Money,
   RefundReason,
 } from '..';
-import { ErrandId } from '@errands';
-import { ClientId } from '@client';
-import { ProviderId } from '@provider';
+import { ErrandId } from '@module/errand';
+import { ClientId } from '@module/clients';
+import { ProviderId } from '@module/providers';
 
 class Escrow extends AggregateRoot<EscrowId> {
   constructor(

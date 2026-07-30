@@ -6,8 +6,8 @@ import {
   ApplicationInvariantError,
   DuplicateApplicationError,
   IApplicationRepository,
-} from 'src/modules/application/domain';
-import { ILogger } from '@shared';
+} from '@module/application';
+import { ILogger } from '@src/common';
 
 @CommandHandler(SubmitApplicationCommand)
 class SubmitApplicationHandler implements ICommandHandler<SubmitApplicationCommand> {

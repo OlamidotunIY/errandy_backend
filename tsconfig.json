@@ -20,7 +20,9 @@
     "baseUrl": ".",
     "paths": {
       "@module": ["src/modules"],
-      "@module/*": ["src/modules/*"]
+      "@module/*": ["src/modules/*"],
+      "@src": ["src"],
+      "@src/*": ["src/*"]
     }
   }
 }

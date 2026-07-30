@@ -1,5 +1,5 @@
-import { DomainEvent, EntityId } from '@shared';
-import { Escrow, EscrowId, Money, RefundReason } from '..';
+import { DomainEvent } from '@src/common';
+import { Escrow, EscrowId, RefundReason } from '..';
 
 export class EscrowRefundingEvent implements DomainEvent {
   readonly eventId: string;

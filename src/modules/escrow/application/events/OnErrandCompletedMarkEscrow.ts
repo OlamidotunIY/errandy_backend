@@ -1,17 +1,17 @@
+import { ErrandCompletedEvent } from '@module/errand';
+import { MarkEscrowCompletedCommand } from '@module/escrow';
+import {
+  EscrowErrorClassifier,
+  EscrowId,
+  EscrowInvariantError,
+} from '@module/escrow/domain';
 import { CommandBus, EventsHandler, IEventHandler } from '@nestjs/cqrs';
-import { ErrandCompletedEvent } from '@errands';
 import {
   ErrorClassification,
   EventRetryQueueService,
   IDeadLetterRepository,
   ILogger,
-} from '@shared';
-import {
-  EscrowErrorClassifier,
-  EscrowId,
-  EscrowInvariantError,
-} from 'src/modules/escrow/domain';
-import { MarkEscrowCompletedCommand } from 'src/modules/escrow/application';
+} from '@src/common';
 
 @EventsHandler(ErrandCompletedEvent)
 export class OnErrandCompletedMarkEscrow implements IEventHandler<ErrandCompletedEvent> {

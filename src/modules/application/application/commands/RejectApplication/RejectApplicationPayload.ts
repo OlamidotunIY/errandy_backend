@@ -1,5 +1,5 @@
-import { ApplicationId } from 'src/modules/application/domain';
-import { ErrandId } from '@errands';
+import { ApplicationId } from '@module/application/domain';
+import { ErrandId } from '@src/errands';
 
 export interface RejectApplicationPayload {
   id: ApplicationId;

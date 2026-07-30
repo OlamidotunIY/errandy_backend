@@ -1,10 +1,10 @@
 import { EventBus, ICommandHandler } from '@nestjs/cqrs';
-import { AcceptApplicationCommand } from 'src/modules/application/application';
+import { AcceptApplicationCommand } from './';
 import {
   ApplicationInvariantError,
   IApplicationRepository,
-} from 'src/modules/application/domain';
-import { ILogger } from '@shared';
+} from '@module/application';
+import { ILogger } from '@src/common';
 
 export class AcceptApplicationHandler implements ICommandHandler<AcceptApplicationCommand> {
   constructor(

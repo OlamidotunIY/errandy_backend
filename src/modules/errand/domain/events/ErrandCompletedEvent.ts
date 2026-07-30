@@ -1,6 +1,6 @@
-import { DomainEvent } from '@shared';
-import { ErrandId } from '@errands/domain';
-import { EscrowId } from 'src/modules/escrow';
+import { EscrowId } from '@module/escrow';
+import { DomainEvent } from '@src/common';
+import { ErrandId } from '../value-objects';
 
 export class ErrandCompletedEvent implements DomainEvent {
   readonly eventId: string;

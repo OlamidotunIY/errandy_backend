@@ -1,5 +1,5 @@
 import { Command } from '@nestjs/cqrs';
-import { AcceptApplicationPayload } from 'src/modules/application/application';
+import { AcceptApplicationPayload } from './AcceptApplicationPayload';
 
 export class AcceptApplicationCommand extends Command<void> {
   constructor(public readonly payload: AcceptApplicationPayload) {
