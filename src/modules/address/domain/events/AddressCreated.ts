@@ -1,6 +1,5 @@
 import { DomainEvent } from '@src/common';
 import { Address, AddressId } from '@module/address';
-import { Application } from '@src/modules';
 
 export class AddressCreatedEvent implements DomainEvent {
   readonly eventId: string;
