@@ -2,7 +2,7 @@ import {
   ApplicationId,
   ApplicationStatus,
   ApplicationType,
-} from '../value-objects';
+} from '../';
 import { ApplicationInvariantError } from '../errors';
 import {
   ApplicationAcceptedEvent,
