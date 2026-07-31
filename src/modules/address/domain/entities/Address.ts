@@ -1,5 +1,9 @@
 import { AggregateRoot } from '@src/common';
-import { AddressId } from '../';
+import {
+  AddressCreatedEvent,
+  AddressId,
+  DefaultAddressChangedEvent,
+} from '../';
 import { UserId } from '@module/user';
 
 export class Address extends AggregateRoot<AddressId> {
@@ -51,7 +55,7 @@ export class Address extends AggregateRoot<AddressId> {
     country: string,
   ): Address {
     const id = AddressId.create();
-    return new Address(
+    const newAddress = new Address(
       id,
       userId,
       label,
@@ -59,10 +63,16 @@ export class Address extends AggregateRoot<AddressId> {
       city,
       state,
       country,
-      true,
+      false,
       new Date(),
       new Date(),
     );
+
+    newAddress.addDomainEvent(
+      AddressCreatedEvent.fromAggregate(newAddress, crypto.randomUUID()),
+    );
+
+    return newAddress;
   }
 
   static reconstitute(props: {
@@ -93,6 +103,10 @@ export class Address extends AggregateRoot<AddressId> {
 
   setAsDefault(): void {
     this._isDefault = true;
+
+    this.addDomainEvent(
+      DefaultAddressChangedEvent.fromAggregate(this, crypto.randomUUID()),
+    );
   }
 
   unsetDefault(): void {
