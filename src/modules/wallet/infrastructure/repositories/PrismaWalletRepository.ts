@@ -4,7 +4,7 @@ import {
   WalletId,
   WalletMapper,
 } from '@module/wallet';
-import { PrismaService } from '@src/prisma.service';
+import { PrismaService } from '@src/prisma/prisma.service';
 import { UserId } from '@src/users';
 
 export class PrismaWalletRepository implements WalletRepository {

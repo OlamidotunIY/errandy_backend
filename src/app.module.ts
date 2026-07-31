@@ -1,35 +1,9 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
-import { AuthModule } from './auth/auth.module';
-import { UsersModule } from './users/users.module';
-import { AddressModule } from './address/address.module';
-import { ServiceModule } from './service/service.module';
-import { ApplicationModule } from './modules/application/application.module';
-import { ChatModule } from './chat/chat.module';
-import { WalletModule } from './modules/wallet/wallet.module';
-import { ErrandsModule } from './errands/errands.module';
-// import { PubSubModule } from './pubsub/pubsub.module';
 import { ConfigModule } from '@nestjs/config';
-import { ClientModule } from './client/client.module';
-import { RatingResolver } from './rating/rating.resolver';
-import { RatingModule } from './rating/rating.module';
-import { PaymentGatewayModule } from './payment-gateway/payment-gateway.module';
-import { OrganizationModule } from './organization/organization.module';
-import { NotificationModule } from './notification/notification.module';
-import { VerificationModule } from './verification/verification.module';
-import { TrustedCircleModule } from './trusted-circle/trusted-circle.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import { EmailModule } from './email/email.module';
-import { PushModule } from './push/push.module';
-import { ProviderModule } from './provider/provider.module';
-import { FirebaseModule } from './firebase/firebase.module';
-import { PresenceModule } from './presence/presence.module';
-import { GqlConfig } from './config/graphql-ws';
-import { RedisModule } from './infrastructure/redis/redis.module';
-import { GraphqlExceptionFilter } from './common/filters/graphql-exception.filter';
-import { PrismaModule } from './prisma/prisma.module';
-import { CommonModule } from './common/common.module';
-import { QueueModule } from './infrastructure/queue/queue.module';
+import { GqlConfig } from '@src/config/graphql-ws';
+import { GraphqlExceptionFilter } from '@src/common/filters/graphql-exception.filter';
 
 @Module({
   imports: [
@@ -38,35 +12,9 @@ import { QueueModule } from './infrastructure/queue/queue.module';
     }),
     GqlConfig,
     EventEmitterModule.forRoot(),
-    RedisModule,
-    // PubSubModule,
-    AuthModule,
-    UsersModule,
-    AddressModule,
-    ErrandsModule,
-    WalletModule,
-    ChatModule,
-    ApplicationModule,
-    ServiceModule,
-    ClientModule,
-    RatingModule,
-    PaymentGatewayModule,
-    OrganizationModule,
-    NotificationModule,
-    VerificationModule,
-    TrustedCircleModule,
-    EmailModule,
-    FirebaseModule,
-    PushModule,
-    ProviderModule,
-    PresenceModule,
-    PrismaModule,
-    CommonModule,
-    QueueModule,
   ],
   controllers: [],
   providers: [
-    RatingResolver,
     {
       provide: APP_FILTER,
       useClass: GraphqlExceptionFilter,

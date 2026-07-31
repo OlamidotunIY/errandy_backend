@@ -8,7 +8,7 @@ import {
 } from '@module/wallet';
 import { MoveActiveToPendingCommand } from '.';
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import { isTransientTransactionError } from '@src/prisma.service';
+import { isTransientTransactionError } from '@src/prisma/prisma.service';
 
 @CommandHandler(MoveActiveToPendingCommand)
 class MoveActiveToPendingCommandHandler implements ICommandHandler<MoveActiveToPendingCommand> {

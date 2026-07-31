@@ -1,5 +1,5 @@
 import { ILogger } from '@src/common';
-import { PrismaService } from '../../../../prisma.service';
+import { PrismaService } from '../../../../prisma/prisma.service';
 import { EscrowMapper } from 'src/modules/escrow/infrastructure';
 import {
   Escrow,

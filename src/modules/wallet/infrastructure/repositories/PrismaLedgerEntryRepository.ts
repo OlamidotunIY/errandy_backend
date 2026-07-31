@@ -13,7 +13,7 @@ import {
   isTransientTransactionError,
   isUniqueConstraintViolation,
   PrismaService,
-} from 'src/prisma.service';
+} from '@src/prisma/prisma.service';
 import { LedgerEntryMapper } from '../mappers';
 
 @Injectable()

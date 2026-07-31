@@ -8,13 +8,11 @@ import {
 } from 'better-auth/plugins';
 import { betterAuth, BetterAuthOptions } from 'better-auth';
 import { expo } from '@better-auth/expo';
-import { sendOTP } from './src/utils/otp.utils';
-import { globalEventEmitter } from './src/utils/event-emitter.utils';
 import 'dotenv/config';
 
 const client = new PrismaClient();
 
-import { EmailService } from './src/email/email.service';
+import { EmailService } from '@src/email/email.service';
 
 const emailService = new EmailService();
 
@@ -71,7 +69,7 @@ export const auth = betterAuth({
         }
 
         // Twilio generates its own OTP code
-        await sendOTP(formattedPhone, code);
+        // await sendOTP(formattedPhone, code);
       },
     }),
     username({

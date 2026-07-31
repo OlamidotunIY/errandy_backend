@@ -6,7 +6,7 @@ import {
   WalletId,
   WalletBalancesDTO,
 } from '@module/wallet';
-import { PrismaService } from '@src/prisma.service';
+import { PrismaService } from '@src/prisma/prisma.service';
 import { Currency } from 'src/modules/escrow';
 import { WalletBalanceSnapshotMapper } from '..';
 
