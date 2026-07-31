@@ -1,4 +1,4 @@
-import { ApplicationId } from '../value-objects';
+import { ApplicationId } from '../';
 import { Application } from '../entities';
 import { DomainEvent } from '@src/common';
 
