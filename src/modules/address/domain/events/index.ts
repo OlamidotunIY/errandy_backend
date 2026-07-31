@@ -1,1 +1,3 @@
-export * from './AddressCreated';
+export * from './AddressCreatedEvent';
+export * from './AddressUpdatedEvent';
+export * from './DefaultAddressChangedEvent';
