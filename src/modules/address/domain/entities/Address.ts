@@ -2,6 +2,7 @@ import { AggregateRoot } from '@src/common';
 import {
   AddressCreatedEvent,
   AddressId,
+  Coordinates,
   DefaultAddressChangedEvent,
 } from '../';
 import { UserId } from '@module/user';
@@ -16,6 +17,7 @@ export class Address extends AggregateRoot<AddressId> {
     private _state: string,
     private _country: string,
     private _isDefault: boolean,
+    public coordinates: Coordinates,
     public readonly createdAt: Date,
     public updatedAt: Date,
   ) {
@@ -53,6 +55,7 @@ export class Address extends AggregateRoot<AddressId> {
     city: string,
     state: string,
     country: string,
+    coordinates: Coordinates,
   ): Address {
     const id = AddressId.create();
     const newAddress = new Address(
@@ -64,6 +67,7 @@ export class Address extends AggregateRoot<AddressId> {
       state,
       country,
       false,
+      coordinates,
       new Date(),
       new Date(),
     );
@@ -84,6 +88,7 @@ export class Address extends AggregateRoot<AddressId> {
     state: string;
     country: string;
     isDefault: boolean;
+    coordinates: Coordinates;
     createdAt: Date;
     updatedAt: Date;
   }): Address {
@@ -96,20 +101,27 @@ export class Address extends AggregateRoot<AddressId> {
       props.state,
       props.country,
       props.isDefault,
+      props.coordinates,
       props.createdAt,
       props.updatedAt,
     );
   }
 
-  setAsDefault(): void {
+  markAsDefault(): void {
     this._isDefault = true;
 
     this.addDomainEvent(
       DefaultAddressChangedEvent.fromAggregate(this, crypto.randomUUID()),
     );
+    this.touch();
   }
 
-  unsetDefault(): void {
+  removeAsDefault(): void {
     this._isDefault = false;
+    this.touch();
+  }
+
+  private touch() {
+    this.updatedAt = new Date();
   }
 }
