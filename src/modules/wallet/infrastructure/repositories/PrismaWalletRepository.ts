@@ -5,7 +5,7 @@ import {
   WalletMapper,
 } from '@module/wallet';
 import { PrismaService } from '@src/prisma/prisma.service';
-import { UserId } from '@src/users';
+import { UserId } from '@module/user';
 
 export class PrismaWalletRepository implements WalletRepository {
   constructor(

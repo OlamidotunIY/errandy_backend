@@ -8,8 +8,8 @@ import {
 import { QueryBus } from '@nestjs/cqrs';
 import { Args, Query, Resolver } from '@nestjs/graphql';
 import { CurrentUser } from '@src/auth/decorator/current-user.decorator';
-import { UserId } from '@src/users';
-import { User } from '@src/users/entities/user.entity';
+import { User } from 'better-auth';
+import { UserId } from '@module/user';
 
 @Resolver()
 class WalletResolver {

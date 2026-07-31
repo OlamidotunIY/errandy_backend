@@ -2,7 +2,7 @@ import { WalletId } from './WalletId';
 import { LedgerEntryType } from './';
 import { Currency, EscrowId } from '@module/escrow';
 import { Json } from '@src/common';
-import { UserId } from '@src/users';
+import { UserId } from '@module/user';
 
 interface CreateLedgerEntryParams {
   walletId: WalletId;
