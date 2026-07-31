@@ -47,10 +47,13 @@ export class ReleaseMaturedEscrowsProcessor extends WorkerHost {
 
       await this.commandBus.execute(new ReleaseEscrowCommand(commandPayload));
     } catch (e) {
-      if (this.errorClassifier.classify(e) === ErrorClassification.PERMANENT) {
+      if (
+        this.errorClassifier.classify(e as Error) ===
+        ErrorClassification.PERMANENT
+      ) {
         this.logger.error(
           'Permanent error occurred while releasing escrow',
-          e,
+          e as Error,
           {
             jobId: job.id,
             correlationId,

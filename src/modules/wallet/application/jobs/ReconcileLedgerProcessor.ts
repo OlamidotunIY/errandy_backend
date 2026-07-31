@@ -59,6 +59,7 @@ export class ReconcileLedgerProcessor extends WorkerHost {
               transaction.reference,
               'missing',
               transaction.amountKobo,
+              matchingEntries[0].id,
             ),
           );
           this.logger.warn('Ledger discrepancy: missing entry', {
@@ -74,6 +75,7 @@ export class ReconcileLedgerProcessor extends WorkerHost {
               transaction.reference,
               'duplicate',
               transaction.amountKobo,
+              matchingEntries[0].id,
             ),
           );
           this.logger.warn('Ledger discrepancy: duplicate entry', {
@@ -90,6 +92,7 @@ export class ReconcileLedgerProcessor extends WorkerHost {
               transaction.reference,
               'amount-mismatch',
               transaction.amountKobo,
+              matchingEntries[0].id,
             ),
           );
           this.logger.warn('Ledger discrepancy: amount mismatch', {

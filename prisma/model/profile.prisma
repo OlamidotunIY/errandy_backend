@@ -1,0 +1,68 @@
+model Profile {
+  id String @id @map("_id")
+  userId String @unique
+  ownerId String?
+  kind ProfileKind
+  capabilities ProfileCapabilities @default(CLIENT)
+  marketId String
+  name String
+  businessRegistrationNumber String
+  tier ProfileTier?
+  bio String?
+  skills: String[]
+  verificationStatus Boolean @default(false)
+  trustedByCount Int @default(0)
+  completedErrandsCount Int @default(0)
+  disputedErrandsCount Int @default(0)
+  avgResponseTimeSeconds Int @default(0)
+  avgRatingCached Float @default(0.0)
+  workerPoolPercentage Float @default(0)
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ProfileMember {
+  id String @id @map("_id")
+  profileId String
+  userId String
+  role MemberRole
+  active Boolean @default(true)
+}
+
+model ProfileBadge {
+  id String @id @map("_id")
+  profileId String
+  badgeType BadgeType
+  awardedByOrganizationId String
+  period DateTime
+  awardedAt DateTime
+}
+
+enum ProfileKind {
+  INDIVIDUAL
+  ORGANIZATION
+}
+
+enum ProfileCapabilities {
+  CLIENT
+  PROVIDER
+  BOTH
+}
+
+enum ProfileTier {
+  COMMUNITY
+  VERIFIED
+  CERTIFIED
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum BadgeType {
+  WORKER_OF_THE_MONTH
+  WORKER_OF_THE_YEAR
+}

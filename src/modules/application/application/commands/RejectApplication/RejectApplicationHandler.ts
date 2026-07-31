@@ -1,5 +1,5 @@
 import { EventBus, ICommandHandler } from '@nestjs/cqrs';
-import { RejectApplicationCommand } from './RejectApplicationCommand';
+import { RejectApplicationCommand } from './';
 import { IApplicationRepository } from '@module/application/domain';
 import { ILogger } from '@src/common';
 

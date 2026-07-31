@@ -1,9 +1,9 @@
 import { DomainEvent } from '@src/common';
-import { WalletId } from '../value-objects';
+import { LedgerEntryId, WalletId } from '../value-objects';
 
 export class LedgerDiscrepancyDetected implements DomainEvent {
   readonly eventId: string;
-  readonly aggregateId: WalletId;
+  readonly aggregateId: LedgerEntryId;
   readonly eventName: string;
   readonly occurredAt: Date;
 
@@ -12,11 +12,11 @@ export class LedgerDiscrepancyDetected implements DomainEvent {
     public readonly discrepancyType:
       'missing' | 'duplicate' | 'amount-mismatch',
     public readonly amountKobo: number,
-    walletId: WalletId,
+    public readonly ledgerEntryId: LedgerEntryId,
   ) {
     this.eventId = crypto.randomUUID();
     this.eventName = LedgerDiscrepancyDetected.name;
     this.occurredAt = new Date();
-    this.aggregateId = walletId;
+    this.aggregateId = ledgerEntryId;
   }
 }

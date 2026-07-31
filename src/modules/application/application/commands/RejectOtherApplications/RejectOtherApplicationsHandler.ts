@@ -1,5 +1,5 @@
 import { EventBus, ICommandHandler } from '@nestjs/cqrs';
-import { RejectOtherApplicationsCommand } from './RejectOtherApplicationsCommand';
+import { RejectOtherApplicationsCommand } from './';
 import {
   ApplicationInvariantError,
   IApplicationRepository,

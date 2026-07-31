@@ -45,24 +45,6 @@ model User {
   @@map("users")
 }
 
-model UserAddress {
-  id        String    @id @default(uuid()) @map("_id")
-  userId    String
-  label     String
-  address   String
-  location  Json // GeoJSON { type: "Point", coordinates: [lng, lat] }
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // normal relation (one user → many addresses)
-  user User @relation(fields: [userId], references: [id])
-
-  // back relation to activeAddress (ONE, not array)
-  activeFor User[] @relation("ActiveAddress")
-
-  @@map("user_addresses")
-}
-
 model Session {
   id        String    @id @default(uuid()) @map("_id")
   expiresAt DateTime
