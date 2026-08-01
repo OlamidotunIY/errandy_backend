@@ -6,6 +6,7 @@ import {
   Person,
   ProviderRole,
 } from '@module/party';
+import { ProviderRoleAlreadyExistsError } from '../errors';
 import { UserId } from '@module/user';
 
 export class Party extends AggregateRoot<PartyId> {
@@ -62,7 +63,9 @@ export class Party extends AggregateRoot<PartyId> {
   }
 
   addProviderRole(): void {
-    if (this._providerRole) return;
+    if (this._providerRole) {
+      throw new ProviderRoleAlreadyExistsError(this.id.value);
+    }
 
     this._providerRole = new ProviderRole(this.id);
     this.updatedAt = new Date();
