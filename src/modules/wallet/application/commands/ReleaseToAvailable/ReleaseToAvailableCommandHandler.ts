@@ -32,7 +32,7 @@ class ReleaseToAvailableCommandHandler implements ICommandHandler<ReleaseToAvail
       await this.walletBalanceRepository.getSnapshotForDisplay(wallet.id);
 
     const [debitEntry, creditEntry] = wallet.moveToAvailable(
-      command.amountKobo,
+      command.toMinorUnits(),
       command.currency,
       command.escrowId,
       snapshotBalance.pendingKobo,

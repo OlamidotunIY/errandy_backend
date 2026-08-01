@@ -29,7 +29,7 @@ class RecordWithdrawalCommandHandler implements ICommandHandler<RecordWithdrawal
       await this.walletBalanceRepository.getSnapshotForDisplay(wallet.id);
 
     const entry = wallet.recordWithdrawal(
-      command.amountKobo,
+      command.toMinorUnits(),
       command.currency,
       command.gatewayReference,
       snapshotBalance.availableKobo,

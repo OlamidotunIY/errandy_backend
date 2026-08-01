@@ -32,9 +32,9 @@ export class GetEscrowByErrandHandler implements IQueryHandler<GetEscrowByErrand
     return {
       id: escrow.id.value,
       errandId: escrow.errandId.value,
-      amountGross: escrow.amountGross.amountKobo,
-      platformFee: escrow.platformFee.amountKobo,
-      amountNetWorker: escrow.amountNetWorker.amountKobo,
+      amountGross: escrow.amountGross.toMinorUnits(),
+      platformFee: escrow.platformFee.toMinorUnits(),
+      amountNetWorker: escrow.amountNetWorker.toMinorUnits(),
       status: escrow.status,
       clientId: escrow.clientId.value,
       workerId: escrow.workerId.value,

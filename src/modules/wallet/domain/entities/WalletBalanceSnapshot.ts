@@ -91,22 +91,22 @@ class WalletBalanceSnapshot extends AggregateRoot<WalletBalanceSnapshotId> {
     for (const entry of entries) {
       switch (entry.type) {
         case LedgerEntryType.ACTIVE_ERRAND_CREDIT:
-          activekobo += entry.amountKobo;
+          activekobo += entry.toMinorUnits();
           break;
         case LedgerEntryType.ACTIVE_ERRAND_REVERSAL:
-          activekobo -= entry.amountKobo;
+          activekobo -= entry.toMinorUnits();
           break;
         case LedgerEntryType.PENDING_CREDIT:
-          pendingkobo += entry.amountKobo;
+          pendingkobo += entry.toMinorUnits();
           break;
         case LedgerEntryType.PENDING_REVERSAL:
-          pendingkobo -= entry.amountKobo;
+          pendingkobo -= entry.toMinorUnits();
           break;
         case LedgerEntryType.AVAILABLE_CREDIT:
-          availablekobo += entry.amountKobo;
+          availablekobo += entry.toMinorUnits();
           break;
         case LedgerEntryType.WITHDRAWAL_DEBIT:
-          availablekobo -= entry.amountKobo;
+          availablekobo -= entry.toMinorUnits();
           break;
       }
     }

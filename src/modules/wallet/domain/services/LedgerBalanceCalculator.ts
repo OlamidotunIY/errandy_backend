@@ -18,9 +18,9 @@ class LedgerBalanceCalculator {
   calculatePending(entries: LedgerEntry[]): number {
     return entries.reduce((sum, entry) => {
       if (entry.type === LedgerEntryType.PENDING_CREDIT)
-        return sum + entry.amountKobo;
+        return sum + entry.toMinorUnits();
       if (entry.type === LedgerEntryType.PENDING_REVERSAL)
-        return sum - entry.amountKobo;
+        return sum - entry.toMinorUnits();
       return sum;
     }, 0);
   }
@@ -28,9 +28,9 @@ class LedgerBalanceCalculator {
   calculateActive(entries: LedgerEntry[]): number {
     return entries.reduce((sum, entry) => {
       if (entry.type === LedgerEntryType.ACTIVE_ERRAND_CREDIT)
-        return sum + entry.amountKobo;
+        return sum + entry.toMinorUnits();
       if (entry.type === LedgerEntryType.ACTIVE_ERRAND_REVERSAL)
-        return sum - entry.amountKobo;
+        return sum - entry.toMinorUnits();
       return sum;
     }, 0);
   }
@@ -38,9 +38,9 @@ class LedgerBalanceCalculator {
   calculateAvailable(entries: LedgerEntry[]): number {
     return entries.reduce((sum, entry) => {
       if (entry.type === LedgerEntryType.AVAILABLE_CREDIT)
-        return sum + entry.amountKobo;
+        return sum + entry.toMinorUnits();
       if (entry.type === LedgerEntryType.WITHDRAWAL_DEBIT)
-        return sum - entry.amountKobo;
+        return sum - entry.toMinorUnits();
       return sum;
     }, 0);
   }

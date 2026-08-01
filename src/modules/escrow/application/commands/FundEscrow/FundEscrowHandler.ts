@@ -53,9 +53,9 @@ class FundEscrowHandler {
 
     const result: FundEscrowResult = {
       escrowId: escrow.id.value,
-      amountGross: escrow.amountGross.amountKobo,
-      platformFee: escrow.platformFee.amountKobo,
-      amountNetWorker: escrow.amountNetWorker.amountKobo,
+      amountGross: escrow.amountGross.toMinorUnits(),
+      platformFee: escrow.platformFee.toMinorUnits(),
+      amountNetWorker: escrow.amountNetWorker.toMinorUnits(),
     };
 
     this.logger.info(

@@ -13,7 +13,7 @@ model LedgerEntry {
   walletId String
   userId String
   type LedgerEntryType
-  amountKobo Int
+  amountMinorUnits Int
   currency String
   escrowId String?
   gatewayReference String?

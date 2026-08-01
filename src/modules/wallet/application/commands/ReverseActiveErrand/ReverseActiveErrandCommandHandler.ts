@@ -31,7 +31,7 @@ class ReverseActiveErrandCommandHandler implements ICommandHandler<ReverseActive
       await this.walletBalanceRepository.getSnapshotForDisplay(wallet.id);
 
     const entry = wallet.recordActiveErrandReversal(
-      command.amountKobo,
+      command.toMinorUnits(),
       command.currency,
       command.escrowId,
       command.gatewayReference,

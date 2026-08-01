@@ -58,7 +58,7 @@ export class ReconcileLedgerProcessor extends WorkerHost {
             new LedgerDiscrepancyDetected(
               transaction.reference,
               'missing',
-              transaction.amountKobo,
+              transaction.toMinorUnits(),
               matchingEntries[0].id,
             ),
           );
@@ -74,7 +74,7 @@ export class ReconcileLedgerProcessor extends WorkerHost {
             new LedgerDiscrepancyDetected(
               transaction.reference,
               'duplicate',
-              transaction.amountKobo,
+              transaction.toMinorUnits(),
               matchingEntries[0].id,
             ),
           );
@@ -86,12 +86,12 @@ export class ReconcileLedgerProcessor extends WorkerHost {
         }
 
         const [entry] = matchingEntries;
-        if (entry.amountKobo !== transaction.amountKobo) {
+        if (entry.toMinorUnits() !== transaction.toMinorUnits()) {
           this.eventBus.publish(
             new LedgerDiscrepancyDetected(
               transaction.reference,
               'amount-mismatch',
-              transaction.amountKobo,
+              transaction.toMinorUnits(),
               matchingEntries[0].id,
             ),
           );

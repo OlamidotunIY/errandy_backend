@@ -32,7 +32,7 @@ export class PaystackLedgerAuditAdapter {
     const transactions: GatewayLedgerTransaction[] = response.data.map(
       (tx) => ({
         reference: tx.reference,
-        amountKobo: tx.amount,
+        amount: Money,
       }),
     );
 
