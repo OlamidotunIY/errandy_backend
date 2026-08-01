@@ -17,46 +17,54 @@ export class ProviderRole {
     private _avgRatingCached?: number,
   ) {}
 
-  recordVerificationCompleted(tier: ProviderTier): void {
-    this._verificationStatus = true;
-    this._tier = tier;
+  private touch(): void {
     this.updatedAt = new Date();
   }
 
-  updateProfile(bio?: string, skills?: string[]): void {
+  recordVerificationCompleted(tier: ProviderTier): void {
+    this._verificationStatus = true;
+    this._tier = tier;
+    this.touch();
+  }
+
+  updateProfile(bio?: string, skills?: string[], addToSkills: boolean = false): void {
     if (bio !== undefined) {
       this._bio = bio;
     }
     if (skills !== undefined) {
-      this._skills = skills;
+      if (addToSkills) {
+        this._skills = [...new Set([...this._skills, ...skills])];
+      } else {
+        this._skills = skills;
+      }
     }
-    this.updatedAt = new Date();
+    this.touch();
   }
 
   incrementTrustedByCount(): void {
     this._trustedByCount++;
-    this.updatedAt = new Date();
+    this.touch();
   }
 
   decrementTrustedByCount(): void {
     if (this._trustedByCount > 0) {
       this._trustedByCount--;
     }
-    this.updatedAt = new Date();
+    this.touch();
   }
 
   incrementCompletedErrandsCount(): void {
     this._completedErrandsCount++;
-    this.updatedAt = new Date();
+    this.touch();
   }
 
   incrementDisputedErrandsCount(): void {
     this._disputedErrandsCount++;
-    this.updatedAt = new Date();
+    this.touch();
   }
 
   recomputeAvgRating(newWeightedAverage: number): void {
     this._avgRatingCached = newWeightedAverage;
-    this.updatedAt = new Date();
+    this.touch();
   }
 }
