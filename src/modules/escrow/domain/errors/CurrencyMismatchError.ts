@@ -1,9 +1,11 @@
+import { DomainError, DomainErrorStatus } from '@src/common';
 import { Currency } from '../value-objects';
 
-class CurrencyMismatchError extends Error {
+class CurrencyMismatchError extends DomainError {
   constructor(currency1: Currency, currency2: Currency) {
-    super(`Cannot mix currencies: ${currency1} and ${currency2}`);
-    this.name = 'CurrencyMismatchError';
+    super(`Cannot mix currencies: ${currency1} and ${currency2}`, {
+      statusCode: DomainErrorStatus.UNPROCESSABLE_ENTITY,
+    });
   }
 }
 

@@ -1,7 +1,8 @@
-class NegativeAmountError extends Error {
+import { DomainError, DomainErrorStatus } from '@src/common';
+
+class NegativeAmountError extends DomainError {
   constructor(message: string) {
-    super(message);
-    this.name = 'NegativeAmountError';
+    super(message, { statusCode: DomainErrorStatus.UNPROCESSABLE_ENTITY });
   }
 }
 

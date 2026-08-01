@@ -3,7 +3,7 @@ model Escrow {
     errandId        String      @unique
     clientId        String
     workerId        String
-    // Stored in minor units (kobo)
+    // Stored in minor units
     amountGross     Int
     platformFee     Int
     amountNetWorker Int

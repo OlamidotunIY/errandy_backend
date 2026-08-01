@@ -34,9 +34,9 @@ export class OnErrandCompletedMarkEscrow implements IEventHandler<ErrandComplete
     try {
       await this.command.execute(
         new MarkEscrowCompletedCommand({
-          escrowId: EscrowId.fromString(payload.escrowId as string),
-          correlationId: correlationId,
-          completedAt: payload.CompletedAt as Date,
+          escrowId: EscrowId.fromString(payload.escrowId),
+          correlationId,
+          completedAt: payload.completedAt,
         }),
       );
     } catch (error) {
