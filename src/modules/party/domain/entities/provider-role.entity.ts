@@ -27,16 +27,16 @@ export class ProviderRole {
     this.touch();
   }
 
-  updateProfile(bio?: string, skills?: string[], addToSkills: boolean = false): void {
+  updateProfile(
+    bio?: string,
+    skills?: string[],
+    addToSkills: boolean = false,
+  ): void {
     if (bio !== undefined) {
       this._bio = bio;
     }
     if (skills !== undefined) {
-      if (addToSkills) {
-        this._skills = [...new Set([...this._skills, ...skills])];
-      } else {
-        this._skills = skills;
-      }
+      this._skills = [...new Set([...this._skills, ...skills])];
     }
     this.touch();
   }
