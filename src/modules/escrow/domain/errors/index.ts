@@ -5,3 +5,4 @@ export * from './InvalidAmountError';
 export * from './InvalidFeeRateError';
 export * from './InvalidStatusTransitionError';
 export * from './NegativeAmountError';
+export * from './UnsupportedCurrencyError';
