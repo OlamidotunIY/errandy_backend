@@ -1,7 +1,10 @@
-class UnsupportedPendingRefundError extends Error {
+import { DomainError, DomainErrorStatus } from '@src/common';
+
+class UnsupportedPendingRefundError extends DomainError {
   constructor() {
-    super('Pending refunds are not supported for this wallet');
-    this.name = 'UnsupportedPendingRefundError';
+    super('Pending refunds are not supported for this wallet', {
+      statusCode: DomainErrorStatus.UNPROCESSABLE_ENTITY,
+    });
   }
 }
 

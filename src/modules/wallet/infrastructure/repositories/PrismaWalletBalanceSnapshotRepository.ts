@@ -28,9 +28,9 @@ export class PrismaWalletBalanceSnapshotRepository implements WalletBalanceRepos
     });
 
     return {
-      activeKobo: snapshot?.activeErrandBalance ?? 0,
-      pendingKobo: snapshot?.pendingBalance ?? 0,
-      availableKobo: snapshot?.availableBalance ?? 0,
+      activeMinorUnits: snapshot?.activeErrandBalance ?? 0,
+      pendingMinorUnits: snapshot?.pendingBalance ?? 0,
+      availableMinorUnits: snapshot?.availableBalance ?? 0,
       currency: currency ?? 'NGN',
     };
   }
@@ -74,9 +74,9 @@ export class PrismaWalletBalanceSnapshotRepository implements WalletBalanceRepos
       create: this.mapper.toPersistence(updatedSnapshot),
       update: {
         lastSequence: updatedSnapshot.lastSequence,
-        availableBalance: updatedSnapshot.availableKobo,
-        pendingBalance: updatedSnapshot.pendingKobo,
-        activeErrandBalance: updatedSnapshot.activeKobo,
+        availableBalance: updatedSnapshot.availableMinorUnits,
+        pendingBalance: updatedSnapshot.pendingMinorUnits,
+        activeErrandBalance: updatedSnapshot.activeMinorUnits,
       },
     });
   }

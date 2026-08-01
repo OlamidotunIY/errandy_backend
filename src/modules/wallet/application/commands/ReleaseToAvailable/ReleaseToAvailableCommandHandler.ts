@@ -35,7 +35,10 @@ class ReleaseToAvailableCommandHandler implements ICommandHandler<ReleaseToAvail
     const [debitEntry, creditEntry] = wallet.moveToAvailable(
       command.amount,
       command.escrowId,
-      Money.fromMinorUnits(snapshotBalance.pendingKobo, command.amount.currency),
+      Money.fromMinorUnits(
+        snapshotBalance.pendingMinorUnits,
+        command.amount.currency,
+      ),
       command.correlationId,
     );
 
@@ -48,7 +51,7 @@ class ReleaseToAvailableCommandHandler implements ICommandHandler<ReleaseToAvail
           .appendManyIfBalanceSufficient(
             wallet.id,
             BucketType.PENDING,
-            snapshotBalance.pendingKobo,
+            snapshotBalance.pendingMinorUnits,
             [debitEntry, creditEntry],
           )
           .then((entries) => {

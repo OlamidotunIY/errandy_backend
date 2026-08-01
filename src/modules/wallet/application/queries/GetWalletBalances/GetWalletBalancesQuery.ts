@@ -8,9 +8,9 @@ class GetWalletBalancesQuery extends Query<WalletBalancesDTO> {
 }
 
 interface WalletBalancesDTO {
-  activeKobo: number;
-  pendingKobo: number;
-  availableKobo: number;
+  activeMinorUnits: number;
+  pendingMinorUnits: number;
+  availableMinorUnits: number;
   currency: string;
 }
 export { GetWalletBalancesQuery, WalletBalancesDTO };

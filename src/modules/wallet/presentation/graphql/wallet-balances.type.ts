@@ -3,13 +3,13 @@ import { ObjectType, Field, Int } from '@nestjs/graphql';
 @ObjectType()
 class WalletBalancesType {
   @Field(() => Int)
-  activeKobo!: number;
+  activeMinorUnits!: number;
 
   @Field(() => Int)
-  pendingKobo!: number;
+  pendingMinorUnits!: number;
 
   @Field(() => Int)
-  availableKobo!: number;
+  availableMinorUnits!: number;
 
   @Field()
   currency!: string;

@@ -35,7 +35,10 @@ class MoveActiveToPendingCommandHandler implements ICommandHandler<MoveActiveToP
     const [debitEntry, creditEntry] = wallet.moveActiveToPending(
       command.amount,
       command.escrowId,
-      Money.fromMinorUnits(snapshotBalance.activeKobo, command.amount.currency),
+      Money.fromMinorUnits(
+        snapshotBalance.activeMinorUnits,
+        command.amount.currency,
+      ),
       command.correlationId,
     );
 
@@ -49,7 +52,7 @@ class MoveActiveToPendingCommandHandler implements ICommandHandler<MoveActiveToP
           .appendManyIfBalanceSufficient(
             wallet.id,
             BucketType.ACTIVE,
-            snapshotBalance.activeKobo,
+            snapshotBalance.activeMinorUnits,
             [debitEntry, creditEntry],
           )
           .then((entries) => {
