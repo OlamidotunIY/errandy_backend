@@ -75,6 +75,11 @@ export class ProviderRole {
     this.touch();
   }
 
+  setAverageResponseTimeSeconds(avgResponseTimeSeconds: number): void {
+    this._avgResponseTimeSeconds = avgResponseTimeSeconds;
+    this.touch();
+  }
+
   get tier(): ProviderTier {
     return this._tier;
   }
@@ -89,5 +94,29 @@ export class ProviderRole {
 
   get isActive(): boolean {
     return this._isActive;
+  }
+
+  get verificationStatus(): boolean {
+    return this._verificationStatus;
+  }
+
+  get trustedByCount(): number {
+    return this._trustedByCount;
+  }
+
+  get completedErrandsCount(): number {
+    return this._completedErrandsCount;
+  }
+
+  get disputedErrandsCount(): number {
+    return this._disputedErrandsCount;
+  }
+
+  get avgResponseTimeSeconds(): number | undefined {
+    return this._avgResponseTimeSeconds;
+  }
+
+  get avgRatingCached(): number | undefined {
+    return this._avgRatingCached;
   }
 }
