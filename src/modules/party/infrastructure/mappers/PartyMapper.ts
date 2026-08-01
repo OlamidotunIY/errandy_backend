@@ -111,7 +111,6 @@ export class PartyMapper {
 
   toPersonCreatePersistence(party: Party): Prisma.PersonCreateInput {
     return {
-      id: party.id.value,
       userId: party.person!.userId.value,
       party: { connect: { id: party.id.value } },
     };
@@ -121,7 +120,6 @@ export class PartyMapper {
     party: Party,
   ): Prisma.OrganizationCreateInput {
     return {
-      id: party.id.value,
       name: party.organization!.name,
       businessRegistrationNumber:
         party.organization!.businessRegistrationNumber,
@@ -149,7 +147,6 @@ export class PartyMapper {
   ): Prisma.ProviderRoleCreateInput {
     const providerRole = party.providerRole!;
     return {
-      id: party.id.value,
       tier: providerRole.tier,
       bio: providerRole.bio,
       skills: providerRole.skills,
@@ -195,6 +192,27 @@ export class PartyMapper {
       role: member.role,
       active: member.active,
     }));
+  }
+
+  toOrganizationMembers(
+    rows: Array<{
+      id: string;
+      organizationId: string;
+      userId: string;
+      role: string;
+      active: boolean;
+    }>,
+  ): OrganizationMember[] {
+    return rows.map(
+      (member) =>
+        new OrganizationMember(
+          OrganizationMemberId.fromString(member.id),
+          PartyId.fromString(member.organizationId),
+          UserId.fromString(member.userId),
+          member.role as OrgMemberRole,
+          member.active,
+        ),
+    );
   }
 
   toFlatParty(prismaParty: PrismaParty): Party {
