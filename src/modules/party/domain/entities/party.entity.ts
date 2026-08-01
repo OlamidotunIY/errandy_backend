@@ -67,3 +67,50 @@ export class Party extends AggregateRoot<PartyId> {
     this._providerRole = new ProviderRole(this.id);
     this.updatedAt = new Date();
   }
+
+  deactivate() {
+    this._isActive = false;
+    if (this._providerRole) {
+      // preserve original createdAt if available, set provider role as inactive and update timestamp
+      const createdAt = this._providerRole.createdAt ?? new Date();
+      this._providerRole = new ProviderRole(
+        this.id,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        false,
+        createdAt,
+        new Date(),
+      );
+    }
+
+    this.updatedAt = new Date();
+  }
+
+  get kind(): PartyKind {
+    return this._kind;
+  }
+
+  get marketId(): string {
+    return this._marketId;
+  }
+
+  get isActive(): boolean {
+    return this._isActive;
+  }
+
+  get person(): Person | null | undefined {
+    return this._person;
+  }
+
+  get organization(): Organization | null | undefined {
+    return this._organization;
+  }
+
+  get providerRole(): ProviderRole | null | undefined {
+    return this._providerRole;
+  }
+}
