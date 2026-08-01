@@ -1,6 +1,7 @@
 interface CreatePersonPartyRequestDto {
   userId: string;
   marketId: string;
+  correlationId?: string;
 }
 
 interface CreatePersonPartyResponseDto {

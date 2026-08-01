@@ -23,7 +23,7 @@ export class CreatePersonPartyHandler implements ICommandHandler<CreatePersonPar
   async execute(
     command: CreatePersonPartyCommand,
   ): Promise<CreatePersonPartyResponseDto> {
-    const { userId, marketId } = command.payload;
+    const { userId, marketId, correlationId } = command.payload;
 
     if (!userId || !marketId) {
       throw new PartyInvariantError('userId and marketId are required');
@@ -35,7 +35,11 @@ export class CreatePersonPartyHandler implements ICommandHandler<CreatePersonPar
       throw new PersonPartyAlreadyExistsError(userId);
     }
 
-    const party = Party.createPerson(UserId.fromString(userId), marketId);
+    const party = Party.createPerson(
+      UserId.fromString(userId),
+      marketId,
+      correlationId,
+    );
 
     try {
       await this.partyRepository.save(party);

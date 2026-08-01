@@ -5,6 +5,7 @@ export interface AwardBadgeRequestDto {
   badgeType: BadgeType;
   awardedByOrganizationId: string;
   period: string;
+  correlationId?: string;
 }
 
 export interface AwardBadgeResponseDto {

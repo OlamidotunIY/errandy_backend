@@ -1,4 +1,4 @@
 export enum PartyKind {
-  PERSON,
-  ORGANIZATION,
+  PERSON = 'PERSON',
+  ORGANIZATION = 'ORGANIZATION',
 }

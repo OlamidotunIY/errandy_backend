@@ -181,12 +181,7 @@ export class PrismaPartyRepository implements IPartyRepository {
       );
     }
 
-    return this.mapper.toDomain({
-      ...row,
-      person: null,
-      providerRole: null,
-      organization: row.organization,
-    } as any).organization!.members;
+    return this.mapper.toOrganizationMembers(row.organization.members);
   }
 
   async searchProvidersBySkill(
