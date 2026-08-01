@@ -1,7 +1,7 @@
 import { WalletId } from '../value-objects';
 import { Wallet } from '../entities';
 import { DomainEvent } from '@src/common';
-import { UserId } from '@src/users';
+import { UserId } from '@module/user';
 
 class WithdrawalRecorded implements DomainEvent {
   readonly eventId: string;

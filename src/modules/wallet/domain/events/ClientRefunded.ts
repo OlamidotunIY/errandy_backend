@@ -2,7 +2,7 @@ import { WalletId } from '../value-objects';
 import { EscrowId } from '@module/escrow';
 import { Wallet } from '../entities';
 import { DomainEvent } from '@src/common';
-import { UserId } from '@src/users';
+import { UserId } from '@module/user';
 
 class ClientRefunded implements DomainEvent {
   readonly eventId: string;

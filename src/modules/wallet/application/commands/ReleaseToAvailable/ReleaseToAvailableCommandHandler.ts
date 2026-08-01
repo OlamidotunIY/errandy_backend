@@ -6,6 +6,7 @@ import {
   BucketType,
   LedgerEntry,
 } from '@module/wallet';
+import { Money } from '@module/escrow';
 import { ReleaseToAvailableCommand } from '.';
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 import { isTransientTransactionError } from '@src/prisma/prisma.service';
@@ -32,10 +33,9 @@ class ReleaseToAvailableCommandHandler implements ICommandHandler<ReleaseToAvail
       await this.walletBalanceRepository.getSnapshotForDisplay(wallet.id);
 
     const [debitEntry, creditEntry] = wallet.moveToAvailable(
-      command.toMinorUnits(),
-      command.currency,
+      command.amount,
       command.escrowId,
-      snapshotBalance.pendingKobo,
+      Money.fromMinorUnits(snapshotBalance.pendingKobo, command.amount.currency),
       command.correlationId,
     );
 

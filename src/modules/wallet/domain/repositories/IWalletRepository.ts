@@ -1,4 +1,4 @@
-import { UserId } from '@src/users';
+import { UserId } from '@module/user';
 import { Wallet, WalletId } from '..';
 
 export abstract class WalletRepository {

@@ -1,6 +1,6 @@
-import { Currency, EscrowId } from '@module/escrow';
+import { Currency, EscrowId, Money } from '@module/escrow';
 import { LedgerEntryType, WalletId } from '@module/wallet/domain';
-import { UserId } from '@src/users';
+import { UserId } from '@module/user';
 
 export interface AppendFailedLedgerEntryPayload {
   walletId: WalletId;

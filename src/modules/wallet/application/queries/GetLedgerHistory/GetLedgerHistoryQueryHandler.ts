@@ -31,7 +31,7 @@ class GetLedgerHistoryQueryHandler implements IQueryHandler<GetLedgerHistoryQuer
       entries: entries.map((entry) => ({
         id: entry.id.value,
         type: entry.type,
-        amount: Money,
+        amountMinorUnits: entry.toMinorUnits(),
         currency: entry.currency,
         escrowId: entry.escrowId ? entry.escrowId.value : null,
         gatewayReference: entry.gatewayReference,

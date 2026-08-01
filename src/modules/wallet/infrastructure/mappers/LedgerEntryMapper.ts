@@ -6,7 +6,7 @@ import {
   WalletId,
 } from '@module/wallet/domain';
 import { Prisma, LedgerEntry as PrismaLedgerEntryRow } from '@prisma/client';
-import { EscrowId } from '@module/escrow';
+import { Currency, EscrowId, Money } from '@module/escrow';
 import { Json } from '@src/common';
 import { UserId } from '@module/user';
 
@@ -17,8 +17,10 @@ class LedgerEntryMapper {
       id: LedgerEntryId.fromString(row.id),
       userId: UserId.fromString(row.userId),
       walletId: WalletId.fromString(row.walletId),
-      amount: Money,
-      currency: row.currency,
+      amount: Money.fromMinorUnits(
+        row.amountMinorUnits,
+        row.currency as Currency,
+      ),
       escrowId: row.escrowId ? EscrowId.fromString(row.escrowId) : null,
       gatewayReference: row.gatewayReference ? row.gatewayReference : null,
       metadata: row.metadata ? (row.metadata as Json) : null,
@@ -34,7 +36,7 @@ class LedgerEntryMapper {
       id: entry.id.toString(),
       userId: entry.userId.toString(),
       walletId: entry.walletId.toString(),
-      amount: Money,
+      amountMinorUnits: entry.amount.toMinorUnits(),
       currency: entry.currency,
       escrowId: entry.escrowId?.value ?? null,
       gatewayReference: entry.gatewayReference ?? null,

@@ -1,3 +1,5 @@
+import { Money } from '@module/escrow';
+
 export interface GatewayLedgerTransaction {
   reference: string;
   amount: Money;

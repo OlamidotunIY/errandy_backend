@@ -3,6 +3,7 @@ import {
   GatewayLedgerTransaction,
   GatewayLedgerTransactionPage,
 } from '@module/wallet';
+import { Currency, Money } from '@module/escrow';
 import { Paystack } from '@paystack/paystack-sdk';
 import { ILogger, PaystackTransactionType } from '@src/common';
 
@@ -32,7 +33,10 @@ export class PaystackLedgerAuditAdapter {
     const transactions: GatewayLedgerTransaction[] = response.data.map(
       (tx) => ({
         reference: tx.reference,
-        amount: Money,
+        amount: Money.fromMinorUnits(
+          tx.amount,
+          ((tx.currency ?? 'NGN').toUpperCase() as Currency) || 'NGN',
+        ),
       }),
     );
 

@@ -6,7 +6,7 @@ import {
   WalletId,
 } from '@module/wallet';
 import { InvalidLedgerAmountError } from '../errors';
-import { Money } from 'src/modules/escrow';
+import { Money } from '@module/escrow';
 import { Json } from '@src/common';
 import { UserId } from '@module/user';
 
@@ -80,6 +80,14 @@ class LedgerEntry {
   assignSequence(sequence: number): LedgerEntry {
     this.sequence = sequence;
     return this;
+  }
+
+  toMinorUnits(): number {
+    return this.amount.toMinorUnits();
+  }
+
+  get currency(): string {
+    return this.amount.currency;
   }
 }
 

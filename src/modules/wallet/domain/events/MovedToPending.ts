@@ -2,7 +2,7 @@ import { WalletId } from '../value-objects';
 import { EscrowId } from 'src/modules/escrow';
 import { Wallet } from '../entities';
 import { DomainEvent } from '@src/common';
-import { UserId } from '@src/users';
+import { UserId } from '@module/user';
 
 class MovedToPending implements DomainEvent {
   readonly eventId: string;

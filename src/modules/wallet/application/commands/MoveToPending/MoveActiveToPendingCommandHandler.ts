@@ -6,6 +6,7 @@ import {
   LedgerEntry,
   WalletNotFoundError,
 } from '@module/wallet';
+import { Money } from '@module/escrow';
 import { MoveActiveToPendingCommand } from '.';
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 import { isTransientTransactionError } from '@src/prisma/prisma.service';
@@ -34,7 +35,7 @@ class MoveActiveToPendingCommandHandler implements ICommandHandler<MoveActiveToP
     const [debitEntry, creditEntry] = wallet.moveActiveToPending(
       command.amount,
       command.escrowId,
-      snapshotBalance.activeKobo,
+      Money.fromMinorUnits(snapshotBalance.activeKobo, command.amount.currency),
       command.correlationId,
     );
 

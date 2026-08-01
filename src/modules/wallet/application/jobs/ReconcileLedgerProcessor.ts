@@ -5,6 +5,7 @@ import {
   WorkerHost,
 } from '@nestjs/bullmq';
 import {
+  LedgerEntryId,
   LedgerEntryRepository,
   LedgerDiscrepancyDetected,
   PaystackLedgerAuditAdapter,
@@ -58,8 +59,8 @@ export class ReconcileLedgerProcessor extends WorkerHost {
             new LedgerDiscrepancyDetected(
               transaction.reference,
               'missing',
-              transaction.toMinorUnits(),
-              matchingEntries[0].id,
+              transaction.amount,
+              LedgerEntryId.fromString(transaction.reference),
             ),
           );
           this.logger.warn('Ledger discrepancy: missing entry', {
@@ -74,7 +75,7 @@ export class ReconcileLedgerProcessor extends WorkerHost {
             new LedgerDiscrepancyDetected(
               transaction.reference,
               'duplicate',
-              transaction.toMinorUnits(),
+              transaction.amount,
               matchingEntries[0].id,
             ),
           );
@@ -86,12 +87,12 @@ export class ReconcileLedgerProcessor extends WorkerHost {
         }
 
         const [entry] = matchingEntries;
-        if (entry.toMinorUnits() !== transaction.toMinorUnits()) {
+        if (entry.toMinorUnits() !== transaction.amount.toMinorUnits()) {
           this.eventBus.publish(
             new LedgerDiscrepancyDetected(
               transaction.reference,
               'amount-mismatch',
-              transaction.toMinorUnits(),
+              transaction.amount,
               matchingEntries[0].id,
             ),
           );

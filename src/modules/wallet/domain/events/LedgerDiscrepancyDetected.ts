@@ -1,5 +1,6 @@
 import { DomainEvent } from '@src/common';
 import { LedgerEntryId, WalletId } from '../value-objects';
+import { Money } from '@module/escrow';
 
 export class LedgerDiscrepancyDetected implements DomainEvent {
   readonly eventId: string;

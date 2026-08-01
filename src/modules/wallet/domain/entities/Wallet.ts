@@ -1,5 +1,5 @@
 import { LedgerEntryType, WalletId } from '..';
-import { Money, EscrowId } from 'src/modules/escrow';
+import { Currency, EscrowId, Money } from '@module/escrow';
 import { LedgerEntry } from './LedgerEntry';
 import {
   InsufficientActiveBalanceError,
@@ -21,27 +21,29 @@ class Wallet extends AggregateRoot<WalletId> {
   private constructor(
     public readonly id: WalletId,
     public readonly userId: UserId,
+    public readonly currency: Currency,
     public readonly createdAt: Date,
     public readonly updatedAt: Date,
   ) {
     super(id);
   }
 
-  static create(userId: UserId): Wallet {
+  static create(userId: UserId, currency: Currency = 'NGN'): Wallet {
     if (!userId) {
       throw new Error('UserId is required to create a wallet');
     }
     const now = new Date();
-    return new Wallet(new WalletId(crypto.randomUUID()), userId, now, now);
+    return new Wallet(new WalletId(crypto.randomUUID()), userId, currency, now, now);
   }
 
   static reconstitute(
     id: WalletId,
     userId: UserId,
+    currency: Currency,
     createdAt: Date,
     updatedAt: Date,
   ): Wallet {
-    return new Wallet(id, userId, createdAt, updatedAt);
+    return new Wallet(id, userId, currency, createdAt, updatedAt);
   }
 
   recordActiveErrandCredit(

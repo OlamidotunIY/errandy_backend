@@ -1,7 +1,7 @@
 import { EscrowId } from 'src/modules/escrow';
 import { Wallet, WalletId } from '@module/wallet';
 import { DomainEvent } from '@src/common';
-import { UserId } from '@src/users';
+import { UserId } from '@module/user';
 
 class ActiveErrandCredited implements DomainEvent {
   readonly eventId: string;

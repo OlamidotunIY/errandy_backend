@@ -6,6 +6,7 @@ import {
   LedgerEntry,
   WalletNotFoundError,
 } from '@module/wallet';
+import { Money } from '@module/escrow';
 import { ReverseActiveErrandCommand } from '.';
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 import { isTransientTransactionError } from '@src/prisma/prisma.service';
@@ -31,11 +32,10 @@ class ReverseActiveErrandCommandHandler implements ICommandHandler<ReverseActive
       await this.walletBalanceRepository.getSnapshotForDisplay(wallet.id);
 
     const entry = wallet.recordActiveErrandReversal(
-      command.toMinorUnits(),
-      command.currency,
+      command.amount,
       command.escrowId,
       command.gatewayReference,
-      snapshotBalance.activeKobo,
+      Money.fromMinorUnits(snapshotBalance.activeKobo, command.amount.currency),
       command.correlationId,
     );
 

@@ -1,6 +1,6 @@
 import { LedgerEntryType } from '@module/wallet/domain';
 import { Query } from '@nestjs/cqrs';
-import { UserId } from '@src/users';
+import { UserId } from '@module/user';
 
 class GetLedgerHistoryQuery extends Query<LedgerHistoryPageDTO> {
   constructor(
@@ -15,7 +15,7 @@ class GetLedgerHistoryQuery extends Query<LedgerHistoryPageDTO> {
 interface LedgerEntryDTO {
   id: string;
   type: LedgerEntryType;
-  amount: Money;
+  amountMinorUnits: number;
   currency: string;
   escrowId: string | null;
   gatewayReference: string | null;

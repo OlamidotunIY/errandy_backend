@@ -1,6 +1,6 @@
 import { DomainEvent } from '@src/common';
 import { WalletId } from '../value-objects';
-import { UserId } from '@src/users';
+import { UserId } from '@module/user';
 import { EscrowId } from '@module/escrow';
 import { Wallet } from '../entities';
 

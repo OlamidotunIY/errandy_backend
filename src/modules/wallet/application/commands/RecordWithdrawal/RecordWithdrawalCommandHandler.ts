@@ -6,6 +6,7 @@ import {
   LedgerEntry,
   WalletNotFoundError,
 } from '@module/wallet';
+import { Money } from '@module/escrow';
 import { RecordWithdrawalCommand } from '.';
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 import { isTransientTransactionError } from '@src/prisma/prisma.service';
@@ -29,10 +30,12 @@ class RecordWithdrawalCommandHandler implements ICommandHandler<RecordWithdrawal
       await this.walletBalanceRepository.getSnapshotForDisplay(wallet.id);
 
     const entry = wallet.recordWithdrawal(
-      command.toMinorUnits(),
-      command.currency,
+      command.amount,
       command.gatewayReference,
-      snapshotBalance.availableKobo,
+      Money.fromMinorUnits(
+        snapshotBalance.availableKobo,
+        command.amount.currency,
+      ),
       command.correlationId,
     );
 
