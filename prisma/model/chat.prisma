@@ -1,57 +1,22 @@
-model ChatRoom {
-    id             String    @id @default(uuid()) @map("_id")
-    participantIds String[] // array of user IDs
-    roomKey        String?  @unique
+model ChatThread {
+    id              String    @id @default(uuid()) @map("_id")
+    errandId        String
+    participantIds  String[]
+    createdAt       DateTime  @default(now())
+    closedAt        DateTime?
+    firstResponseAt DateTime?
 
-    unreadCount Int @default(0)
-
-    lastMessageId String?  @unique
-
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-
-    @@map("rooms")
+    @@unique([errandId])
+    @@map("chat_threads")
 }
 
-model Message {
-    id       String  @id @default(uuid()) @map("_id")
-    roomId   String 
+model ChatMessage {
+    id       String   @id @default(uuid()) @map("_id")
+    threadId String
     senderId String
+    content  String
+    sentAt   DateTime @default(now())
 
-    content    String?
-    contentUrl String? // used for voice, images, files
-    type       MessageType @default(TEXT)
-
-    fileName   String?
-    fileSize   Int?
-    mimeType   String?
-    width      Int?
-    height     Int?
-    durationMs Int?
-    waveform   Json?
-
-    seen      Boolean @default(false)
-    delivered Boolean @default(false)
-    sent      Boolean @default(false)
-
-    createdAt DateTime @default(now())
-
-    @@map("messages")
-}
-
-model Reaction {
-    id        String   @id @default(uuid()) @map("_id")
-    messageId String  
-    userId    String
-    emoji     String // e.g. "👍", "❤️", etc.
-
-    @@map("reactions")
-}
-
-enum MessageType {
-    TEXT
-    IMAGE
-    VIDEO
-    FILE
-    VOICE
+    @@index([threadId, sentAt])
+    @@map("chat_messages")
 }
