@@ -4,41 +4,70 @@ Not a state-transition flow like the others — this is a **query-path** doc, in
 
 ## Actors
 
-- **Worker/Organization** (`Profile` with `PROVIDER` capability) — browsing for open errands
+- **Worker/Organization** (`Party` with a `ProviderRole`) — browsing for open errands
 - **errands module** — owns `Errand`, serves the query
 
-## The query
+## Data modeling correction — MongoDB, not PostGIS
 
-`BrowseOpenErrandsQuery { requesterProfileId, categoryId?, limit, cursor }`
+This system runs on MongoDB via Prisma, not Postgres. Two real consequences, confirmed against current Prisma/Mongo docs rather than assumed:
 
-Preconditions, enforced before any ranking logic runs:
-- `status = PUBLISHED`
-- `marketId = requester.marketId` — the hard market-isolation boundary (Ghana never sees Nigeria), applied first, before distance is even considered
-- if `requiredTier` is set, `requester.tier >= requiredTier`
+1. **Prisma's schema language cannot create a true `2dsphere` index.** `@@index([location])` only produces a regular index, even if you name it `2dsphere` — Prisma has an open, unresolved feature request for this. The actual index has to be created via a raw Mongo command (`db.<collection>.createIndex({ location: "2dsphere" })`), run as its own deployment/bootstrap step — **and `prisma db push` can silently drop it on the next push**, so it needs re-asserting every deploy, not a one-time setup.
+2. **`Errand` needs its own denormalized `location` field**, not just `addressId`. Mongo doesn't do cheap cross-collection joins, so for `$near`/`$geoNear` to be usable at query time, the coordinates have to live directly on the document being queried — copied from the chosen `Address` once, at `CreateErrandCommand` time, not fetched via a lookup into `Address` per candidate.
+
+```prisma
+model Address {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  ownerUserId String   @db.ObjectId
+  label       String
+  street      String
+  city        String
+  state       String
+  country     String
+  location    Json     // GeoJSON Point: { type: "Point", coordinates: [longitude, latitude] } — note: longitude first, the opposite of how most UIs present it
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Errand {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  clientId    String   @db.ObjectId   // plain scalar — Party aggregate, no @relation, per the aggregate-boundary rule
+  addressId   String   @db.ObjectId
+  location    Json     // denormalized copy of Address.location, set once at creation
+  categoryId  String   @db.ObjectId
+  // ...remaining fields as in the main architecture doc
+}
+```
+
+```typescript
+// bootstrap/ensure-mongo-indexes.ts — run on every deploy, not a one-time migration
+await prisma.$runCommandRaw({
+  createIndexes: 'Errand',
+  indexes: [{ key: { location: '2dsphere' }, name: 'errand_location_2dsphere' }],
+});
+```
 
 ## The actual problem: nearest-neighbor + recency, at scale
 
-Two things need combining: **geographic proximity** (distance from the worker's location to the errand's `Address`) and **recency** (`createdAt`, newer first). Naive approach — compute distance for every published errand in the market, sort — works fine at small scale but degrades badly as errand volume grows, since it's a full table scan every time.
+Two things need combining: **geographic proximity** and **recency** (`createdAt`, newer first).
 
-**Recommended approach — don't hand-roll the distance search:**
+**Recommended approach:**
 
-1. **Use the database's native geospatial index**, not application-level looping over rows. PostgreSQL + PostGIS gives you `ST_DWithin`/`ST_Distance` backed by a GiST index (internally an R-tree); MongoDB gives you a `2dsphere` index with `$near`. Either lets the database do the proximity filtering and rough ordering natively, rather than pulling every row into application memory.
-2. **Filter to a bounding radius first** (e.g. `ST_DWithin(errand.location, worker.location, radiusMeters)`) — this uses the index to cheaply exclude everything far away, rather than computing exact distance for every row before filtering.
-3. **Rank the remaining (already small) candidate set** by a blended score, since "nearest" and "newest" often trade off (a 2-day-old errand 500m away vs. a 5-minute-old one 4km away — which surfaces first is a product call, not just a technical one):
+1. **MongoDB's native `2dsphere` index**, set up per the gotcha above — `$geoNear` (aggregation stage) or `$near`/`$geoWithin` (query operators) let Mongo do the proximity filtering natively, rather than pulling every document into application memory and computing Haversine distance by hand.
+2. **Filter to a bounding radius first** via `$geoNear`'s `maxDistance`, or `$geoWithin` — this uses the index to cheaply exclude everything far away.
+3. **Rank the remaining (already small) candidate set** by a blended score, since "nearest" and "newest" trade off:
    ```
    score = w1 · proximityScore(distance) + w2 · recencyScore(ageInMinutes)
    ```
-   where `proximityScore`/`recencyScore` are each normalized (e.g. inverse distance, exponential recency decay) onto a comparable 0–1 range before weighting. Same shape as the composite trust score in `errand-reassignment-flow.md` — this recurs anywhere "blend two different-unit signals into one ranking" comes up.
-4. **Top-K selection over the ranked candidate set** — same min-heap approach already referenced for reassignment suggestions: push scored candidates, evict the lowest whenever the heap exceeds `limit`. O(n log K) rather than sorting the whole candidate set. *(CLRS Ch. 6, Heaps; Ch. 9, Medians and Order Statistics.)*
+   Same shape as the composite trust score in `errand-reassignment-flow.md`.
+4. **Top-K selection** — min-heap of size K. *(CLRS Ch. 6, Heaps; Ch. 9, Medians and Order Statistics.)*
 
-**Honest gap in the reference material**: this isn't really a CLRS topic in the way ranking/top-K is — CLRS doesn't cover geospatial indexing (R-trees, geohashing, quad-trees) at all; the closest chapter is **Ch. 33, Computational Geometry**, which is only loosely related background, not a how-to. For the actual geospatial indexing structure, the practical path is: use your database's built-in geospatial index rather than implementing one, and if you want to understand what's underneath it, look up R-trees specifically (Guttman's original paper, or any GIS-focused text/course) — not something *Introduction to Algorithms* covers.
-
-**Simpler alternative if you don't want a full geospatial index yet**: precompute a coarse **geohash** for every `Address` (a string encoding a lat/lng cell — nearby locations share string prefixes), index that column as a plain string index, and query by geohash-prefix match for "in the same rough area" before falling back to precise Haversine-distance calculation on the (now small) result set. Cheaper to set up than PostGIS, less precise, but avoids full scans — a reasonable middle ground if PostGIS/2dsphere isn't already in your stack.
+**Honest gap in the reference material, unchanged from before**: geospatial indexing itself isn't a CLRS topic — the closest is Ch. 33 (Computational Geometry), loosely related at best. For understanding what's underneath `2dsphere` specifically, that's S2 geometry/geohashing territory (MongoDB's own docs, not an algorithms text).
 
 ## Sequence
 
-1. Worker opens the discovery screen → `BrowseOpenErrandsQuery { requesterProfileId, categoryId?, limit, cursor }`
-2. Handler resolves worker's current location (either their profile's default `Address`, or a live GPS coordinate if the client sends one)
+1. Worker opens the discovery screen → `BrowseOpenErrandsQuery { requesterPartyId, categoryId?, limit, cursor }`
+2. Handler resolves worker's current location (either their default `Address`, or a live GPS coordinate if the client sends one)
 3. Market + tier filters applied (hard preconditions, cheap to check, applied before any geo work)
 4. Geospatial index query narrows to candidates within a radius (configurable — this is a tunable business parameter, not fixed forever)
 5. Candidates scored (proximity + recency blend), top-K selected via the heap approach
@@ -46,7 +75,7 @@ Two things need combining: **geographic proximity** (distance from the worker's 
 
 ## Algorithmic component (summary)
 
-- **Nearest-neighbor / geospatial filtering**: database-native geospatial index (PostGIS GiST/R-tree, or MongoDB 2dsphere) — not a CLRS topic; practical answer is "use the database," not "implement it."
+- **Nearest-neighbor / geospatial filtering**: MongoDB's native `2dsphere` index (created outside Prisma's schema, per the gotcha above) — not a CLRS topic; practical answer is "use the database," not "implement it."
 - **Composite ranking + top-K selection**: min-heap of size K — CLRS Ch. 6 (Heaps), Ch. 9 (Medians and Order Statistics).
 
 ## Open items
