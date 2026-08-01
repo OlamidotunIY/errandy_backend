@@ -168,6 +168,10 @@ export class Application extends AggregateRoot<ApplicationId> {
     return this._status;
   }
 
+  type(): ApplicationType {
+    return this._type;
+  }
+
   proposal(): string {
     return this._proposal;
   }

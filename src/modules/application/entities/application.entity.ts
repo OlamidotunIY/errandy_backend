@@ -1,7 +1,6 @@
 import { ObjectType, Field, ID } from '@nestjs/graphql';
 import { ApplicationStatus } from './applicationStatus.enum';
 import { ApplicationSource } from './application-source.enum';
-import { Provider } from 'src/provider/entities/provider.entity';
 
 @ObjectType()
 export class Application {
@@ -26,6 +25,6 @@ export class Application {
   @Field()
   createdAt: Date;
 
-  @Field(() => Provider, { nullable: true })
-  worker?: Provider;
+  @Field(() => String, { nullable: true })
+  workerIdRef?: string;
 }
