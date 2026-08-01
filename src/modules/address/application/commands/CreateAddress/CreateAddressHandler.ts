@@ -1,5 +1,6 @@
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 import {
+  Address,
   AddressDto,
   Coordinates,
   CreateAddressCommand,
@@ -18,11 +19,37 @@ export class CreateAddressHandler implements ICommandHandler<CreateAddressComman
     const { state, country, street, userId, label, city, coordinates } =
       command.payload;
 
-    const addressCord = Coordinates.create(
+    const addressCoordinates = Coordinates.create(
       coordinates.latitude,
       coordinates.longitude,
     );
 
-    throw new Error('Method not implemented.');
+    const address = Address.create(
+      userId,
+      label,
+      street,
+      city,
+      state,
+      country,
+      addressCoordinates,
+    );
+
+    await this.addressRepo.save(address);
+
+    this.logger.info(`Address created for user ${userId.value}`, {
+      addressId: address.id.value,
+    });
+
+    return {
+      id: address.id.value,
+      userId: address.ownerUserId.value,
+      label: address.label,
+      street: address.street,
+      city: address.city,
+      state: address.state,
+      country: address.country,
+      createdAt: address.createdAt,
+      updatedAt: address.updatedAt,
+    };
   }
 }
