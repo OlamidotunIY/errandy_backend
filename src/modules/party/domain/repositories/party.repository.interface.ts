@@ -11,4 +11,8 @@ export abstract class IPartyRepository {
   abstract findOrganizationMembers(
     organizationPartyId: string,
   ): Promise<OrganizationMember[]>;
+  abstract searchProvidersBySkill(
+    skill: string,
+    limit?: number,
+  ): Promise<Party[]>;
 }
