@@ -50,6 +50,7 @@ export class Party extends AggregateRoot<PartyId> {
     marketId: string,
   ): Party {
     const party = this.create(marketId);
+    party._kind = PartyKind.ORGANIZATION;
     party._organization = new Organization(
       party.id,
       name,
