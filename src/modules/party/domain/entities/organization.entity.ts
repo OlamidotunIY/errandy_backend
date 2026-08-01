@@ -64,4 +64,20 @@ export class Organization {
     this._workerPoolPercentage = percentage;
     this.touch();
   }
+
+  get name(): string {
+    return this._name;
+  }
+
+  get businessRegistrationNumber(): string {
+    return this._businessRegistrationNumber;
+  }
+
+  get workerPoolPercentage(): number {
+    return this._workerPoolPercentage;
+  }
+
+  get members(): OrganizationMember[] {
+    return [...this._orgMembers];
+  }
 }

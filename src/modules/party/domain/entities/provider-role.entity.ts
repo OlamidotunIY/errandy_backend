@@ -36,8 +36,15 @@ export class ProviderRole {
       this._bio = bio;
     }
     if (skills !== undefined) {
-      this._skills = [...new Set([...this._skills, ...skills])];
+      this._skills = addToSkills
+        ? [...new Set([...this._skills, ...skills])]
+        : [...new Set(skills)];
     }
+    this.touch();
+  }
+
+  updateTier(tier: ProviderTier): void {
+    this._tier = tier;
     this.touch();
   }
 
@@ -66,5 +73,21 @@ export class ProviderRole {
   recomputeAvgRating(newWeightedAverage: number): void {
     this._avgRatingCached = newWeightedAverage;
     this.touch();
+  }
+
+  get tier(): ProviderTier {
+    return this._tier;
+  }
+
+  get skills(): string[] {
+    return this._skills;
+  }
+
+  get bio(): string | undefined {
+    return this._bio;
+  }
+
+  get isActive(): boolean {
+    return this._isActive;
   }
 }
