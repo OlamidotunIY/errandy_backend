@@ -14,10 +14,10 @@ export class OnErrandCompletedHandler implements IEventHandler<ErrandCompletedEv
   ) {}
 
   async handle(event: ErrandCompletedEvent): Promise<void> {
-    const escrowId = event.payload.escrowId;
+    const errandId = event.payload.errandId;
 
     const escrow = await this.prisma.escrow.findUnique({
-      where: { id: escrowId },
+      where: { errandId },
       select: {
         workerId: true,
         clientId: true,
@@ -26,7 +26,7 @@ export class OnErrandCompletedHandler implements IEventHandler<ErrandCompletedEv
 
     if (!escrow) {
       this.logger.warn('Escrow not found for errand completed event', {
-        escrowId,
+        errandId,
       });
       return;
     }
@@ -48,7 +48,7 @@ export class OnErrandCompletedHandler implements IEventHandler<ErrandCompletedEv
     }
 
     this.logger.info('Errand completed handled for party stats', {
-      escrowId,
+      errandId,
     });
   }
 }

@@ -1,9 +1,10 @@
 import { BaseDomainEvent } from '@src/common';
 import { ErrandId } from '../value-objects';
+import { CompletedBy } from '../value-objects';
 
 interface ErrandCompletedPayload extends Record<string, unknown> {
-  escrowId: string;
-  completedAt: Date;
+  errandId: string;
+  completedBy: CompletedBy;
 }
 
 export class ErrandCompletedEvent extends BaseDomainEvent<
@@ -14,24 +15,14 @@ export class ErrandCompletedEvent extends BaseDomainEvent<
 
   constructor(
     errandId: ErrandId,
-    occurredAt: Date,
     correlationId: string,
     payload: ErrandCompletedPayload,
   ) {
     super({
       aggregateId: errandId,
-      occurredAt,
       correlationId,
       eventName: ErrandCompletedEvent.name,
       payload,
     });
   }
-
-  // static fromAggregate(errand: Errand): EscrowCompletedEvent {
-  //   return new EscrowCompletedEvent(escrow.id, new Date(), {
-  //     errandId: escrow.errandId,
-  //     clientId: escrow.clientId,
-  //     amount: escrow.amountGross,
-  //   });
-  // }
 }
