@@ -48,17 +48,20 @@ export class AwardBadgeHandler implements ICommandHandler<AwardBadgeCommand> {
       throw new ProviderRoleNotFoundError(partyId);
     }
 
-    const badge = new ProviderBadge(
-      ProviderBadgeId.create(),
-      party.id,
+    const badge = ProviderBadge.award({
+      partyId: party.id,
       badgeType,
-      PartyId.fromString(awardedByOrganizationId),
+      awardedByOrganizationId: PartyId.fromString(awardedByOrganizationId),
       period,
-      new Date(),
-    );
+      correlationId: command.payload.correlationId,
+    });
 
     try {
       await this.providerBadgeRepository.save(badge);
+
+      for (const domainEvent of badge.pullDomainEvents()) {
+        this.eventBus.publish(domainEvent);
+      }
 
       const events = party.pullDomainEvents();
       for (const event of events) {

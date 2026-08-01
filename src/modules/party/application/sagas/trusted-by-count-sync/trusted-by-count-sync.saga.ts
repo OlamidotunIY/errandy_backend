@@ -1,21 +1,59 @@
 import { Injectable } from '@nestjs/common';
-import { ICommand, ofType, Saga } from '@nestjs/cqrs';
-import { map, Observable } from 'rxjs';
-import { ApplicationAcceptedEvent } from '@module/application';
-import { AddProviderRoleCommand } from '@module/party';
+import { EventBus, ofType, Saga } from '@nestjs/cqrs';
+import { ignoreElements, mergeMap, Observable } from 'rxjs';
+import {
+  IPartyRepository,
+  PartyNotFoundError,
+  ProviderRoleNotFoundError,
+} from '@module/party';
+import {
+  TrustedCircleMemberConfirmedEvent,
+  TrustedCircleMemberRemovedEvent,
+} from '@module/trusted-circle';
+import { ILogger } from '@src/common';
 
 @Injectable()
 export class TrustedByCountSyncSaga {
+  constructor(
+    private readonly partyRepository: IPartyRepository,
+    private readonly eventBus: EventBus,
+    private readonly logger: ILogger,
+  ) {}
+
   @Saga()
-  ensureProviderRole = (events$: Observable<any>): Observable<ICommand> => {
+  trustedByCountSync = (events$: Observable<any>): Observable<never> => {
     return events$.pipe(
-      ofType(ApplicationAcceptedEvent),
-      map(
-        (event) =>
-          new AddProviderRoleCommand({
-            partyId: event.payload.workerId.value,
-          }),
+      ofType(
+        TrustedCircleMemberConfirmedEvent,
+        TrustedCircleMemberRemovedEvent,
       ),
+      mergeMap(async (event) => {
+        const partyId = event.payload.partyId;
+        const party = await this.partyRepository.findById(partyId);
+
+        if (!party) {
+          throw new PartyNotFoundError(partyId);
+        }
+
+        if (!party.providerRole) {
+          throw new ProviderRoleNotFoundError(partyId);
+        }
+
+        if (event instanceof TrustedCircleMemberConfirmedEvent) {
+          party.providerRole.incrementTrustedByCount();
+        } else {
+          party.providerRole.decrementTrustedByCount();
+        }
+
+        await this.partyRepository.save(party);
+
+        for (const domainEvent of party.pullDomainEvents()) {
+          this.eventBus.publish(domainEvent);
+        }
+
+        this.logger.info('Trusted-by count synced', { partyId });
+      }),
+      ignoreElements(),
     );
   };
 }

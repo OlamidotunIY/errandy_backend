@@ -5,7 +5,6 @@ import {
 } from '@module/party';
 import {
   IPartyRepository,
-  OrganizationNotFoundError,
   PartyInvariantError,
   PartyNotFoundError,
 } from '@module/party';
@@ -36,12 +35,8 @@ export class RemoveOrganizationMemberHandler implements ICommandHandler<RemoveOr
       throw new PartyNotFoundError(organizationPartyId);
     }
 
-    if (!party.organization) {
-      throw new OrganizationNotFoundError(organizationPartyId);
-    }
-
     try {
-      party.organization.removeMember(UserId.fromString(userId));
+      party.removeOrganizationMember(UserId.fromString(userId));
       await this.partyRepository.save(party);
 
       const events = party.pullDomainEvents();

@@ -5,7 +5,6 @@ import {
 } from '@module/party';
 import {
   IPartyRepository,
-  OrganizationNotFoundError,
   PartyInvariantError,
   PartyNotFoundError,
 } from '@module/party';
@@ -36,12 +35,8 @@ export class AddOrganizationMemberHandler implements ICommandHandler<AddOrganiza
       throw new PartyNotFoundError(organizationPartyId);
     }
 
-    if (!party.organization) {
-      throw new OrganizationNotFoundError(organizationPartyId);
-    }
-
     try {
-      party.organization.addMember(UserId.fromString(userId), role);
+      party.addOrganizationMember(UserId.fromString(userId), role);
       await this.partyRepository.save(party);
 
       const events = party.pullDomainEvents();
