@@ -48,7 +48,7 @@ class Escrow extends AggregateRoot<EscrowId> {
     amountGross: Money,
     platformFeeRate: number,
   ): Escrow {
-    if (amountGross.amountKobo <= 0) {
+    if (amountGross.isZero()) {
       throw new InvalidAmountError('amountGross must be positive');
     }
     if (platformFeeRate < 0 || platformFeeRate > 10000) {

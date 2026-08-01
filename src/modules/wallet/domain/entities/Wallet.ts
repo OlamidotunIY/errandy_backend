@@ -1,5 +1,5 @@
 import { LedgerEntryType, WalletId } from '..';
-import { Currency, CurrencyMismatchError, EscrowId } from 'src/modules/escrow';
+import { Money, EscrowId } from 'src/modules/escrow';
 import { LedgerEntry } from './LedgerEntry';
 import {
   InsufficientActiveBalanceError,
@@ -21,25 +21,20 @@ class Wallet extends AggregateRoot<WalletId> {
   private constructor(
     public readonly id: WalletId,
     public readonly userId: UserId,
-    public readonly currency: Currency,
     public readonly createdAt: Date,
     public readonly updatedAt: Date,
   ) {
     super(id);
   }
 
-  static create(userId: UserId, currency: Currency): Wallet {
+  static create(userId: UserId): Wallet {
     if (!userId) {
       throw new Error('UserId is required to create a wallet');
-    }
-    if (!currency) {
-      throw new Error('Currency is required to create a wallet');
     }
     const now = new Date();
     return new Wallet(
       new WalletId(crypto.randomUUID()),
       userId,
-      currency,
       now,
       now,
     );
@@ -48,16 +43,14 @@ class Wallet extends AggregateRoot<WalletId> {
   static reconstitute(
     id: WalletId,
     userId: UserId,
-    currency: Currency,
     createdAt: Date,
     updatedAt: Date,
   ): Wallet {
-    return new Wallet(id, userId, currency, createdAt, updatedAt);
+    return new Wallet(id, userId, createdAt, updatedAt);
   }
 
   recordActiveErrandCredit(
-    amountKobo: number,
-    currency: Currency,
+    amount: Money,
     escrowId: EscrowId,
     gatewayReference: string,
     correlationId: string,
@@ -67,8 +60,7 @@ class Wallet extends AggregateRoot<WalletId> {
       walletId: this.id,
       userId: this.userId,
       type: LedgerEntryType.ACTIVE_ERRAND_CREDIT,
-      amountKobo,
-      currency,
+      amount,
       escrowId,
       gatewayReference,
       idempotencyKey,
@@ -82,15 +74,14 @@ class Wallet extends AggregateRoot<WalletId> {
   }
 
   moveActiveToPending(
-    amountKobo: number,
-    currency: Currency,
+    amount: Money,
     escrowId: EscrowId,
-    computedActiveBalanceKobo: number,
+    computedActiveBalance: Money,
     correlationId: string,
   ): LedgerEntry[] {
-    if (computedActiveBalanceKobo < amountKobo) {
+    if (computedActiveBalance.lessThan(amount)) {
       throw new InsufficientActiveBalanceError(
-        `Insufficient active balance to move ${amountKobo} kobo to pending`,
+        `Insufficient active balance to move ${amount.toString()} to pending`,
       );
     }
     const debitIdempotencyKey = `${LedgerEntryType.ACTIVE_ERRAND_REVERSAL}_${escrowId.toString()}`;
@@ -99,8 +90,7 @@ class Wallet extends AggregateRoot<WalletId> {
       walletId: this.id,
       userId: this.userId,
       type: LedgerEntryType.ACTIVE_ERRAND_REVERSAL,
-      amountKobo,
-      currency,
+      amount,
       escrowId,
       gatewayReference: null,
       idempotencyKey: debitIdempotencyKey,
@@ -109,8 +99,7 @@ class Wallet extends AggregateRoot<WalletId> {
       walletId: this.id,
       userId: this.userId,
       type: LedgerEntryType.PENDING_CREDIT,
-      amountKobo,
-      currency,
+      amount,
       escrowId,
       gatewayReference: null,
       idempotencyKey: creditIdempotencyKey,
@@ -124,15 +113,14 @@ class Wallet extends AggregateRoot<WalletId> {
   }
 
   moveToAvailable(
-    amountKobo: number,
-    currency: Currency,
+    amount: Money,
     escrowId: EscrowId,
-    computedPendingBalanceKobo: number,
+    computedPendingBalance: Money,
     correlationId: string,
   ): LedgerEntry[] {
-    if (computedPendingBalanceKobo < amountKobo) {
+    if (computedPendingBalance.lessThan(amount)) {
       throw new InsufficientPendingBalanceError(
-        `Insufficient pending balance to move ${amountKobo} kobo to available`,
+        `Insufficient pending balance to move ${amount.toString()} to available`,
       );
     }
 
@@ -143,8 +131,7 @@ class Wallet extends AggregateRoot<WalletId> {
       walletId: this.id,
       userId: this.userId,
       type: LedgerEntryType.AVAILABLE_CREDIT,
-      amountKobo,
-      currency,
+      amount,
       escrowId,
       gatewayReference: null,
       idempotencyKey: creditIdempotencyKey,
@@ -154,8 +141,7 @@ class Wallet extends AggregateRoot<WalletId> {
       walletId: this.id,
       userId: this.userId,
       type: LedgerEntryType.PENDING_REVERSAL,
-      amountKobo,
-      currency,
+      amount,
       escrowId,
       gatewayReference: null,
       idempotencyKey: debitIdempotencyKey,
@@ -169,15 +155,14 @@ class Wallet extends AggregateRoot<WalletId> {
   }
 
   recordWithdrawal(
-    amountKobo: number,
-    currency: Currency,
+    amount: Money,
     gatewayReference: string,
-    computedAvailableBalanceKobo: number,
+    computedAvailableBalance: Money,
     correlationId: string,
   ): LedgerEntry {
-    if (computedAvailableBalanceKobo < amountKobo) {
+    if (computedAvailableBalance.lessThan(amount)) {
       throw new InsufficientAvailableBalanceError(
-        `Insufficient available balance to record withdrawal of ${amountKobo} kobo`,
+        `Insufficient available balance to record withdrawal of ${amount.toString()}`,
       );
     }
 
@@ -187,8 +172,7 @@ class Wallet extends AggregateRoot<WalletId> {
       walletId: this.id,
       userId: this.userId,
       type: LedgerEntryType.WITHDRAWAL_DEBIT,
-      amountKobo,
-      currency,
+      amount,
       escrowId: null,
       gatewayReference,
       idempotencyKey,
@@ -202,27 +186,24 @@ class Wallet extends AggregateRoot<WalletId> {
   }
 
   recordActiveErrandReversal(
-    amountKobo: number,
-    currency: Currency,
+    amount: Money,
     escrowId: EscrowId,
     gatewayReference: string,
-    computedActiveBalanceKobo: number,
+    computedActiveBalance: Money,
     correlationId: string,
   ): LedgerEntry {
-    if (computedActiveBalanceKobo < amountKobo) {
+    if (computedActiveBalance.lessThan(amount)) {
       throw new InsufficientActiveBalanceError(
-        `Insufficient active balance to record reversal of ${amountKobo} kobo`,
+        `Insufficient active balance to record reversal of ${amount.toString()}`,
       );
     }
 
     const debitIdempotencyKey = `${LedgerEntryType.ACTIVE_ERRAND_REVERSAL}_${escrowId.toString()}`;
-    // const creditIdempotencyKey = `${LedgerEntryType.ACTIVE_ERRAND_CREDIT}_${escrowId.toString()}`;
     const entry = LedgerEntry.create({
       walletId: this.id,
       userId: this.userId,
       type: LedgerEntryType.ACTIVE_ERRAND_REVERSAL,
-      amountKobo,
-      currency,
+      amount,
       escrowId,
       gatewayReference,
       idempotencyKey: debitIdempotencyKey,
@@ -234,24 +215,18 @@ class Wallet extends AggregateRoot<WalletId> {
   }
 
   recordClientRefund(
-    amountKobo: number,
-    currency: Currency,
+    amount: Money,
     escrowId: EscrowId,
     gatewayReference: string,
     correlationId: string,
   ): LedgerEntry {
-    if (currency !== this.currency) {
-      throw new CurrencyMismatchError(this.currency, currency);
-    }
-
     const debitIdempotencyKey = `${LedgerEntryType.PENDING_REVERSAL}_${escrowId.toString()}`;
     const creditIdempotencyKey = `${LedgerEntryType.REFUND_CREDIT}_${escrowId.toString()}`;
     const entry = LedgerEntry.create({
       walletId: this.id,
       userId: this.userId,
       type: LedgerEntryType.REFUND_CREDIT,
-      amountKobo,
-      currency,
+      amount,
       escrowId,
       gatewayReference,
       idempotencyKey: creditIdempotencyKey,

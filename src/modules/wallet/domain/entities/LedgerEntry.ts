@@ -6,6 +6,7 @@ import {
   WalletId,
 } from '@module/wallet';
 import { InvalidLedgerAmountError } from '../errors';
+import { Money } from 'src/modules/escrow';
 import { UserId } from '@src/users';
 import { Json } from '@src/common';
 
@@ -15,8 +16,7 @@ class LedgerEntry {
     public readonly walletId: WalletId,
     public readonly userId: UserId,
     public readonly type: LedgerEntryType,
-    public readonly amountKobo: number,
-    public readonly currency: string,
+    public readonly amount: Money,
     public readonly escrowId: EscrowId | null,
     public readonly gatewayReference: string | null,
     public readonly metadata: Json | null,
@@ -29,21 +29,17 @@ class LedgerEntry {
     if (!params.type) {
       throw new Error('LedgerEntryType is required to create a ledger entry');
     }
-    if (!params.amountKobo || params.amountKobo <= 0) {
+    if (params.amount.isZero()) {
       throw new InvalidLedgerAmountError(
         'Amount must be greater than zero to create a ledger entry',
       );
-    }
-    if (!params.currency) {
-      throw new Error('Currency is required to create a ledger entry');
     }
     return new LedgerEntry(
       new LedgerEntryId(crypto.randomUUID()),
       params.walletId,
       params.userId,
       params.type,
-      params.amountKobo,
-      params.currency,
+      params.amount,
       params.escrowId ?? null,
       params.gatewayReference ?? null,
       params.metadata ?? null,
@@ -58,8 +54,7 @@ class LedgerEntry {
     walletId: WalletId;
     userId: UserId;
     type: LedgerEntryType;
-    amountKobo: number;
-    currency: string;
+    amount: Money;
     escrowId: EscrowId | null;
     gatewayReference: string | null;
     metadata: Json | null;
@@ -72,8 +67,7 @@ class LedgerEntry {
       params.walletId,
       params.userId,
       params.type,
-      params.amountKobo,
-      params.currency,
+      params.amount,
       params.escrowId,
       params.gatewayReference,
       params.metadata,
