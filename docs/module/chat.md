@@ -27,6 +27,8 @@ src/modules/chat/
 │       └── chat-thread-closed.error.ts
 ├── application/
 │   ├── commands/
+│   │   ├── open-chat-thread/       (dispatched by ChatLifecycleSaga in errands, not a public route)
+│   │   ├── close-chat-thread/      (same)
 │   │   └── send-message/
 │   └── queries/
 │       ├── get-chat-thread-by-errand-id/
@@ -78,6 +80,27 @@ model ChatMessage {
 **`ChatMessage`**
 - `create(threadId, senderId, content)` — no behavior beyond construction; this is a near-anemic entity by design, appropriate for a supporting subdomain
 
+## Events
+
+| Event | Raised by | Payload |
+|---|---|---|
+| `ChatThreadOpened` | `ChatThread.open()` | `{ threadId, errandId, correlationId }` |
+| `MessageSent` | `ChatMessage.create()` | `{ threadId, senderId, correlationId }` |
+| `ChatThreadClosed` | `ChatThread.close()` | `{ threadId, correlationId }` |
+| `ProviderRespondedFirstTime` | `ChatThread.recordFirstResponse()` | `{ threadId, providerId, responseTimeSeconds, correlationId }` |
+
+## Commands
+
+| Command | Handler behavior |
+|---|---|
+| `OpenChatThreadCommand` | Previously undefined — needed since `ChatLifecycleSaga` (in `errands`) dispatches into this module rather than calling it directly. `{ errandId, participantIds }` → `ChatThread.open()`. |
+| `CloseChatThreadCommand` | `{ threadId }` → `ChatThread.close()`, dispatched by the same saga. |
+| `SendMessageCommand` | Checks thread status only (not message history) before inserting — see the modeling note at the top of this file. If this is the assigned provider's first message in the thread, also calls `recordFirstResponse()`. |
+
+## Event Handlers, Sagas, Jobs
+
+None owned here — `ChatLifecycleSaga` lives in `errands` per the trigger-module convention, dispatching `OpenChatThreadCommand`/`CloseChatThreadCommand` into this module.
+
 ## Repository interfaces
 
 ```typescript
@@ -119,6 +142,20 @@ interface MessageResponseDto {
   sentAt: string;
 }
 ```
+
+## Mappers
+
+`ChatThreadMapper`, `ChatMessageMapper` — thin `toDomain`/`toPersistence`.
+
+## Presentation
+
+| Method | Route | Dispatches | Auth |
+|---|---|---|---|
+| — | — | `OpenChatThreadCommand` | **no route** — saga-only |
+| — | — | `CloseChatThreadCommand` | **no route** — saga-only |
+| `POST` | `/chat-threads/:id/messages` | `SendMessageCommand` | authenticated, thread participant only |
+| `GET` | `/chat-threads/errand/:errandId` | `GetChatThreadByErrandIdQuery` | authenticated, thread participant only |
+| `GET` | `/chat-threads/:id/messages` | `ListMessagesQuery` | authenticated, thread participant only |
 
 ## Open items
 

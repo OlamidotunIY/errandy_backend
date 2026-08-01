@@ -103,6 +103,42 @@ model AcceptApplicationProgress {
 - `recordPaymentTransaction(paymentTransactionId)`
 - `markAccepted()` / `markErrandAssigned()` / `markCompleted()` / `markFailed()` — each is a guarded transition, only valid from the expected preceding status (this is what makes the resume logic idempotent/safe to replay)
 
+## Events
+
+| Event | Raised by | Payload |
+|---|---|---|
+| `ApplicationSubmitted` | `Application.create()` | `{ applicationId, errandId, applicantId, correlationId }` |
+| `ApplicationAccepted` | `Application.accept()` | `{ applicationId, errandId, applicantId, correlationId }` |
+| `ApplicationRejected` | `Application.reject()` | `{ applicationId, errandId, correlationId }` |
+
+## Commands
+
+| Command | Handler behavior |
+|---|---|
+| `SubmitApplicationCommand` | Checks `existsByErrandAndApplicant` first (also enforced by the Prisma `@@unique`). |
+| `RequestApplicationAcceptanceCommand` | **True entry point.** Authorization branches on `originType`: `BID` → requester must be the errand's client; `DIRECT_OFFER` → requester must be the offered member. Creates `AcceptApplicationProgress`, dispatches `InitiateChargeCommand`, returns immediately. |
+| `AcceptApplicationCommand` | **Resume step — never a public route.** Only ever dispatched by `AcceptApplicationContinueProcessor`. Resumes from `progress.status`, each block idempotent. |
+| `MarkApplicationAcceptanceFailedCommand` | Same — processor-only. Marks `progress.status: CHARGE_FAILED`, nothing else touched. |
+| `RejectApplicationCommand` | Client-initiated, direct rejection (not via the accept flow). |
+| `RejectOtherApplicationsCommand` | **Internal — saga-issued only**, never a public route. Always receives a pre-existing `correlationId` rather than generating one. |
+
+## Event Handlers
+
+| Handler | Listens for | Does |
+|---|---|---|
+| `OnPaymentSucceededHandler` | `PaymentSucceeded` | Thin bridge — looks up `AcceptApplicationProgress` by `event.purposeId`, no-ops if absent, else enqueues `payment-succeeded` job |
+| `OnPaymentFailedHandler` | `PaymentFailed` | Same shape, enqueues `payment-failed` job |
+
+## Sagas
+
+| Saga | Trigger | Dispatches |
+|---|---|---|
+| `RejectOtherApplicationsSaga` | `ApplicationAccepted` | `RejectOtherApplicationsCommand` for every sibling `PENDING` application on the same errand, reusing the triggering event's `correlationId` |
+
+## Jobs
+
+None — this module's async work goes through the `accept-application-continue` processor, not a scheduled job.
+
 ## Repository interfaces
 
 ```typescript
@@ -208,6 +244,28 @@ interface ListMyApplicationsRequestDto {
   cursor?: string;
 }
 ```
+
+## Mappers
+
+`ApplicationMapper`
+- `toDomain(prismaApplication)` / `toPersistence(application)` — includes `Money` conversion for `proposedAmount`
+- `AcceptApplicationProgressMapper` — separate, since it's a distinct collection sharing PK with `Application`
+
+## Presentation
+
+| Method | Route | Dispatches | Auth |
+|---|---|---|---|
+| `POST` | `/applications` | `SubmitApplicationCommand` | authenticated, requires `ProviderRole` |
+| `POST` | `/applications/:id/request-acceptance` | `RequestApplicationAcceptanceCommand` | authenticated, see authorization branch above |
+| — | — | `AcceptApplicationCommand` | **no route** — processor-only |
+| — | — | `MarkApplicationAcceptanceFailedCommand` | **no route** — processor-only |
+| `POST` | `/applications/:id/reject` | `RejectApplicationCommand` | authenticated, errand's client only |
+| — | — | `RejectOtherApplicationsCommand` | **no route** — saga-only |
+| `GET` | `/applications/:id` | `GetApplicationQuery` | authenticated, `ApplicationAccessPolicy`-checked |
+| `GET` | `/errands/:id/applications` | `ListErrandApplicationsQuery` | authenticated, `ApplicationAccessPolicy`-checked |
+| `GET` | `/errands/:id/my-application` | `GetMyApplicationQuery` | authenticated, self only |
+| `GET` | `/applications/summary` | `GetApplicationSummaryQuery` | authenticated, self only |
+| `GET` | `/applications/mine` | `ListMyApplicationsQuery` | authenticated, self only |
 
 ## Open items
 

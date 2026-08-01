@@ -168,6 +168,56 @@ model ProviderBadge {
 - `removeMember(userId)` — throws `OrganizationMemberNotFoundError`
 - `updateWorkerPoolPercentage(percentage)`
 
+## Events
+
+| Event | Raised by | Payload |
+|---|---|---|
+| `PartyCreated` | `Party.createPerson()`/`createOrganization()` | `{ partyId, kind, marketId, correlationId }` |
+| `ProviderRoleAdded` | `Party.addProviderRole()` | `{ partyId, correlationId }` |
+| `OrganizationMemberAdded` | `Organization.addMember()` | `{ organizationId, userId, correlationId }` |
+| `OrganizationMemberRemoved` | `Organization.removeMember()` | `{ organizationId, userId, correlationId }` |
+| `PartyDeactivated` | `Party.deactivate()` | `{ partyId, correlationId }` |
+| `ProviderBadgeAwarded` | `AwardBadgeCommand` handler | `{ partyId, badgeType, awardedByOrganizationId, period, correlationId }` |
+
+## Commands
+
+| Command | Handler behavior |
+|---|---|
+| `CreatePersonPartyCommand` | Creates `Party{kind:PERSON}` + `Person{userId}`. Only ever dispatched internally by `OnAuthUserRegisteredHandler`, never a public route. |
+| `CreateOrganizationPartyCommand` | Creates `Party{kind:ORGANIZATION}` + `Organization`. |
+| `AddProviderRoleCommand` | Creates `ProviderRole{tier:COMMUNITY}` for the party; throws `ProviderRoleAlreadyExistsError` if one exists. |
+| `RequestTierUpgradeCommand` | Delegates to `verification` module's `recalculateRequiredSteps` — this command mostly just kicks that off; the actual tier change happens on `VerificationCompleted`. |
+| `UpdateProviderRoleCommand` | Updates `bio`/`skills`. |
+| `DeactivateProviderRoleCommand` | Deactivates the `ProviderRole` only (not the whole `Party`). |
+| `DeactivatePartyCommand` | Full account-level deactivation — cascades from `UserDeactivated`, see `docs/modules/notification.md`-adjacent user lifecycle. |
+| `AddOrganizationMemberCommand` | Throws `OrganizationMemberAlreadyExistsError` if the `(organizationId, userId)` pair exists. |
+| `RemoveOrganizationMemberCommand` | Throws `OrganizationMemberNotFoundError` otherwise. |
+| `AwardBadgeCommand` | Org-only action; validates the requesting org actually has/had the member. |
+
+## Event Handlers
+
+| Handler | Listens for | Does |
+|---|---|---|
+| `OnAuthUserRegisteredHandler` | `AuthUserRegistered` (ACL boundary — see `docs/flows/user-registration-flow.md`) | Dispatches `CreatePersonPartyCommand` |
+| `OnVerificationCompletedHandler` | `VerificationCompleted` | Sets `verificationStatus`, updates `tier` on `ProviderRole` |
+| `OnErrandCompletedHandler` | `ErrandCompleted` | Increments `completedErrandsCount` on the assigned member(s), and the org if it was the applicant |
+| `OnDisputeOpenedHandler` | `DisputeOpened` | Increments `disputedErrandsCount` |
+| `OnRatingSubmittedHandler` | `RatingSubmitted` (CLIENT_FACING only) | Immediate recompute of `avgRatingCached` for that one party |
+
+## Sagas
+
+| Saga | Trigger | Dispatches |
+|---|---|---|
+| `TrustedByCountSyncSaga` (consumer side) | `TrustedCircleMemberConfirmed`/`Removed` (raised in `trusted-circle`) | Increments/decrements `trustedByCount` directly (no further command needed — this is the terminal action) |
+
+## Jobs
+
+| Job | Schedule | Does |
+|---|---|---|
+| `ProviderResponseTimeRecalcJob` | Nightly | Recomputes `avgResponseTimeSeconds` from `chat`'s `firstResponseAt` data across all threads |
+| `ProfileRatingRecalcJob` | Nightly | Recency-decay sweep of `avgRatingCached` for every `ProviderRole`, correcting drift between new `RatingSubmitted` events |
+| `MonthlyTrustStatsJob` | Monthly | Populates dashboard stats (circles-joined, shares-received) |
+
 ## Repository interface
 
 ```typescript
@@ -242,6 +292,29 @@ interface GetOrgFacingProviderProfileResponseDto extends GetPublicProviderProfil
   avgInternalRatingFromOrgs: number | null;   // separate from avgRatingCached, which is client-facing only
 }
 ```
+
+## Mappers
+
+`PartyMapper`
+- `toDomain(prismaParty, prismaPerson?, prismaOrganization?, prismaProviderRole?)` — assembles the full `Party` aggregate from up to 4 joined documents into one rich domain object
+- `toPersistence(party: Party)` — decomposes back into the separate collections for `save()`
+
+## Presentation
+
+REST controllers, dispatching via `CommandBus`/`QueryBus` — never touching repositories directly.
+
+| Method | Route | Dispatches | Auth |
+|---|---|---|---|
+| — | — | `CreatePersonPartyCommand` | internal only — no route, triggered by the ACL event handler |
+| `POST` | `/parties/:id/provider-role` | `AddProviderRoleCommand` | authenticated, self only |
+| `PATCH` | `/parties/:id/provider-role` | `UpdateProviderRoleCommand` | authenticated, self only |
+| `POST` | `/parties/:id/tier-upgrade-request` | `RequestTierUpgradeCommand` | authenticated, self only |
+| `POST` | `/organizations/:id/members` | `AddOrganizationMemberCommand` | authenticated, requires `OWNER`/`ADMIN` role on that org |
+| `DELETE` | `/organizations/:id/members/:userId` | `RemoveOrganizationMemberCommand` | same |
+| `POST` | `/organizations/:id/members/:userId/badges` | `AwardBadgeCommand` | authenticated, requires `OWNER`/`ADMIN` role on that org |
+| `GET` | `/parties/:id/public-profile` | `GetPublicProviderProfileQuery` | public |
+| `GET` | `/parties/:id/org-facing-profile` | `GetOrgFacingProviderProfileQuery` | authenticated, requires an active organization membership somewhere (any org, not the target's) |
+| `GET` | `/parties/search` | `SearchProvidersByServiceQuery` | public |
 
 ## Open item
 

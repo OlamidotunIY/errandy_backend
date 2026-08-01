@@ -126,6 +126,55 @@ model ErrandAssignment {
 - `confirmDone(proofUrl?)` — `ASSIGNED → CONFIRMED_DONE`; **no path back to `ASSIGNED`** (cannot un-confirm)
 - `updateConfirmation(proofUrl)` — valid only while `status: CONFIRMED_DONE` and the parent errand isn't yet `COMPLETED`
 
+## Events
+
+| Event | Raised by | Payload |
+|---|---|---|
+| `ErrandCreated` | `Errand.create()` | `{ errandId, clientId, sourceType, correlationId }` |
+| `ErrandPublished` | `Errand.publish()` | `{ errandId, correlationId }` |
+| `ErrandAssigned` | `Errand.assignTo()` | `{ errandId, acceptedApplicationId?, correlationId }` |
+| `ErrandStarted` | `Errand.start()` | `{ errandId, correlationId }` |
+| `AssignmentConfirmedDone` | `ErrandAssignment.confirmDone()` | `{ errandAssignmentId, errandId, profileId, correlationId }` |
+| `AssignmentConfirmationUpdated` | `ErrandAssignment.updateConfirmation()` | `{ errandAssignmentId, proofUrl, correlationId }` |
+| `ErrandReadyForCompletion` | Same-transaction check after any assignment confirms | `{ errandId, correlationId }` |
+| `ErrandCompleted` | `Errand.complete()` | `{ errandId, completedBy: CLIENT\|SYSTEM, correlationId }` |
+| `ErrandArchived` | `ArchiveInactiveErrandsJob` | `{ errandId, correlationId }` |
+
+## Commands
+
+| Command | Handler behavior |
+|---|---|
+| `CreateErrandCommand` | Validates `categoryId` is a leaf; stamps `requiredTier`, `marketId` from the client's `Party`. |
+| `PublishErrandCommand` | `DRAFT → PUBLISHED`. |
+| `AssignErrandToTrustedMemberCommand` | Creates `Errand` (`DRAFT`) **and** a `DIRECT_OFFER` `Application` in one transaction. |
+| `OfferErrandToTrustedMemberCommand` | Errand already exists (post-decline) — just creates a fresh `DIRECT_OFFER` `Application`. |
+| `BookServiceCommand` | Re-validates the `Service`'s current tier (not just trusted from listing time); creates `Errand` directly `ASSIGNED`. |
+| `StartErrandCommand` | `ASSIGNED → IN_PROGRESS`, only the assigned member(s) may call it. |
+| `ConfirmAssignmentCompletionCommand` | Guards: only the assignment's own `profileId`; only from `ASSIGNED`. Schedules `AutoAcceptErrandJob` if this was the last assignment to confirm. |
+| `UpdateAssignmentConfirmationCommand` | Valid only while `CONFIRMED_DONE` and errand not yet `COMPLETED`. |
+| `CompleteErrandCommand` | Guards on `NotAllAssignmentsConfirmedError`; cancels the pending `AutoAcceptErrandJob` on success. |
+
+## Event Handlers
+
+None of its own beyond what's expressed as sagas below — `errands` is mostly a producer in this system, not a consumer, aside from the accept-flow's cross-module calls originating in `application`.
+
+## Sagas
+
+| Saga | Trigger | Dispatches |
+|---|---|---|
+| `ChatLifecycleSaga` | `ErrandAssigned` → open; `ErrandCompleted`/`ErrandCancelled` → close | `SendMessageCommand`-adjacent thread open/close (not a message, a thread lifecycle call into `chat`) |
+| `RatingPromptSaga` | `ErrandCompleted` | `SendNotificationCommand` × N (client + each assigned member + org) |
+| `EscrowReleaseSaga` | `ErrandCompleted` | `ReleaseEscrowCommand` |
+| `EscrowRefundSaga` *(deferred)* | `ErrandCancelled` | `RefundEscrowCommand` |
+
+## Jobs
+
+| Job | Schedule | Does |
+|---|---|---|
+| `ArchiveInactiveErrandsJob` | Periodic (daily) | `OPEN`/`PUBLISHED` errands inactive 3+ months → `ARCHIVED` |
+| `AutoAcceptErrandJob` | Delayed 24h, scheduled per-errand on `ErrandReadyForCompletion` | Idempotent no-op if already `COMPLETED`; otherwise completes with `completedBy: SYSTEM` |
+| `NoShowDetectionJob` *(deferred)* | — | Depends on cancel |
+
 ## Repository interface
 
 ```typescript
@@ -235,6 +284,30 @@ interface ReassignmentCandidateResponseDto {
   fromCircle: boolean;
 }
 ```
+
+## Mappers
+
+`ErrandMapper`
+- `toDomain(prismaErrand)` / `toPersistence(errand)` — includes `Money` and GeoJSON `location` conversions
+- `ErrandAssignmentMapper` — separate, since `ErrandAssignment` is its own collection
+
+## Presentation
+
+| Method | Route | Dispatches | Auth |
+|---|---|---|---|
+| `POST` | `/errands` | `CreateErrandCommand` | authenticated |
+| `POST` | `/errands/:id/publish` | `PublishErrandCommand` | authenticated, client owner only |
+| `POST` | `/errands/trusted-assign` | `AssignErrandToTrustedMemberCommand` | authenticated |
+| `POST` | `/errands/:id/offer` | `OfferErrandToTrustedMemberCommand` | authenticated, client owner only |
+| `POST` | `/errands/book-service` | `BookServiceCommand` | authenticated |
+| `POST` | `/errands/:id/start` | `StartErrandCommand` | authenticated, assigned member only |
+| `POST` | `/errand-assignments/:id/confirm` | `ConfirmAssignmentCompletionCommand` | authenticated, assignment owner only |
+| `PATCH` | `/errand-assignments/:id/confirm` | `UpdateAssignmentConfirmationCommand` | authenticated, assignment owner only |
+| `POST` | `/errands/:id/complete` | `CompleteErrandCommand` | authenticated, client owner only (`completedBy: SYSTEM` is never client-supplied — only the job calls this internally) |
+| `GET` | `/errands/browse` | `BrowseOpenErrandsQuery` | authenticated, requires `ProviderRole` |
+| `GET` | `/errands/:id` | `GetErrandByIdQuery` | authenticated, participants only |
+| `GET` | `/errands/mine` | `ListClientErrandsQuery` | authenticated, self only |
+| `GET` | `/errands/:id/reassignment-candidates` | `SuggestReassignmentCandidatesQuery` | authenticated, client owner only |
 
 ## Open items carried forward
 
