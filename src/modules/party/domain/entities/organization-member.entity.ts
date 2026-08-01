@@ -12,4 +12,12 @@ export class OrganizationMember extends AggregateRoot<OrganizationMemberId> {
   ) {
     super(id);
   }
+
+  get role(): OrgMemberRole {
+    return this._role;
+  }
+
+  get active(): boolean {
+    return this._active;
+  }
 }
