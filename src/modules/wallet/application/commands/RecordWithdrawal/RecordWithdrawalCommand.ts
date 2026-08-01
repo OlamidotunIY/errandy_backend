@@ -5,7 +5,7 @@ import { UserId } from '@src/users';
 class RecordWithdrawalCommand extends Command<void> {
   constructor(
     public readonly userId: UserId,
-    public readonly amountKobo: number,
+    public readonly amount: Money,
     public readonly currency: Currency,
     public readonly gatewayReference: string,
     public readonly correlationId: string,

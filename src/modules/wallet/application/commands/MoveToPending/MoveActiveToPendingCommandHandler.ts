@@ -32,8 +32,7 @@ class MoveActiveToPendingCommandHandler implements ICommandHandler<MoveActiveToP
       await this.walletBalanceRepository.getSnapshotForDisplay(wallet.id);
 
     const [debitEntry, creditEntry] = wallet.moveActiveToPending(
-      command.amountKobo,
-      command.currency,
+      command.amount,
       command.escrowId,
       snapshotBalance.activeKobo,
       command.correlationId,

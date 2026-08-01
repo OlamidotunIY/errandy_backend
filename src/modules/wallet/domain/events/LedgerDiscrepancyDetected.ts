@@ -11,7 +11,7 @@ export class LedgerDiscrepancyDetected implements DomainEvent {
     public readonly gatewayReference: string,
     public readonly discrepancyType:
       'missing' | 'duplicate' | 'amount-mismatch',
-    public readonly amountKobo: number,
+    public readonly amount: Money,
     public readonly ledgerEntryId: LedgerEntryId,
   ) {
     this.eventId = crypto.randomUUID();

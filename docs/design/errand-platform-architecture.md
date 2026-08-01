@@ -241,7 +241,7 @@ Email/phone confirmation are **not** steps here — they're better-auth's `email
 - **Commands**: `CreateEscrowCommand`, `ReleaseEscrowCommand`, `RefundEscrowCommand`
 - **Events**: `EscrowCreated`, `EscrowReleased`, `EscrowRefunded`
 - **Jobs**: `EscrowAutoReleaseJob` (checks `Dispute.findOpen(errandId)` first — skips, no event, if one exists)
-- **Event Handlers**: `PaymentSucceeded` (create), `DisputeResolved` (release/refund per resolution, via `DisputeResolutionSaga`)
+- **Event Handlers**: none of its own — `Escrow` is always explicitly commanded (`CreateEscrowCommand` from the accept-flow's resumed command, `ReleaseEscrowCommand`/`RefundEscrowCommand` from `DisputeResolutionSaga`), never triggered by listening to `PaymentSucceeded`/`DisputeResolved` directly. `EscrowAutoReleaseJob` *queries* `dispute` for an open dispute before firing — a read, not a subscription.
 - **Queries**: `GetEscrowByErrandIdQuery`
 
 ### Infrastructure
@@ -281,7 +281,7 @@ Email/phone confirmation are **not** steps here — they're better-auth's `email
 
 ### Domain
 - **`ChatThread`** (aggregate root) — `id`, `errandId`, `participantIds: string[]`, `createdAt`, `closedAt`, `firstResponseAt: Date|null`
-- **`ChatMessage`** (entity) — `id`, `threadId`, `senderId`, `content`, `sentAt`
+- **`ChatMessage`** (its own small collection/entity, **not embedded** in `ChatThread` — see `docs/modules/chat.md`: chat volume is unbounded, embedding risks MongoDB's document-size limit) — `id`, `threadId`, `senderId`, `content`, `sentAt`
 - **Repository**: `IChatThreadRepository`
 - **Errors**: `ChatThreadNotFoundError`, `ChatThreadClosedError`
 

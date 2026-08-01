@@ -15,7 +15,7 @@ class GetLedgerHistoryQuery extends Query<LedgerHistoryPageDTO> {
 interface LedgerEntryDTO {
   id: string;
   type: LedgerEntryType;
-  amountKobo: number;
+  amount: Money;
   currency: string;
   escrowId: string | null;
   gatewayReference: string | null;

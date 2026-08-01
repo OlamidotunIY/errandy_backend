@@ -14,8 +14,8 @@ import {
   ReleasedToAvailable,
   WithdrawalRecorded,
 } from '../events';
-import { UserId } from '@src/users';
 import { AggregateRoot } from '@src/common';
+import { UserId } from '@module/user';
 
 class Wallet extends AggregateRoot<WalletId> {
   private constructor(
@@ -32,12 +32,7 @@ class Wallet extends AggregateRoot<WalletId> {
       throw new Error('UserId is required to create a wallet');
     }
     const now = new Date();
-    return new Wallet(
-      new WalletId(crypto.randomUUID()),
-      userId,
-      now,
-      now,
-    );
+    return new Wallet(new WalletId(crypto.randomUUID()), userId, now, now);
   }
 
   static reconstitute(

@@ -13,7 +13,7 @@ export class PaymentSucceeded implements DomainEvent {
     occurredAt: Date,
     correlationId: string,
     public readonly purposeId: ApplicationId,
-    public readonly amountKobo: number,
+    public readonly amount: Money,
   ) {
     this.eventName = PaymentSucceeded.name;
     this.occurredAt = occurredAt;

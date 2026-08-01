@@ -24,8 +24,7 @@ class CreditActiveErrandCommandHandler implements ICommandHandler<CreditActiveEr
     }
 
     const entry = wallet.recordActiveErrandCredit(
-      command.amountKobo,
-      command.currency,
+      command.amount,
       command.escrowId,
       command.gatewayReference,
       command.correlationId,

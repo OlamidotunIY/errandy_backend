@@ -1,6 +1,6 @@
 export interface GatewayLedgerTransaction {
   reference: string;
-  amountKobo: number;
+  amount: Money;
 }
 
 export interface GatewayLedgerTransactionPage {

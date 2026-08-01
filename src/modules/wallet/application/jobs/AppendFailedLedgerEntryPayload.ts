@@ -6,7 +6,7 @@ export interface AppendFailedLedgerEntryPayload {
   walletId: WalletId;
   userId: UserId;
   ledgerEntryType: LedgerEntryType;
-  amountKobo: number;
+  amount: Money;
   currency: Currency;
   escrowId: EscrowId | null;
   gatewayReference: string;

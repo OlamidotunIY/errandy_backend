@@ -7,8 +7,8 @@ import {
 } from '@module/wallet';
 import { InvalidLedgerAmountError } from '../errors';
 import { Money } from 'src/modules/escrow';
-import { UserId } from '@src/users';
 import { Json } from '@src/common';
+import { UserId } from '@module/user';
 
 class LedgerEntry {
   private constructor(
