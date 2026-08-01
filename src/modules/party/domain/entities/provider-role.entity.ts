@@ -16,4 +16,47 @@ export class ProviderRole {
     private _avgResponseTimeSeconds?: number,
     private _avgRatingCached?: number,
   ) {}
+
+  recordVerificationCompleted(tier: ProviderTier): void {
+    this._verificationStatus = true;
+    this._tier = tier;
+    this.updatedAt = new Date();
+  }
+
+  updateProfile(bio?: string, skills?: string[]): void {
+    if (bio !== undefined) {
+      this._bio = bio;
+    }
+    if (skills !== undefined) {
+      this._skills = skills;
+    }
+    this.updatedAt = new Date();
+  }
+
+  incrementTrustedByCount(): void {
+    this._trustedByCount++;
+    this.updatedAt = new Date();
+  }
+
+  decrementTrustedByCount(): void {
+    if (this._trustedByCount > 0) {
+      this._trustedByCount--;
+    }
+    this.updatedAt = new Date();
+  }
+
+  incrementCompletedErrandsCount(): void {
+    this._completedErrandsCount++;
+    this.updatedAt = new Date();
+  }
+
+  incrementDisputedErrandsCount(): void {
+    this._disputedErrandsCount++;
+    this.updatedAt = new Date();
+  }
+
+  recomputeAvgRating(newWeightedAverage: number): void {
+    this._avgRatingCached = newWeightedAverage;
+    this.updatedAt = new Date();
+  }
 }
