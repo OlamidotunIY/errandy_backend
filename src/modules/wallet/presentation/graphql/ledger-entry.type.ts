@@ -12,7 +12,7 @@ class LedgerEntryGraphQLType implements LedgerEntryDTO {
   type!: LedgerEntryType;
 
   @Field(() => Int)
-  amountKobo!: number;
+  amountMinorUnits!: number;
 
   @Field()
   currency!: string;

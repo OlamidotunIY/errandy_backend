@@ -11,11 +11,11 @@ export class OnPaymentSucceededHandler implements IEventHandler<PaymentSucceeded
   ) {}
 
   async handle(event: PaymentSucceeded): Promise<void> {
-    const { purposeId, amountKobo, correlationId, gatewayReference } = event;
+    const { purposeId, amount, correlationId, gatewayReference } = event;
 
     await this.queue.add('payment-succeeded', {
       purposeId,
-      amountKobo,
+      amount: amount.toJSON(),
       correlationId,
       gatewayReference,
     });
