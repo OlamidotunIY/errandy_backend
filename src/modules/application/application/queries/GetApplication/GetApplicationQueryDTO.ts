@@ -1,11 +1,11 @@
 import { ApplicationStatus, ApplicationType } from '@src/modules';
 
 export interface GetApplicationQueryDTO {
-  applications: Application[];
+  applications: ApplicationDto[];
   nextCursor?: string | null;
 }
 
-export interface Application {
+export interface ApplicationDto {
   id: string;
   errandId: string;
   workerId: string;
