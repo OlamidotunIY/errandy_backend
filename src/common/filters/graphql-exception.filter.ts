@@ -8,6 +8,7 @@ import {
 import { BaseExceptionFilter, HttpAdapterHost } from '@nestjs/core';
 import { GqlArgumentsHost, GqlContextType } from '@nestjs/graphql';
 import { GraphQLError, responsePathAsArray } from 'graphql';
+import { DomainError } from '../domain';
 
 type ErrorDetails = Record<string, unknown> | string[] | string;
 
@@ -92,6 +93,18 @@ export class GraphqlExceptionFilter extends BaseExceptionFilter {
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Internal server error';
     let details: ErrorDetails | undefined;
+
+    if (exception instanceof DomainError) {
+      status = exception.statusCode;
+      message = exception.message;
+      details = exception.details;
+      return {
+        message,
+        status,
+        code: exception.code,
+        details,
+      };
+    }
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
