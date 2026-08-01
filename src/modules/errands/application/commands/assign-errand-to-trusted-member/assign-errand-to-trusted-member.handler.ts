@@ -16,6 +16,11 @@ import {
   ApplicationType,
   IApplicationRepository,
 } from '@module/application/domain';
+import {
+  AddressId,
+  AddressNotFoundError,
+  IAddressRepository,
+} from '@module/address';
 import { ILogger } from '@src/common';
 
 @CommandHandler(AssignErrandToTrustedMemberCommand)
@@ -24,6 +29,7 @@ export class AssignErrandToTrustedMemberHandler implements ICommandHandler<Assig
     private readonly errandRepository: IErrandRepository,
     private readonly applicationRepository: IApplicationRepository,
     private readonly partyRepository: IPartyRepository,
+    private readonly addressRepository: IAddressRepository,
     private readonly eventBus: EventBus,
     private readonly logger: ILogger,
   ) {}
@@ -42,12 +48,13 @@ export class AssignErrandToTrustedMemberHandler implements ICommandHandler<Assig
       throw new PartyNotFoundError(payload.clientId);
     }
 
-    const location = payload.location
-      ? {
-          type: 'Point',
-          coordinates: [payload.location.longitude, payload.location.latitude],
-        }
-      : null;
+    const address = await this.addressRepository.findById(
+      AddressId.fromString(payload.addressId),
+    );
+    if (!address) {
+      throw new AddressNotFoundError(payload.addressId);
+    }
+    const location = address.toGeoJson();
 
     const budget = Money.fromMinorUnits(
       payload.budget.amountMinorUnits,

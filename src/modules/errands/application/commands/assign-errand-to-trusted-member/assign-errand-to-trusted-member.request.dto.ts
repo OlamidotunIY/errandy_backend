@@ -6,7 +6,6 @@ export interface AssignErrandToTrustedMemberRequestDto {
   addressId: string;
   budget: { amountMinorUnits: number; currency: string };
   offeredToPartyId: string;
-  location?: { latitude: number; longitude: number };
 }
 
 export interface AssignErrandToTrustedMemberResponseDto {
