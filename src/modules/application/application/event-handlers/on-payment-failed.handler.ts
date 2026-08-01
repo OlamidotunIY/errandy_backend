@@ -11,10 +11,13 @@ export class OnPaymentFailedHandler implements IEventHandler<PaymentFailed> {
   ) {}
 
   async handle(event: PaymentFailed): Promise<void> {
-    await this.queue.add('payment-succeeded', {
+    const { gatewayReference, purposeId, reason } = event.payload;
+
+    await this.queue.add('payment-failed', {
       correlationId: event.correlationId,
-      gatewayReference: event.gatewayReference,
-      id: event.purposeId,
+      gatewayReference,
+      id: purposeId,
+      reason,
     });
   }
 }

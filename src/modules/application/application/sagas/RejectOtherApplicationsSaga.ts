@@ -3,10 +3,8 @@ import { ICommand, ofType, Saga } from '@nestjs/cqrs';
 import { map, Observable } from 'rxjs';
 import {
   ApplicationAcceptedEvent,
-  ApplicationId,
   RejectOtherApplicationsCommand,
 } from '@src/modules';
-import { ErrandId } from '@module/errand';
 
 @Injectable()
 class RejectOtherApplicationsSaga {
@@ -17,8 +15,8 @@ class RejectOtherApplicationsSaga {
       map(
         (event) =>
           new RejectOtherApplicationsCommand({
-            acceptedApplicationId: event.payload.applicationId as ApplicationId,
-            errandId: event.payload.errandId as ErrandId,
+            acceptedApplicationId: event.payload.applicationId,
+            errandId: event.payload.errandId,
             correlationId: event.correlationId,
           }),
       ),

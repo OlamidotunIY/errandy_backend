@@ -1,25 +1,30 @@
-import { EscrowId } from '@module/escrow';
-import { DomainEvent } from '@src/common';
+import { BaseDomainEvent } from '@src/common';
 import { ErrandId } from '../value-objects';
 
-export class ErrandCompletedEvent implements DomainEvent {
-  readonly eventId: string;
-  readonly aggregateId: EscrowId;
-  readonly eventName: string;
-  readonly correlationId: string;
-  readonly occurredAt: Date;
+interface ErrandCompletedPayload extends Record<string, unknown> {
+  escrowId: string;
+  completedAt: Date;
+}
+
+export class ErrandCompletedEvent extends BaseDomainEvent<
+  ErrandId,
+  ErrandCompletedPayload
+> {
+  declare readonly correlationId: string;
 
   constructor(
-    public readonly errandId: ErrandId,
+    errandId: ErrandId,
     occurredAt: Date,
     correlationId: string,
-    public readonly payload: Record<string, unknown>,
+    payload: ErrandCompletedPayload,
   ) {
-    this.eventName = 'ErrandCompletedEvent';
-    this.occurredAt = occurredAt;
-    this.aggregateId = errandId;
-    this.correlationId = correlationId;
-    this.eventId = crypto.randomUUID();
+    super({
+      aggregateId: errandId,
+      occurredAt,
+      correlationId,
+      eventName: ErrandCompletedEvent.name,
+      payload,
+    });
   }
 
   // static fromAggregate(errand: Errand): EscrowCompletedEvent {

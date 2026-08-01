@@ -6,7 +6,7 @@ export interface SubmitApplicationPayload {
   errandId: ErrandId;
   workerId: ProviderId;
   proposal: string;
-  proposedAmountKobo: number;
+  proposedAmountMinorUnits: number;
   currency: string;
   applicantType: ApplicationType;
 }

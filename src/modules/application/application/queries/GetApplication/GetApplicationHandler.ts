@@ -25,7 +25,7 @@ export class GetApplicationHandler implements IQueryHandler<GetApplicationQuery>
           status: application.status(),
           type: application.type(),
           proposal: application.proposal(),
-          proposedAmountKobo: application.proposedAmountKobo(),
+          proposedAmountMinorUnits: application.proposedAmountMinorUnits(),
           currency: application.currency(),
           acceptedAt: application.acceptedAt(),
           rejectedAt: application.rejectedAt(),

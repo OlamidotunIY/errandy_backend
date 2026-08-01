@@ -12,7 +12,7 @@ export interface ApplicationDto {
   status: ApplicationStatus;
   type: ApplicationType;
   proposal: string;
-  proposedAmountKobo: number;
+  proposedAmountMinorUnits: number;
   currency: string;
   acceptedAt?: Date | null;
   rejectedAt?: Date | null;

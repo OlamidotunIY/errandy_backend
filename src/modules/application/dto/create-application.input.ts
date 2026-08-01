@@ -9,7 +9,7 @@ export class CreateApplicationInput {
   proposal: string;
 
   @Field(() => Int)
-  proposedAmountKobo: number;
+  proposedAmountMinorUnits: number;
 
   @Field()
   currency: string;
