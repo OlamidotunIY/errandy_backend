@@ -1,3 +1,4 @@
+import { PartyId } from '@module/party';
 import { Injectable } from '@nestjs/common';
 import {
   Currency,
@@ -8,8 +9,6 @@ import {
 } from '@module/escrow';
 import { Prisma, Escrow as PrismaEscrow } from '@prisma/client';
 import { ErrandId } from '@module/errands';
-import { ClientId } from '@module/clients';
-import { ProviderId } from '@module/providers';
 
 @Injectable()
 export class EscrowMapper {
@@ -17,8 +16,8 @@ export class EscrowMapper {
     return Escrow.reconstitute({
       id: EscrowId.fromString(escrow.id),
       errandId: ErrandId.fromString(escrow.errandId),
-      clientId: ClientId.fromString(escrow.clientId),
-      workerId: ProviderId.fromString(escrow.workerId),
+      clientId: PartyId.fromString(escrow.clientId),
+      workerId: PartyId.fromString(escrow.workerId),
       amountGross: Money.fromMinorUnits(
         escrow.amountGross,
         escrow.currency as Currency,

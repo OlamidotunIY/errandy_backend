@@ -1,7 +1,7 @@
-import { ClientId } from '@module/clients';
+import { PartyId } from '@module/party';
 import { ApplicationId } from '@src/modules';
 
 export interface RequestApplicationAcceptancePayload {
-  clientId: ClientId;
+  clientId: PartyId;
   applicationId: ApplicationId;
 }

@@ -1,3 +1,4 @@
+import { PartyId } from '@module/party';
 import { ApplicationId, ApplicationStatus, ApplicationType } from '../';
 import { ApplicationInvariantError } from '../errors';
 import {
@@ -7,13 +8,12 @@ import {
 } from '../events';
 import { AggregateRoot } from '@src/common';
 import { ErrandId } from '@module/errands';
-import { ProviderId } from '@module/providers';
 
 export class Application extends AggregateRoot<ApplicationId> {
   constructor(
     public readonly id: ApplicationId,
     public readonly errandId: ErrandId,
-    public readonly workerId: ProviderId,
+    public readonly workerId: PartyId,
     private _status: ApplicationStatus,
     private _type: ApplicationType,
     private readonly _proposal: string,
@@ -29,7 +29,7 @@ export class Application extends AggregateRoot<ApplicationId> {
 
   static create(
     errandId: ErrandId,
-    workerId: ProviderId,
+    workerId: PartyId,
     proposal: string,
     proposedAmountMinorUnits: number,
     currency: string,
@@ -76,7 +76,7 @@ export class Application extends AggregateRoot<ApplicationId> {
   static reconstitute(props: {
     id: ApplicationId;
     errandId: ErrandId;
-    workerId: ProviderId;
+    workerId: PartyId;
     status: ApplicationStatus;
     type: ApplicationType;
     proposal: string;

@@ -1,12 +1,12 @@
+import { PartyId } from '@module/party';
 import { ApplicationId, Application } from '../';
 import { BaseDomainEvent } from '@src/common';
 import { ErrandId } from '@module/errands';
-import { ProviderId } from '@module/providers';
 
 interface ApplicationAcceptedPayload {
   applicationId: ApplicationId;
   errandId: ErrandId;
-  workerId: ProviderId;
+  workerId: PartyId;
 }
 
 class ApplicationAcceptedEvent extends BaseDomainEvent<

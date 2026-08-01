@@ -3,4 +3,3 @@ export * from './escrow';
 export * from './wallet';
 export * from './errands';
 export * from './payments';
-export * from './providers';
