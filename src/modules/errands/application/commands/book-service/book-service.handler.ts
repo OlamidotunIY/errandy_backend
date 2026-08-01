@@ -7,8 +7,25 @@ import {
   IErrandRepository,
   SourceType,
 } from '@module/errands/domain';
-import { Currency, Money } from '@module/escrow/domain';
-import { IPartyRepository, PartyNotFoundError } from '@module/party';
+import {
+  IPartyRepository,
+  PartyNotFoundError,
+  ProviderRoleNotFoundError,
+} from '@module/party';
+import {
+  ICategoryRepository,
+  CategoryNotFoundError,
+  CategoryTierMismatchError,
+} from '@module/category';
+import {
+  IServiceRepository,
+  ServiceNotFoundError,
+} from '@module/service/domain';
+import {
+  AddressId,
+  AddressNotFoundError,
+  IAddressRepository,
+} from '@module/address';
 import { ILogger } from '@src/common';
 
 @CommandHandler(BookServiceCommand)
@@ -16,6 +33,9 @@ export class BookServiceHandler implements ICommandHandler<BookServiceCommand> {
   constructor(
     private readonly errandRepository: IErrandRepository,
     private readonly partyRepository: IPartyRepository,
+    private readonly serviceRepository: IServiceRepository,
+    private readonly categoryRepository: ICategoryRepository,
+    private readonly addressRepository: IAddressRepository,
     private readonly eventBus: EventBus,
     private readonly logger: ILogger,
   ) {}
@@ -23,7 +43,7 @@ export class BookServiceHandler implements ICommandHandler<BookServiceCommand> {
   async execute(command: BookServiceCommand): Promise<BookServiceResponseDto> {
     const { payload } = command;
 
-    if (!payload.clientId || !payload.serviceId || !payload.assignedProfileId) {
+    if (!payload.clientId || !payload.serviceId || !payload.addressId) {
       throw new ErrandInvariantError('Missing required fields');
     }
 
@@ -32,39 +52,54 @@ export class BookServiceHandler implements ICommandHandler<BookServiceCommand> {
       throw new PartyNotFoundError(payload.clientId);
     }
 
-    // NOTE: the `service` module has no domain/infrastructure implementation
-    // yet, so the current tier of the Service listing cannot be re-validated
-    // here as the docs require — deferred until that module is built.
-    const location = payload.location
-      ? {
-          type: 'Point',
-          coordinates: [payload.location.longitude, payload.location.latitude],
-        }
-      : null;
+    const service = await this.serviceRepository.findById(payload.serviceId);
+    if (!service) {
+      throw new ServiceNotFoundError(payload.serviceId);
+    }
 
-    const budget = Money.fromMinorUnits(
-      payload.budget.amountMinorUnits,
-      payload.budget.currency as Currency,
+    const listerParty = await this.partyRepository.findById(service.listedById);
+    if (!listerParty) {
+      throw new PartyNotFoundError(service.listedById);
+    }
+    if (!listerParty.providerRole) {
+      throw new ProviderRoleNotFoundError(service.listedById);
+    }
+
+    const category = await this.categoryRepository.findById(service.categoryId);
+    if (!category) {
+      throw new CategoryNotFoundError(service.categoryId);
+    }
+    if (!category.meetsRequiredTier(listerParty.providerRole.tier)) {
+      throw new CategoryTierMismatchError(
+        service.listedById,
+        service.categoryId,
+      );
+    }
+
+    const address = await this.addressRepository.findById(
+      AddressId.fromString(payload.addressId),
     );
+    if (!address) {
+      throw new AddressNotFoundError(payload.addressId);
+    }
+    const location = address.toGeoJson();
 
     const errand = Errand.create(
       payload.clientId,
-      payload.categoryId,
-      payload.title,
-      payload.description,
+      service.categoryId,
+      service.title,
+      service.description,
       payload.addressId,
       location,
-      budget,
+      service.price,
       clientParty.marketId,
       SourceType.SERVICE_BOOKING,
+      listerParty.providerRole.tier,
     );
 
-    errand.assignTo(payload.serviceId);
+    errand.assignTo(service.id.value);
 
-    const assignment = ErrandAssignment.create(
-      errand.id,
-      payload.assignedProfileId,
-    );
+    const assignment = ErrandAssignment.create(errand.id, service.listedById);
 
     await this.errandRepository.save(errand);
     await this.errandRepository.saveAssignment(assignment);
