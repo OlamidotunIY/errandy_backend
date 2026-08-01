@@ -7,6 +7,16 @@ import {
 } from '@module/errands/domain';
 import { Currency, Money } from '@module/escrow/domain';
 import { IPartyRepository, PartyNotFoundError } from '@module/party';
+import {
+  CategoryNotFoundError,
+  CategoryNotLeafError,
+  ICategoryRepository,
+} from '@module/category';
+import {
+  AddressId,
+  AddressNotFoundError,
+  IAddressRepository,
+} from '@module/address';
 import { ILogger } from '@src/common';
 
 @CommandHandler(CreateErrandCommand)
@@ -14,6 +24,8 @@ export class CreateErrandHandler implements ICommandHandler<CreateErrandCommand>
   constructor(
     private readonly errandRepository: IErrandRepository,
     private readonly partyRepository: IPartyRepository,
+    private readonly categoryRepository: ICategoryRepository,
+    private readonly addressRepository: IAddressRepository,
     private readonly eventBus: EventBus,
     private readonly logger: ILogger,
   ) {}
@@ -32,17 +44,21 @@ export class CreateErrandHandler implements ICommandHandler<CreateErrandCommand>
       throw new PartyNotFoundError(payload.clientId);
     }
 
-    // NOTE: category leaf validation deferred — category module has no
-    // domain/infrastructure implementation yet (stub only).
-    // NOTE: location should be denormalized from the chosen Address per
-    // errand-discovery-flow.md, but address module has no infrastructure
-    // layer yet — accepting an optional location override in the meantime.
-    const location = payload.location
-      ? {
-          type: 'Point',
-          coordinates: [payload.location.longitude, payload.location.latitude],
-        }
-      : null;
+    const category = await this.categoryRepository.findById(payload.categoryId);
+    if (!category) {
+      throw new CategoryNotFoundError(payload.categoryId);
+    }
+    if (!category.isLeaf()) {
+      throw new CategoryNotLeafError(payload.categoryId);
+    }
+
+    const address = await this.addressRepository.findById(
+      AddressId.fromString(payload.addressId),
+    );
+    if (!address) {
+      throw new AddressNotFoundError(payload.addressId);
+    }
+    const location = address.toGeoJson();
 
     const budget = Money.fromMinorUnits(
       payload.budget.amountMinorUnits,

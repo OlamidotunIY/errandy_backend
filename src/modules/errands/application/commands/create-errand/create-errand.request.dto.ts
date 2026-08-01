@@ -5,7 +5,6 @@ export interface CreateErrandRequestDto {
   description: string;
   addressId: string;
   budget: { amountMinorUnits: number; currency: string };
-  location?: { latitude: number; longitude: number };
 }
 
 export interface CreateErrandResponseDto {
