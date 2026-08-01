@@ -1,6 +1,6 @@
 import { ApplicationId, Application } from '../';
 import { BaseDomainEvent } from '@src/common';
-import { ErrandId } from '@module/errand';
+import { ErrandId } from '@module/errands';
 import { ProviderId } from '@module/providers';
 
 interface ApplicationAcceptedPayload {

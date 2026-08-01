@@ -1,5 +1,5 @@
 import { ApplicationType } from '@module/application/domain';
-import { ErrandId } from '@module/errand';
+import { ErrandId } from '@module/errands';
 import { ProviderId } from '@module/providers';
 
 export interface SubmitApplicationPayload {

@@ -1,4 +1,4 @@
-import { ErrandCompletedEvent } from '@module/errand';
+import { ErrandCompletedEvent } from '@module/errands';
 import { MarkEscrowCompletedCommand } from '@module/escrow';
 import {
   EscrowErrorClassifier,

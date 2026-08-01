@@ -15,7 +15,7 @@ import {
   Money,
   RefundReason,
 } from '..';
-import { ErrandId } from '@module/errand';
+import { ErrandId } from '@module/errands';
 import { ClientId } from '@module/clients';
 import { ProviderId } from '@module/providers';
 

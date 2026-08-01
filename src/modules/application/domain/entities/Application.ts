@@ -6,7 +6,7 @@ import {
   ApplicationSubmittedEvent,
 } from '../events';
 import { AggregateRoot } from '@src/common';
-import { ErrandId } from '@module/errand';
+import { ErrandId } from '@module/errands';
 import { ProviderId } from '@module/providers';
 
 export class Application extends AggregateRoot<ApplicationId> {

@@ -3,7 +3,7 @@ import {
   AcceptApplicationProgressStatus,
   ApplicationId,
 } from '@module/application/domain';
-import { ErrandId } from '@module/errand';
+import { ErrandId } from '@module/errands';
 import { AggregateRoot } from '@src/common';
 
 export class AcceptApplicationProgress extends AggregateRoot<AcceptApplicationProgressId> {

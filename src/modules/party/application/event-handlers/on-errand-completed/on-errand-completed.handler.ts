@@ -1,4 +1,4 @@
-import { ErrandCompletedEvent } from '@module/errand';
+import { ErrandCompletedEvent } from '@module/errands';
 import { EventBus, EventsHandler, IEventHandler } from '@nestjs/cqrs';
 import { IPartyRepository } from '@module/party';
 import { ILogger } from '@src/common';

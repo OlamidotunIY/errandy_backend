@@ -7,7 +7,7 @@ import {
   Money,
 } from '@module/escrow';
 import { Prisma, Escrow as PrismaEscrow } from '@prisma/client';
-import { ErrandId } from '@module/errand';
+import { ErrandId } from '@module/errands';
 import { ClientId } from '@module/clients';
 import { ProviderId } from '@module/providers';
 

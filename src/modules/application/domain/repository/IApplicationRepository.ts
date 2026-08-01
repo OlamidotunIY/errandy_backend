@@ -1,4 +1,4 @@
-import { ErrandId } from '@module/errand';
+import { ErrandId } from '@module/errands';
 import { Application } from '../entities';
 import { ApplicationId } from '../value-objects';
 import { ProviderId } from '@module/providers';

@@ -1,4 +1,4 @@
-import { ErrandId } from '@module/errand';
+import { ErrandId } from '@module/errands';
 
 export interface GetEscrowByErrandPayload {
   errandId: ErrandId;
