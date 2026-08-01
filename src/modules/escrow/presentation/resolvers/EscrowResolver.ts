@@ -2,7 +2,6 @@ import { Args, Query, Resolver } from '@nestjs/graphql';
 import { QueryBus } from '@nestjs/cqrs';
 import { EscrowGraphQLType } from '../graphql';
 import { CurrentUser } from '../../../../auth/decorator/current-user.decorator';
-import { User } from '@src/users/entities/user.entity';
 import { GetEscrowByErrandQuery } from '@module/escrow';
 import { ErrandId } from '@module/errand';
 
@@ -12,7 +11,7 @@ export class EscrowResolver {
 
   @Query(() => EscrowGraphQLType)
   async escrowById(
-    @CurrentUser() user: User,
+    @CurrentUser() _user: unknown,
     @Args('errandId') id: string,
   ): Promise<EscrowGraphQLType> {
     return (await this.queryBus.execute(

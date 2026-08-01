@@ -19,15 +19,15 @@ export class EscrowMapper {
       errandId: ErrandId.fromString(escrow.errandId),
       clientId: ClientId.fromString(escrow.clientId),
       workerId: ProviderId.fromString(escrow.workerId),
-      amountGross: Money.fromKobo(
+      amountGross: Money.fromMinorUnits(
         escrow.amountGross,
         escrow.currency as Currency,
       ),
-      platformFee: Money.fromKobo(
+      platformFee: Money.fromMinorUnits(
         escrow.platformFee,
         escrow.currency as Currency,
       ),
-      amountNetWorker: Money.fromKobo(
+      amountNetWorker: Money.fromMinorUnits(
         escrow.amountNetWorker,
         escrow.currency as Currency,
       ),
@@ -47,9 +47,9 @@ export class EscrowMapper {
       errandId: escrow.errandId.toString(),
       clientId: escrow.clientId.toString(),
       workerId: escrow.workerId.toString(),
-      amountGross: escrow.amountGross.toKobo(),
-      platformFee: escrow.platformFee.toKobo(),
-      amountNetWorker: escrow.amountNetWorker.toKobo(),
+      amountGross: escrow.amountGross.toMinorUnits(),
+      platformFee: escrow.platformFee.toMinorUnits(),
+      amountNetWorker: escrow.amountNetWorker.toMinorUnits(),
       currency: escrow.amountGross.currency,
       status: escrow.status,
       holdUntil: escrow.holdUntil,
