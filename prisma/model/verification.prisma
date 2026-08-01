@@ -1,33 +1,14 @@
 model ProviderVerification {
-    id         String              @id @default(uuid()) @map("_id")
-    identifier String
-    value      String
-    providerId String             
-    type       VerificationType
-    status     VerificationStatus
-    metadata   Json?
-    verifiedAt DateTime?
-    expiresAt  DateTime?
+    id         String              @id @map("_id")
+    profileId String @unique
+    // requiredSteps StepType[]
     createdAt  DateTime           @default(now())
+    updateAt DateTime @updatedAt
 
-    provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-
-    @@unique([providerId, type])
     @@map("provider_verifications")
 }
 
-enum VerificationType {
-    IDENTITY
-    PHONE
-    ADDRESS
-    BANK_ACCOUNT
-    PROFESSIONAL_LICENSE
-    BUSINESS_REGISTRATION
-}
-
-enum VerificationStatus {
-    PENDING
-    APPROVED
-    REJECTED
-    EXPIRED
+enum OverallStatus {
+    INCOMPLETE
+    COMPLETE
 }

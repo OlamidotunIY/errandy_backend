@@ -19,22 +19,10 @@
     "ignoreDeprecations": "5.0",
     "baseUrl": ".",
     "paths": {
-      "@escrow": ["src/escrow"],
-      "@escrow/*": ["src/escrow/*"],
-      "@errands": ["src/errands"],
-      "@errands/*": ["src/errands/*"],
-      "@client": ["src/client"],
-      "@client/*": ["src/client/*"],
-      "@provider": ["src/provider"],
-      "@provider/*": ["src/provider/*"],
-      "@payments": ["src/payment-gateway"],
-      "@payments/*": ["src/payment-gateway/*"],
-      "@shared": ["src/common"],
-      "@shared/*": ["src/common/*"],
-      "@wallet": ["src/wallet"],
-      "@wallet/*": ["src/wallet/*"],
-      "@user": ["src/users"],
-      "@user/*": ["src/users/*"]
+      "@module": ["src/modules"],
+      "@module/*": ["src/modules/*"],
+      "@src": ["src"],
+      "@src/*": ["src/*"]
     }
   }
 }

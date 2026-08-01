@@ -13,13 +13,6 @@ model Rating {
     comment   String?
     createdAt DateTime  @default(now())
 
-    // Relations
-    errand    Errand?          @relation(fields: [errandId], references: [id])
-    client    Client?          @relation(fields: [rateeId], references: [id])
-    provider  Provider?        @relation(fields: [rateeId], references: [id])
-    reactions RatingReaction[]
-    replies   RatingReply[]
-
     @@map("ratings")
 }
 
@@ -30,7 +23,6 @@ model RatingReaction {
     emoji     String // e.g. "👍", "❤️", "😊"
     createdAt DateTime @default(now())
 
-    rating Rating @relation(fields: [ratingId], references: [id])
 
     @@unique([ratingId, userId])
     @@map("rating_reactions")
@@ -42,8 +34,6 @@ model RatingReply {
     userId    String   
     content   String
     createdAt DateTime @default(now())
-
-    rating Rating @relation(fields: [ratingId], references: [id])
 
     @@map("rating_replies")
 }

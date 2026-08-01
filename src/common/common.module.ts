@@ -1,13 +1,13 @@
 import { Global, Module } from '@nestjs/common';
-import { IDeadLetterRepository } from '@shared/domain';
-import { PrismaDeadLetterRepository } from '@shared/infrastructure';
+import { QueueModule } from '../infrastructure/queue/queue.module';
+import { CommandBus } from '@nestjs/cqrs';
 import {
   CommandRetryRegistry,
   EventRetryProcessor,
   EventRetryQueueService,
-} from '@shared/application';
-import { QueueModule } from '../infrastructure/queue/queue.module';
-import { CommandBus } from '@nestjs/cqrs';
+  IDeadLetterRepository,
+  PrismaDeadLetterRepository,
+} from './';
 
 @Global()
 @Module({

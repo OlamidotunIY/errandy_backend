@@ -1,4 +1,4 @@
-import { ErrorClassification } from '@shared/domain';
+import { ErrorClassification } from '../';
 
 export abstract class IErrorClassifier {
   abstract classify(error: Error): ErrorClassification;

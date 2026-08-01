@@ -1,0 +1,14 @@
+model UserAddress {
+  id        String    @id @default(uuid()) @map("_id")
+  userId    String
+  label     String
+  street String
+  city String
+  state String
+  country String
+  coordinates  Json // GeoJSON { type: "Point", coordinates: [lng, lat] }
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("user_addresses")
+}

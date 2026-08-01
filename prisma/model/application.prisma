@@ -1,16 +1,23 @@
 model Application {
     id       String  @id @default(uuid()) @map("_id")
     errandId String
-    workerId String 
+    workerId String
+    applicantType ApplicationType
 
     status     AppStatus @default(PENDING)
+    proposal String?
+    proposedAmountKobo Int?
+    currency String?
     acceptedAt DateTime?
 
-    source ApplicationSource @default(PUBLIC)
-
+    rejectedAt DateTime?
+    cancelledAt DateTime?
     createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
 
     @@unique([errandId, workerId])
+    @@index([errandId, status])
+    @@index([workerId, status])
     @@map("applications")
 }
 
@@ -21,7 +28,7 @@ enum AppStatus {
     CANCELLED
 }
 
-enum ApplicationSource {
-    PUBLIC
-    INVITED
+enum ApplicationType {
+    PROVIDER
+    ORGANIZATION
 }

@@ -2,7 +2,6 @@ model Search {
     id      String  @id @default(uuid()) @map("_id")
     keyword String
 
-    Provider   Provider? @relation(fields: [providerId], references: [id])
     providerId String? 
 
     @@map("searches")

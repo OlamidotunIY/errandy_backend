@@ -1,15 +1,11 @@
 model ChatRoom {
     id             String    @id @default(uuid()) @map("_id")
     participantIds String[] // array of user IDs
-    participants   User[]   @relation(fields: [participantIds], references: [id])
     roomKey        String?  @unique
 
     unreadCount Int @default(0)
 
-    lastMessageId String?  @unique 
-    lastMessage   Message? @relation("LastMessage", fields: [lastMessageId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-    messages Message[] @relation("RoomMessages")
+    lastMessageId String?  @unique
 
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
@@ -38,12 +34,7 @@ model Message {
     delivered Boolean @default(false)
     sent      Boolean @default(false)
 
-    reactions Reaction[]
-
     createdAt DateTime @default(now())
-
-    room           ChatRoom  @relation("RoomMessages", fields: [roomId], references: [id], onDelete: Cascade)
-    lastMessageFor ChatRoom? @relation("LastMessage")
 
     @@map("messages")
 }
@@ -53,7 +44,6 @@ model Reaction {
     messageId String  
     userId    String
     emoji     String // e.g. "👍", "❤️", etc.
-    Message   Message @relation(fields: [messageId], references: [id])
 
     @@map("reactions")
 }

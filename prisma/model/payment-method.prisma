@@ -1,7 +1,6 @@
 model PaymentMethod {
     id     String  @id @default(uuid()) @map("_id")
-    userId String 
-    client Client @relation(fields: [userId], references: [id])
+    userId String
 
     provider    String // "paystack", "stripe", "paypal", "adyen"
     providerRef String // e.g. Paystack authorization_code, Stripe paymentMethodId
@@ -26,7 +25,6 @@ model PaystackCustomer {
     customer_id String
 
     userId String
-    user   User   @relation(fields: [userId], references: [id])
 
     @@map("paystack_customers")
     @@unique([userId])

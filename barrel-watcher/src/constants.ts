@@ -1,7 +1,7 @@
 import * as path from 'node:path';
 
 export const REPO_ROOT = process.cwd();
-export const SRC_ROOT = path.join(REPO_ROOT, 'src');
+export const SRC_ROOT = path.join(REPO_ROOT, 'src/modules');
 
 export const DDD_LAYER_NAMES = new Set([
   'domain',

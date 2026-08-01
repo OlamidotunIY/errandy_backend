@@ -1,7 +1,7 @@
-import { DeadLetterEntry, IDeadLetterRepository } from '@shared/domain';
-import { PrismaService } from '../../../prisma.service';
-import { ILogger } from '@shared/application';
+import { ILogger } from '@src/common/application';
 import { InputJsonValue } from '@prisma/client/runtime/edge';
+import { DeadLetterEntry, IDeadLetterRepository } from '@src/common/domain';
+import { PrismaService } from '@src/prisma/prisma.service';
 
 export class PrismaDeadLetterRepository implements IDeadLetterRepository {
   constructor(
