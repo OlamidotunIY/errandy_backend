@@ -12,4 +12,16 @@ export class ProviderBadge extends AggregateRoot<ProviderBadgeId> {
   ) {
     super(id);
   }
+
+  get badgeType(): BadgeType {
+    return this._badgeType;
+  }
+
+  get period(): string {
+    return this._period;
+  }
+
+  get awardedAt(): Date {
+    return this._awardedAt;
+  }
 }
