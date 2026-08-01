@@ -28,13 +28,6 @@ model Errand {
     isRecurring    Boolean  @default(false)
     createdAt      DateTime @default(now())
     updatedAt      DateTime @updatedAt
-    ratings        Rating[]
-
-    client       Client          @relation(fields: [clientId], references: [id])
-    savedErrands SavedErrand[]
-    service      Service?        @relation(fields: [serviceId], references: [id])
-    template     ErrandTemplate? @relation(fields: [templateId], references: [id])
-    assignments  ErrandAssignment[]
 
     @@map("errands")
 }
@@ -44,9 +37,6 @@ model SavedErrand {
     userId   String
     errandId String
     savedAt  DateTime @default(now())
-
-    // Relation
-    errand Errand @relation(fields: [errandId], references: [id])
 
     @@map("saved_errands")
 }
@@ -58,18 +48,13 @@ model ErrandBundle {
     basePrice   Float
     active      Boolean @default(true)
 
-    items BundleItem[]
-
     @@map("errand_bundles")
 }
 
 model BundleItem {
     id         String  @id @default(uuid()) @map("_id")
     bundleId   String 
-    templateId String 
-
-    bundle   ErrandBundle   @relation(fields: [bundleId], references: [id])
-    template ErrandTemplate @relation(fields: [templateId], references: [id])
+    templateId String
 
     @@map("bundle_items")
 }
@@ -102,12 +87,6 @@ model ErrandTemplate {
 
     createdAt DateTime @default(now())
 
-    providerOrg        Organization?     @relation(fields: [providerOrgId], references: [id])
-    service            Service?          @relation(fields: [serviceId], references: [id])
-    errands            Errand[]
-    bundleItems        BundleItem[]
-    recurringContracts RecurringContract[]
-
     @@map("errand_templates")
 }
 
@@ -125,8 +104,6 @@ model ErrandAssignment {
   status AssignmentStatus @default(ASSIGNED)
 
   assignedAt DateTime @default(now())
-
-  errand Errand @relation(fields: [errandId], references: [id])
 
   @@index([errandId])
   @@map("errand_assignments")
@@ -149,10 +126,6 @@ model RecurringContract {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  // Relations
-  client   Client         @relation(fields: [clientId], references: [id])
-  template ErrandTemplate @relation(fields: [templateId], references: [id])
 
   @@map("recurring_contracts")
 }

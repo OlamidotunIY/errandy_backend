@@ -25,20 +25,12 @@ model User {
   sessions            Session[]
   accounts            Account[]
   twofactors          TwoFactor[]
-  userAddress         UserAddress[] // all addresses
   activeRole          UserRole?
 
   // Active address reference
-  activeAddressId String?      
-  activeAddress   UserAddress? @relation("ActiveAddress", fields: [activeAddressId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  activeAddressId String?
 
-  provider          Provider?
-  client            Client?
-  paystackCustomers PaystackCustomer?
-
-  chatRoomIds String[]   
-  chatRooms   ChatRoom[] @relation(fields: [chatRoomIds], references: [id])
-  orgMemberships OrgMember[]
+  chatRoomIds String[]
 
   @@unique([email])
   @@unique([username])

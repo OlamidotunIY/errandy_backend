@@ -1,7 +1,7 @@
 model ProviderVerification {
     id         String              @id @map("_id")
     profileId String @unique
-    requiredSteps StepType[]
+    // requiredSteps StepType[]
     createdAt  DateTime           @default(now())
     updateAt DateTime @updatedAt
 

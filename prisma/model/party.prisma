@@ -1,0 +1,89 @@
+model Party {
+  id        String    @id @map("_id")
+  kind      PartyKind
+  marketId  String
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  person       Person?
+  organization Organization?
+  providerRole ProviderRole?
+}
+
+model Person {
+  id     String @id @map("_id")    // shared PK with Party
+  party  Party  @relation(fields: [id], references: [id])
+  userId String @unique
+}
+
+model Organization {
+  id                         String   @id @map("_id")
+  party                      Party    @relation(fields: [id], references: [id])
+  name                       String
+  businessRegistrationNumber String
+  ownerId                    String
+  workerPoolPercentage       Int      @default(70)
+  createdAt                  DateTime @default(now())
+
+  members OrganizationMember[]
+}
+
+model OrganizationMember {
+  id             String   @id @map("_id")
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  userId         String
+  role           OrgMemberRole
+  active         Boolean  @default(true)
+
+  @@unique([organizationId, userId])
+}
+
+model ProviderRole {
+  id                     String       @id @map("_id")    // shared PK with Party
+  party                  Party        @relation(fields: [id], references: [id])
+  tier                   ProviderTier @default(COMMUNITY)
+  bio                    String?
+  skills                 String[]
+  verificationStatus     Boolean      @default(false)
+  trustedByCount         Int          @default(0)
+  completedErrandsCount  Int          @default(0)
+  disputedErrandsCount   Int          @default(0)
+  avgResponseTimeSeconds Int?
+  avgRatingCached        Float?
+  isActive               Boolean      @default(true)
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+}
+
+model ProviderBadge {
+  id                     String   @id @map("_id")
+  partyId                String
+  badgeType              BadgeType
+  awardedByOrganizationId String
+  period                 String
+  awardedAt              DateTime @default(now())
+}
+
+enum PartyKind {
+  PERSON
+  ORGANIZATION
+}
+
+enum ProviderTier {
+  COMMUNITY
+  VERIFIED
+  CERTIFIED
+}
+
+enum BadgeType {
+  WORKER_OF_THE_MONTH
+  WORKER_OF_THE_YEAR
+}
+
+enum OrgMemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}

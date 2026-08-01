@@ -4,9 +4,6 @@ model TrustedCircle {
   name      String? // e.g. "Family Helpers"
   createdAt DateTime @default(now())
 
-  client  Client                @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  members TrustedCircleMember[]
-
   @@map("trusted_circles")
 }
 
@@ -18,9 +15,6 @@ model TrustedCircleMember {
   source          CircleSource @default(COMPLETED_TASK)
 
   status TrustedCircleMemberStatus @default(ACTIVE)
-
-  trustedCircle TrustedCircle @relation(fields: [trustedCircleId], references: [id], onDelete: Cascade)
-  provider      Provider      @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@unique([trustedCircleId, providerId])
   @@map("trusted_circle_members")

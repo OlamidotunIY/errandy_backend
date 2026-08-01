@@ -8,7 +8,6 @@ model ServiceCategory {
   id       String               @id @default(uuid()) @map("_id")
   name     String              @unique
   type     ServiceCategoryType
-  services Service[]
 
   @@map("service_categories")
 }
@@ -17,11 +16,7 @@ model Service {
   id         String               @id @default(uuid()) @map("_id")
   name       String              @unique
   type       ServiceCategoryType
-  categoryId String              
-  category   ServiceCategory     @relation(fields: [categoryId], references: [id])
-  providers    ServicesOnProviders[]
-  errands    Errand[]
-  errandTemplates ErrandTemplate[]
+  categoryId String
 
   @@map("services")
 }
@@ -29,10 +24,7 @@ model Service {
 model ServicesOnProviders {
   id        String  @id @default(uuid()) @map("_id")
   serviceId String 
-  providerId  String 
-
-  service Service @relation(fields: [serviceId], references: [id])
-  provider  Provider  @relation(fields: [providerId], references: [id])
+  providerId  String
 
   @@unique([providerId, serviceId])
   @@map("services_on_providers")
