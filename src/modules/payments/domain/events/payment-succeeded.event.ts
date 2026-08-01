@@ -1,5 +1,6 @@
 import { DomainEvent, EntityId } from '@src/common';
 import { ApplicationId } from '@module/application';
+import { Money } from '@module/escrow';
 
 export class PaymentSucceeded implements DomainEvent {
   readonly eventId: string;
