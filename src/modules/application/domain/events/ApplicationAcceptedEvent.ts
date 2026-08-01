@@ -1,5 +1,4 @@
-import { ApplicationId } from '../';
-import { Application } from '../entities';
+import { ApplicationId, Application } from '../';
 import { BaseDomainEvent } from '@src/common';
 import { ErrandId } from '@module/errand';
 import { ProviderId } from '@module/providers';

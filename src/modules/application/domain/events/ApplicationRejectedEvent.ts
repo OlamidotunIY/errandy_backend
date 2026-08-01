@@ -1,6 +1,5 @@
 import { BaseDomainEvent, DomainEventPayload } from '@src/common';
-import { ApplicationId } from '../';
-import { Application } from '../entities';
+import { ApplicationId, Application } from '../';
 
 class ApplicationRejectedEvent extends BaseDomainEvent<ApplicationId> {
   constructor(
