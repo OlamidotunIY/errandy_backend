@@ -364,7 +364,7 @@ The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://
 scalar JSON
 
 type LedgerEntryGraphQLType {
-  amountKobo: Int!
+  amountMinorUnits: Int!
   createdAt: DateTime!
   currency: String!
   escrowId: String
@@ -947,8 +947,8 @@ enum UserRole {
 }
 
 type WalletBalancesType {
-  activeKobo: Int!
-  availableKobo: Int!
+  activeMinorUnits: Int!
+  availableMinorUnits: Int!
   currency: String!
-  pendingKobo: Int!
+  pendingMinorUnits: Int!
 }
