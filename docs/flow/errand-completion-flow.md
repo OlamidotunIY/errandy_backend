@@ -45,7 +45,7 @@ else:
   the single assignment's profile gets 100% of total
 ```
 
-**Algorithmic component — this is the one real subtlety here.** Splitting an integer amount (minor units — kobo, cents) proportionally across N recipients using floor/truncated division will not necessarily sum back to the original total — you can silently lose a few minor units to nowhere, or in some formulations over-allocate. This is the classic **apportionment / fair-division rounding problem**, not something CLRS covers (it's closer to social-choice/election-science literature than algorithms texts) — but it's a real, easy-to-get-wrong correctness issue in any financial split logic:
+**Algorithmic component — this is the one real subtlety here.** Splitting an integer amount (minor units — minor units, cents) proportionally across N recipients using floor/truncated division will not necessarily sum back to the original total — you can silently lose a few minor units to nowhere, or in some formulations over-allocate. This is the classic **apportionment / fair-division rounding problem**, not something CLRS covers (it's closer to social-choice/election-science literature than algorithms texts) — but it's a real, easy-to-get-wrong correctness issue in any financial split logic:
 
 1. Compute each recipient's **exact floor** share: `floor(total × percentage / 100)`
 2. Sum the floors — this will be `≤ total`, the difference is the leftover minor units from truncation

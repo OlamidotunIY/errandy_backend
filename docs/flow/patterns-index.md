@@ -27,7 +27,7 @@ Cross-reference of Enterprise Integration Patterns (Hohpe & Woolf) and DDD build
 | **Domain Service** | `ProfileEligibilityPolicy`, `VerificationGatePolicy` (cross-aggregate checks that don't belong to one entity) |
 | **Domain Event** | See each flow's event table |
 | **Repository** | One per aggregate root, interface in `domain/`, implementation in `infrastructure/` |
-| **Ubiquitous Language discipline** | See main doc's Decision Log for corrected terms (`Ledger` not `Transaction`, `Money` not `XKobo`, etc.) |
+| **Ubiquitous Language discipline** | See main doc's Decision Log for corrected terms (`Ledger` not `Transaction`, `Money` not `XMinorUnits`, etc.) |
 | **Anti-Corruption Layer** | Thin translator between an external system's model and ours — e.g. better-auth's `databaseHooks` translating into our own `AuthUserRegistered` event, so nothing downstream ever depends on better-auth's internal shapes | `user-registration-flow.md` |
 
 ## Algorithms referenced
