@@ -1,26 +1,30 @@
 import { WalletId } from '../value-objects';
 import { Wallet } from '../entities';
-import { DomainEvent } from '@src/common';
+import { BaseDomainEvent } from '@src/common';
 import { UserId } from '@module/user';
 
-class WithdrawalRecorded implements DomainEvent {
-  readonly eventId: string;
-  readonly aggregateId: WalletId;
-  readonly eventName: string;
-  readonly correlationId: string;
-  readonly occurredAt: Date;
+interface WithdrawalRecordedPayload {
+  walletId: WalletId;
+  userId: UserId;
+  gatewayReference: string;
+}
 
+class WithdrawalRecorded extends BaseDomainEvent<
+  WalletId,
+  WithdrawalRecordedPayload
+> {
   constructor(
-    public readonly walletId: WalletId,
-    public readonly userId: UserId,
-    public readonly gatewayReference: string,
+    walletId: WalletId,
+    userId: UserId,
+    gatewayReference: string,
     correlationId: string,
   ) {
-    this.eventName = WithdrawalRecorded.name;
-    this.occurredAt = new Date();
-    this.eventId = crypto.randomUUID();
-    this.aggregateId = walletId;
-    this.correlationId = correlationId;
+    super({
+      aggregateId: walletId,
+      correlationId,
+      eventName: WithdrawalRecorded.name,
+      payload: { walletId, userId, gatewayReference },
+    });
   }
 
   static fromAggregate(

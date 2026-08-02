@@ -1,25 +1,21 @@
-import { DomainEvent } from '@src/common';
+import { BaseDomainEvent, DomainEventPayload } from '@src/common';
 import { EscrowId } from '../value-objects';
 import { Escrow } from '../entities';
 
-export class EscrowCompletedEvent implements DomainEvent {
-  readonly eventId: string;
-  readonly aggregateId: EscrowId;
-  readonly eventName: string;
-  readonly correlationId: string;
-  readonly occurredAt: Date;
-
+export class EscrowCompletedEvent extends BaseDomainEvent<EscrowId> {
   constructor(
-    public readonly escrowId: EscrowId,
+    escrowId: EscrowId,
     occurredAt: Date,
     correlationId: string,
-    public readonly payload: Record<string, unknown>,
+    payload: DomainEventPayload,
   ) {
-    this.eventName = 'EscrowCompletedEvent';
-    this.occurredAt = occurredAt;
-    this.aggregateId = escrowId;
-    this.eventId = crypto.randomUUID();
-    this.correlationId = correlationId;
+    super({
+      aggregateId: escrowId,
+      occurredAt,
+      correlationId,
+      eventName: EscrowCompletedEvent.name,
+      payload,
+    });
   }
 
   static fromAggregate(

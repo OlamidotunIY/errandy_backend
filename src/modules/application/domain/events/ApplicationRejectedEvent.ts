@@ -1,25 +1,20 @@
-import { DomainEvent } from '@src/common';
-import { ApplicationId } from '../value-objects';
-import { Application } from '../entities';
+import { BaseDomainEvent, DomainEventPayload } from '@src/common';
+import { ApplicationId, Application } from '../';
 
-class ApplicationRejectedEvent implements DomainEvent {
-  readonly eventId: string;
-  readonly aggregateId: ApplicationId;
-  readonly eventName: string;
-  readonly correlationId: string;
-  readonly occurredAt: Date;
-
+class ApplicationRejectedEvent extends BaseDomainEvent<ApplicationId> {
   constructor(
     aggregateId: ApplicationId,
     occurredAt: Date,
     correlationId: string,
-    public readonly payload: Record<string, unknown>,
+    payload: DomainEventPayload,
   ) {
-    this.eventName = 'ApplicationRejectedEvent';
-    this.occurredAt = occurredAt;
-    this.eventId = crypto.randomUUID();
-    this.aggregateId = aggregateId;
-    this.correlationId = correlationId;
+    super({
+      aggregateId,
+      occurredAt,
+      correlationId,
+      eventName: ApplicationRejectedEvent.name,
+      payload,
+    });
   }
 
   static fromAggregate(

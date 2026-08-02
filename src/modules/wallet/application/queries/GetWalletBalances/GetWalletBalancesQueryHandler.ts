@@ -33,9 +33,9 @@ class GetWalletBalancesHandler implements IQueryHandler<GetWalletBalancesQuery> 
     }
 
     return {
-      activeKobo: snapshot.activeKobo,
-      pendingKobo: snapshot.pendingKobo,
-      availableKobo: snapshot.availableKobo,
+      activeMinorUnits: snapshot.activeMinorUnits,
+      pendingMinorUnits: snapshot.pendingMinorUnits,
+      availableMinorUnits: snapshot.availableMinorUnits,
       currency: wallet.currency,
     };
   }

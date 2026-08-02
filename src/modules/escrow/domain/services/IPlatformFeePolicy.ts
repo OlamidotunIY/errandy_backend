@@ -1,8 +1,8 @@
-import { ClientId } from '@module/clients';
-import { ErrandId } from '@module/errand';
+import { PartyId } from '@module/party';
+import { ErrandId } from '@module/errands';
 
 interface IPlatformFeePolicy {
-  resolveFeeRate(errandId: ErrandId, clientId: ClientId): Promise<number>;
+  resolveFeeRate(errandId: ErrandId, clientId: PartyId): Promise<number>;
 }
 
 export { IPlatformFeePolicy };

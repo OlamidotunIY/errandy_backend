@@ -1,23 +1,28 @@
-import { DomainEvent } from '@src/common';
-import { LedgerEntryId, WalletId } from '../value-objects';
+import { BaseDomainEvent } from '@src/common';
+import { LedgerEntryId } from '../value-objects';
 import { Money } from '@module/escrow';
 
-export class LedgerDiscrepancyDetected implements DomainEvent {
-  readonly eventId: string;
-  readonly aggregateId: LedgerEntryId;
-  readonly eventName: string;
-  readonly occurredAt: Date;
+interface LedgerDiscrepancyDetectedPayload {
+  gatewayReference: string;
+  discrepancyType: 'missing' | 'duplicate' | 'amount-mismatch';
+  amount: Money;
+  ledgerEntryId: LedgerEntryId;
+}
 
+export class LedgerDiscrepancyDetected extends BaseDomainEvent<
+  LedgerEntryId,
+  LedgerDiscrepancyDetectedPayload
+> {
   constructor(
-    public readonly gatewayReference: string,
-    public readonly discrepancyType:
-      'missing' | 'duplicate' | 'amount-mismatch',
-    public readonly amount: Money,
-    public readonly ledgerEntryId: LedgerEntryId,
+    gatewayReference: string,
+    discrepancyType: 'missing' | 'duplicate' | 'amount-mismatch',
+    amount: Money,
+    ledgerEntryId: LedgerEntryId,
   ) {
-    this.eventId = crypto.randomUUID();
-    this.eventName = LedgerDiscrepancyDetected.name;
-    this.occurredAt = new Date();
-    this.aggregateId = ledgerEntryId;
+    super({
+      aggregateId: ledgerEntryId,
+      eventName: LedgerDiscrepancyDetected.name,
+      payload: { gatewayReference, discrepancyType, amount, ledgerEntryId },
+    });
   }
 }

@@ -1,9 +1,9 @@
-import { ErrandCompletedEvent } from '@module/errand';
+import { ErrandCompletedEvent } from '@module/errands';
 import { MarkEscrowCompletedCommand } from '@module/escrow';
 import {
   EscrowErrorClassifier,
-  EscrowId,
   EscrowInvariantError,
+  EscrowRepository,
 } from '@module/escrow/domain';
 import { CommandBus, EventsHandler, IEventHandler } from '@nestjs/cqrs';
 import {
@@ -12,6 +12,7 @@ import {
   IDeadLetterRepository,
   ILogger,
 } from '@src/common';
+import { ErrandId } from '@module/errands';
 
 @EventsHandler(ErrandCompletedEvent)
 export class OnErrandCompletedMarkEscrow implements IEventHandler<ErrandCompletedEvent> {
@@ -21,6 +22,7 @@ export class OnErrandCompletedMarkEscrow implements IEventHandler<ErrandComplete
     private readonly errorClassifier: EscrowErrorClassifier,
     private readonly eventRetryQueue: EventRetryQueueService,
     private readonly deadLetterRepository: IDeadLetterRepository,
+    private readonly escrowRepository: EscrowRepository,
   ) {}
 
   async handle(event: ErrandCompletedEvent): Promise<void> {
@@ -32,11 +34,23 @@ export class OnErrandCompletedMarkEscrow implements IEventHandler<ErrandComplete
     }
 
     try {
+      const escrow = await this.escrowRepository.findByErrandId(
+        ErrandId.fromString(payload.errandId),
+      );
+
+      if (!escrow) {
+        this.logger.error(
+          `Escrow not found for errand ID: ${payload.errandId}`,
+          {} as Error,
+        );
+        throw new EscrowInvariantError('Escrow not found for errand');
+      }
+
       await this.command.execute(
         new MarkEscrowCompletedCommand({
-          escrowId: EscrowId.fromString(payload.escrowId as string),
-          correlationId: correlationId,
-          completedAt: payload.CompletedAt as Date,
+          escrowId: escrow.id,
+          correlationId,
+          completedAt: new Date(),
         }),
       );
     } catch (error) {

@@ -1,11 +1,19 @@
 import { AggregateRoot } from '@src/common';
 import {
   Organization,
+  OrgMemberRole,
+  OrganizationMemberAddedEvent,
+  OrganizationMemberRemovedEvent,
+  OrganizationNotFoundError,
   PartyId,
   PartyKind,
+  PartyCreatedEvent,
+  PartyDeactivatedEvent,
   Person,
+  ProviderRoleAddedEvent,
   ProviderRole,
 } from '@module/party';
+import { ProviderRoleAlreadyExistsError } from '../errors';
 import { UserId } from '@module/user';
 
 export class Party extends AggregateRoot<PartyId> {
@@ -36,9 +44,14 @@ export class Party extends AggregateRoot<PartyId> {
     );
   }
 
-  static createPerson(userId: UserId, marketId: string): Party {
+  static createPerson(
+    userId: UserId,
+    marketId: string,
+    correlationId?: string,
+  ): Party {
     const party = this.create(marketId);
     party._person = new Person(party.id, userId);
+    party.addDomainEvent(PartyCreatedEvent.fromAggregate(party, correlationId));
     return party;
   }
 
@@ -47,8 +60,10 @@ export class Party extends AggregateRoot<PartyId> {
     name: string,
     businessRegistrationNumber: string,
     marketId: string,
+    correlationId?: string,
   ): Party {
     const party = this.create(marketId);
+    party._kind = PartyKind.ORGANIZATION;
     party._organization = new Organization(
       party.id,
       name,
@@ -57,18 +72,24 @@ export class Party extends AggregateRoot<PartyId> {
       new Date(),
       new Date(),
     );
+    party.addDomainEvent(PartyCreatedEvent.fromAggregate(party, correlationId));
 
     return party;
   }
 
-  addProviderRole(): void {
-    if (this._providerRole) return;
+  addProviderRole(correlationId?: string): void {
+    if (this._providerRole) {
+      throw new ProviderRoleAlreadyExistsError(this.id.value);
+    }
 
     this._providerRole = new ProviderRole(this.id);
     this.updatedAt = new Date();
+    this.addDomainEvent(
+      ProviderRoleAddedEvent.fromAggregate(this, correlationId),
+    );
   }
 
-  deactivate() {
+  deactivate(correlationId?: string) {
     this._isActive = false;
     if (this._providerRole) {
       // preserve original createdAt if available, set provider role as inactive and update timestamp
@@ -88,6 +109,41 @@ export class Party extends AggregateRoot<PartyId> {
     }
 
     this.updatedAt = new Date();
+    this.addDomainEvent(
+      PartyDeactivatedEvent.fromAggregate(this, correlationId),
+    );
+  }
+
+  addOrganizationMember(
+    userId: UserId,
+    role: OrgMemberRole,
+    correlationId?: string,
+  ): void {
+    if (!this._organization) {
+      throw new OrganizationNotFoundError(this.id.value);
+    }
+
+    this._organization.addMember(userId, role);
+    this.updatedAt = new Date();
+    this.addDomainEvent(
+      OrganizationMemberAddedEvent.create(this.id, userId.value, correlationId),
+    );
+  }
+
+  removeOrganizationMember(userId: UserId, correlationId?: string): void {
+    if (!this._organization) {
+      throw new OrganizationNotFoundError(this.id.value);
+    }
+
+    this._organization.removeMember(userId);
+    this.updatedAt = new Date();
+    this.addDomainEvent(
+      OrganizationMemberRemovedEvent.create(
+        this.id,
+        userId.value,
+        correlationId,
+      ),
+    );
   }
 
   get kind(): PartyKind {

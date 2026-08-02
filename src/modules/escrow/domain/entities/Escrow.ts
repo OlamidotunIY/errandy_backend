@@ -1,3 +1,4 @@
+import { PartyId } from '@module/party';
 import { AggregateRoot } from '@src/common';
 import {
   EscrowCompletedEvent,
@@ -15,16 +16,14 @@ import {
   Money,
   RefundReason,
 } from '..';
-import { ErrandId } from '@module/errand';
-import { ClientId } from '@module/clients';
-import { ProviderId } from '@module/providers';
+import { ErrandId } from '@module/errands';
 
 class Escrow extends AggregateRoot<EscrowId> {
   constructor(
     public readonly id: EscrowId,
     public readonly errandId: ErrandId,
-    public readonly clientId: ClientId,
-    public readonly workerId: ProviderId,
+    public readonly clientId: PartyId,
+    public readonly workerId: PartyId,
     private _amountGross: Money,
     private _platformFee: Money,
     private _amountNetWorker: Money,
@@ -43,8 +42,8 @@ class Escrow extends AggregateRoot<EscrowId> {
 
   static create(
     errandId: ErrandId,
-    clientId: ClientId,
-    workerId: ProviderId,
+    clientId: PartyId,
+    workerId: PartyId,
     amountGross: Money,
     platformFeeRate: number,
   ): Escrow {
@@ -86,8 +85,8 @@ class Escrow extends AggregateRoot<EscrowId> {
   static reconstitute(props: {
     id: EscrowId;
     errandId: ErrandId;
-    clientId: ClientId;
-    workerId: ProviderId;
+    clientId: PartyId;
+    workerId: PartyId;
     amountGross: Money;
     platformFee: Money;
     amountNetWorker: Money;

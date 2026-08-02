@@ -35,7 +35,10 @@ class ReverseActiveErrandCommandHandler implements ICommandHandler<ReverseActive
       command.amount,
       command.escrowId,
       command.gatewayReference,
-      Money.fromMinorUnits(snapshotBalance.activeKobo, command.amount.currency),
+      Money.fromMinorUnits(
+        snapshotBalance.activeMinorUnits,
+        command.amount.currency,
+      ),
       command.correlationId,
     );
 
@@ -49,7 +52,7 @@ class ReverseActiveErrandCommandHandler implements ICommandHandler<ReverseActive
           .appendManyIfBalanceSufficient(
             wallet.id,
             BucketType.ACTIVE,
-            snapshotBalance.activeKobo,
+            snapshotBalance.activeMinorUnits,
             [entry],
           )
           .then((entries) => {

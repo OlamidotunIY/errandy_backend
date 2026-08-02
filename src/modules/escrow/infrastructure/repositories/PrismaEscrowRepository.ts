@@ -7,7 +7,7 @@ import {
   EscrowInvariantError,
   EscrowRepository,
 } from '@module/escrow/domain';
-import { ErrandId } from '@module/errand';
+import { ErrandId } from '@module/errands';
 
 export class PrismaEscrowRepository implements EscrowRepository {
   constructor(

@@ -1,7 +1,8 @@
-class InvalidLedgerAmountError extends Error {
+import { DomainError, DomainErrorStatus } from '@src/common';
+
+class InvalidLedgerAmountError extends DomainError {
   constructor(message: string) {
-    super(message);
-    this.name = 'InvalidLedgerAmountError';
+    super(message, { statusCode: DomainErrorStatus.UNPROCESSABLE_ENTITY });
   }
 }
 

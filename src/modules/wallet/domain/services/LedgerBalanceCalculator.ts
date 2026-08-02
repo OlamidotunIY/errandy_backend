@@ -8,9 +8,9 @@ import { Currency } from '@module/escrow';
 class LedgerBalanceCalculator {
   calculate(entries: LedgerEntry[], currency: Currency): WalletBalancesDTO {
     return {
-      activeKobo: this.calculateActive(entries),
-      pendingKobo: this.calculatePending(entries),
-      availableKobo: this.calculateAvailable(entries),
+      activeMinorUnits: this.calculateActive(entries),
+      pendingMinorUnits: this.calculatePending(entries),
+      availableMinorUnits: this.calculateAvailable(entries),
       currency,
     };
   }

@@ -1,15 +1,16 @@
+import { DomainError, DomainErrorStatus } from '@src/common';
 import { BucketType } from 'src/modules/wallet/domain';
 
-class InsufficientBalanceError extends Error {
+class InsufficientBalanceError extends DomainError {
   constructor(
     bucket: BucketType,
-    requiredAmountKobo: number,
+    requiredAmountMinorUnits: number,
     liveBalance: number,
   ) {
     super(
-      `Insufficient balance in bucket ${bucket}. Required: ${requiredAmountKobo} kobo, Available: ${liveBalance} kobo.`,
+      `Insufficient balance in bucket ${bucket}. Required: ${requiredAmountMinorUnits} minor units, Available: ${liveBalance} minor units.`,
+      { statusCode: DomainErrorStatus.UNPROCESSABLE_ENTITY },
     );
-    this.name = 'InsufficientBalanceError';
   }
 }
 

@@ -1,3 +1,4 @@
+import { PartyId } from '@module/party';
 import { ApplicationId, ApplicationStatus, ApplicationType } from '../';
 import { ApplicationInvariantError } from '../errors';
 import {
@@ -6,18 +7,17 @@ import {
   ApplicationSubmittedEvent,
 } from '../events';
 import { AggregateRoot } from '@src/common';
-import { ErrandId } from '@module/errand';
-import { ProviderId } from '@module/providers';
+import { ErrandId } from '@module/errands';
 
 export class Application extends AggregateRoot<ApplicationId> {
   constructor(
     public readonly id: ApplicationId,
     public readonly errandId: ErrandId,
-    public readonly workerId: ProviderId,
+    public readonly workerId: PartyId,
     private _status: ApplicationStatus,
     private _type: ApplicationType,
     private readonly _proposal: string,
-    private readonly _proposedAmountKobo: number,
+    private readonly _proposedAmountMinorUnits: number,
     private readonly _currency: string,
     private _acceptedAt: Date | null,
     private _rejectedAt: Date | null,
@@ -29,13 +29,13 @@ export class Application extends AggregateRoot<ApplicationId> {
 
   static create(
     errandId: ErrandId,
-    workerId: ProviderId,
+    workerId: PartyId,
     proposal: string,
-    proposedAmountKobo: number,
+    proposedAmountMinorUnits: number,
     currency: string,
     applicationType: ApplicationType,
   ): Application {
-    if (proposedAmountKobo <= 0) {
+    if (proposedAmountMinorUnits <= 0) {
       throw new ApplicationInvariantError(
         'Proposed amount must be greater than zero',
       );
@@ -58,7 +58,7 @@ export class Application extends AggregateRoot<ApplicationId> {
       status,
       applicationType,
       proposal,
-      proposedAmountKobo,
+      proposedAmountMinorUnits,
       currency,
       acceptedAt,
       rejectedAt,
@@ -76,11 +76,11 @@ export class Application extends AggregateRoot<ApplicationId> {
   static reconstitute(props: {
     id: ApplicationId;
     errandId: ErrandId;
-    workerId: ProviderId;
+    workerId: PartyId;
     status: ApplicationStatus;
     type: ApplicationType;
     proposal: string;
-    proposedAmountKobo: number;
+    proposedAmountMinorUnits: number;
     currency: string;
     acceptedAt: Date | null;
     rejectedAt: Date | null;
@@ -94,7 +94,7 @@ export class Application extends AggregateRoot<ApplicationId> {
       props.status,
       props.type,
       props.proposal,
-      props.proposedAmountKobo,
+      props.proposedAmountMinorUnits,
       props.currency,
       props.acceptedAt,
       props.rejectedAt,
@@ -176,8 +176,8 @@ export class Application extends AggregateRoot<ApplicationId> {
     return this._proposal;
   }
 
-  proposedAmountKobo(): number {
-    return this._proposedAmountKobo;
+  proposedAmountMinorUnits(): number {
+    return this._proposedAmountMinorUnits;
   }
 
   currency(): string {

@@ -1,5 +1,5 @@
 export enum OrgMemberRole {
-  OWNER,
-  ADMIN,
-  MEMBER,
+  OWNER = 'OWNER',
+  ADMIN = 'ADMIN',
+  MEMBER = 'MEMBER',
 }

@@ -1,7 +1,6 @@
-import { ClientId } from '@module/clients';
+import { PartyId } from '@module/party';
 import { EscrowId, Money } from '@module/escrow/domain';
 import { PaymentMethodId } from '@module/payments';
-import { ProviderId } from '@module/providers';
 
 interface FundEscrowResult {
   escrowId: string;
@@ -12,8 +11,8 @@ interface FundEscrowResult {
 
 interface FundEscrowPayload {
   errandId: EscrowId;
-  clientId: ClientId;
-  workerId: ProviderId;
+  clientId: PartyId;
+  workerId: PartyId;
   amountGross: Money;
   paymentMethodId: PaymentMethodId;
   platformFeeRate: number;

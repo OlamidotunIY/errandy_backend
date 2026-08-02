@@ -1,25 +1,33 @@
-import { ApplicationId } from '../';
-import { Application } from '../entities';
-import { DomainEvent } from '@src/common';
+import { PartyId } from '@module/party';
+import { ApplicationId, Application } from '../';
+import { BaseDomainEvent } from '@src/common';
+import { ErrandId } from '@module/errands';
 
-class ApplicationAcceptedEvent implements DomainEvent {
-  readonly eventId: string;
-  readonly aggregateId: ApplicationId;
-  readonly eventName: string;
-  readonly correlationId: string;
-  readonly occurredAt: Date;
+interface ApplicationAcceptedPayload {
+  applicationId: ApplicationId;
+  errandId: ErrandId;
+  workerId: PartyId;
+}
+
+class ApplicationAcceptedEvent extends BaseDomainEvent<
+  ApplicationId,
+  ApplicationAcceptedPayload
+> {
+  declare readonly correlationId: string;
 
   constructor(
     aggregateId: ApplicationId,
     occurredAt: Date,
     correlationId: string,
-    public readonly payload: Record<string, unknown>,
+    payload: ApplicationAcceptedPayload,
   ) {
-    this.eventName = 'ApplicationAcceptedEvent';
-    this.occurredAt = occurredAt;
-    this.eventId = crypto.randomUUID();
-    this.aggregateId = aggregateId;
-    this.correlationId = correlationId;
+    super({
+      aggregateId,
+      occurredAt,
+      correlationId,
+      eventName: ApplicationAcceptedEvent.name,
+      payload,
+    });
   }
 
   static fromAggregate(
@@ -31,6 +39,7 @@ class ApplicationAcceptedEvent implements DomainEvent {
       new Date(),
       correlationId,
       {
+        applicationId: application.id,
         errandId: application.errandId,
         workerId: application.workerId,
       },

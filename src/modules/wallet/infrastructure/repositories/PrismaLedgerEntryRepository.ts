@@ -102,7 +102,7 @@ class PrismaLedgerEntryRepository implements LedgerEntryRepository {
   async appendManyIfBalanceSufficient(
     walletId: WalletId,
     bucket: BucketType,
-    requiredAmountKobo: number,
+    requiredAmountMinorUnits: number,
     entries: LedgerEntry[],
   ): Promise<LedgerEntry[]> {
     const maxRetries = 3;
@@ -133,10 +133,10 @@ class PrismaLedgerEntryRepository implements LedgerEntryRepository {
               break;
           }
 
-          if (liveBalance < requiredAmountKobo) {
+          if (liveBalance < requiredAmountMinorUnits) {
             throw new InsufficientBalanceError(
               bucket,
-              requiredAmountKobo,
+              requiredAmountMinorUnits,
               liveBalance,
             );
           }

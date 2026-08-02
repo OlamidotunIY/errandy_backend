@@ -1,5 +1,5 @@
 export enum ProviderTier {
-  COMMUNITY,
-  VERIFIED,
-  CERTIFIED,
+  COMMUNITY = 'COMMUNITY',
+  VERIFIED = 'VERIFIED',
+  CERTIFIED = 'CERTIFIED',
 }

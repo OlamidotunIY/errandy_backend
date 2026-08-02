@@ -13,9 +13,9 @@ class WalletBalanceSnapshot extends AggregateRoot<WalletBalanceSnapshotId> {
   constructor(
     private readonly _id: WalletBalanceSnapshotId,
     private readonly _walletId: WalletId,
-    private readonly _activeKobo: number,
-    private readonly _pendingKobo: number,
-    private readonly _availableKobo: number,
+    private readonly _activeMinorUnits: number,
+    private readonly _pendingMinorUnits: number,
+    private readonly _availableMinorUnits: number,
     private readonly _lastSequence: number,
     private readonly _updatedAt: Date,
   ) {
@@ -25,18 +25,18 @@ class WalletBalanceSnapshot extends AggregateRoot<WalletBalanceSnapshotId> {
   static reconstitute(
     id: WalletBalanceSnapshotId,
     walletId: WalletId,
-    activekobo: number,
-    pendingKobo: number,
-    availableKobo: number,
+    activeMinorUnits: number,
+    pendingMinorUnits: number,
+    availableMinorUnits: number,
     lastSequence: number,
     updatedAt: Date,
   ): WalletBalanceSnapshot {
     return new WalletBalanceSnapshot(
       id,
       walletId,
-      activekobo,
-      pendingKobo,
-      availableKobo,
+      activeMinorUnits,
+      pendingMinorUnits,
+      availableMinorUnits,
       lastSequence,
       updatedAt,
     );
@@ -71,9 +71,9 @@ class WalletBalanceSnapshot extends AggregateRoot<WalletBalanceSnapshotId> {
     return new WalletBalanceSnapshot(
       id,
       walletId,
-      calculatedBalances.activeKobo,
-      calculatedBalances.pendingKobo,
-      calculatedBalances.availableKobo,
+      calculatedBalances.activeMinorUnits,
+      calculatedBalances.pendingMinorUnits,
+      calculatedBalances.availableMinorUnits,
       lastSequence,
       new Date(),
     );
@@ -84,29 +84,29 @@ class WalletBalanceSnapshot extends AggregateRoot<WalletBalanceSnapshotId> {
     walletId: WalletId,
     id: WalletBalanceSnapshotId,
   ): WalletBalanceSnapshot {
-    let activekobo = 0;
-    let pendingkobo = 0;
-    let availablekobo = 0;
+    let activeMinorUnits = 0;
+    let pendingMinorUnits = 0;
+    let availableMinorUnits = 0;
 
     for (const entry of entries) {
       switch (entry.type) {
         case LedgerEntryType.ACTIVE_ERRAND_CREDIT:
-          activekobo += entry.toMinorUnits();
+          activeMinorUnits += entry.toMinorUnits();
           break;
         case LedgerEntryType.ACTIVE_ERRAND_REVERSAL:
-          activekobo -= entry.toMinorUnits();
+          activeMinorUnits -= entry.toMinorUnits();
           break;
         case LedgerEntryType.PENDING_CREDIT:
-          pendingkobo += entry.toMinorUnits();
+          pendingMinorUnits += entry.toMinorUnits();
           break;
         case LedgerEntryType.PENDING_REVERSAL:
-          pendingkobo -= entry.toMinorUnits();
+          pendingMinorUnits -= entry.toMinorUnits();
           break;
         case LedgerEntryType.AVAILABLE_CREDIT:
-          availablekobo += entry.toMinorUnits();
+          availableMinorUnits += entry.toMinorUnits();
           break;
         case LedgerEntryType.WITHDRAWAL_DEBIT:
-          availablekobo -= entry.toMinorUnits();
+          availableMinorUnits -= entry.toMinorUnits();
           break;
       }
     }
@@ -114,9 +114,9 @@ class WalletBalanceSnapshot extends AggregateRoot<WalletBalanceSnapshotId> {
     return new WalletBalanceSnapshot(
       id,
       walletId,
-      this._activeKobo + activekobo,
-      this._pendingKobo + pendingkobo,
-      this._availableKobo + availablekobo,
+      this._activeMinorUnits + activeMinorUnits,
+      this._pendingMinorUnits + pendingMinorUnits,
+      this._availableMinorUnits + availableMinorUnits,
       this._lastSequence,
       new Date(),
     );
@@ -130,16 +130,16 @@ class WalletBalanceSnapshot extends AggregateRoot<WalletBalanceSnapshotId> {
     return this._walletId;
   }
 
-  get activeKobo(): number {
-    return this._activeKobo;
+  get activeMinorUnits(): number {
+    return this._activeMinorUnits;
   }
 
-  get pendingKobo(): number {
-    return this._pendingKobo;
+  get pendingMinorUnits(): number {
+    return this._pendingMinorUnits;
   }
 
-  get availableKobo(): number {
-    return this._availableKobo;
+  get availableMinorUnits(): number {
+    return this._availableMinorUnits;
   }
 
   get updatedAt(): Date {

@@ -6,7 +6,7 @@ model Application {
 
     status     AppStatus @default(PENDING)
     proposal String?
-    proposedAmountKobo Int?
+    proposedAmountMinorUnits Int?
     currency String?
     acceptedAt DateTime?
 

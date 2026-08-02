@@ -121,6 +121,13 @@ export class Address extends AggregateRoot<AddressId> {
     this.touch();
   }
 
+  toGeoJson(): { type: 'Point'; coordinates: [number, number] } {
+    return {
+      type: 'Point',
+      coordinates: [this.coordinates.longitude, this.coordinates.latitude],
+    };
+  }
+
   private touch() {
     this.updatedAt = new Date();
   }

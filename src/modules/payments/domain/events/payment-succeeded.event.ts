@@ -1,25 +1,30 @@
-import { DomainEvent, EntityId } from '@src/common';
+import { BaseDomainEvent, EntityId } from '@src/common';
 import { ApplicationId } from '@module/application';
 import { Money } from '@module/escrow';
 
-export class PaymentSucceeded implements DomainEvent {
-  readonly eventId: string;
-  readonly aggregateId: EntityId;
-  readonly eventName: string;
-  readonly correlationId: string;
-  readonly occurredAt: Date;
+interface PaymentSucceededPayload {
+  gatewayReference: EntityId;
+  purposeId: ApplicationId;
+  amount: Money;
+}
 
+export class PaymentSucceeded extends BaseDomainEvent<
+  EntityId,
+  PaymentSucceededPayload
+> {
   constructor(
-    public readonly gatewayReference: EntityId,
+    gatewayReference: EntityId,
     occurredAt: Date,
     correlationId: string,
-    public readonly purposeId: ApplicationId,
-    public readonly amount: Money,
+    purposeId: ApplicationId,
+    amount: Money,
   ) {
-    this.eventName = PaymentSucceeded.name;
-    this.occurredAt = occurredAt;
-    this.eventId = crypto.randomUUID();
-    this.aggregateId = gatewayReference;
-    this.correlationId = correlationId;
+    super({
+      aggregateId: gatewayReference,
+      occurredAt,
+      correlationId,
+      eventName: PaymentSucceeded.name,
+      payload: { gatewayReference, purposeId, amount },
+    });
   }
 }

@@ -33,7 +33,7 @@ class RecordWithdrawalCommandHandler implements ICommandHandler<RecordWithdrawal
       command.amount,
       command.gatewayReference,
       Money.fromMinorUnits(
-        snapshotBalance.availableKobo,
+        snapshotBalance.availableMinorUnits,
         command.amount.currency,
       ),
       command.correlationId,
@@ -48,7 +48,7 @@ class RecordWithdrawalCommandHandler implements ICommandHandler<RecordWithdrawal
           .appendManyIfBalanceSufficient(
             wallet.id,
             BucketType.AVAILABLE,
-            snapshotBalance.availableKobo,
+            snapshotBalance.availableMinorUnits,
             [entry],
           )
           .then((entries) => {

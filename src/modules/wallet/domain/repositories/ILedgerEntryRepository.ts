@@ -27,7 +27,7 @@ export abstract class LedgerEntryRepository {
   abstract appendManyIfBalanceSufficient(
     walletId: WalletId,
     bucket: BucketType,
-    requiredAmountKobo: number,
+    requiredAmountMinorUnits: number,
     entries: LedgerEntry[],
   ): Promise<LedgerEntry[]>;
 }

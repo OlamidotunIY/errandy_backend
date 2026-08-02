@@ -29,11 +29,11 @@ export class WalletBalanceSnapshotMapper {
     balanceSnapshot: WalletBalanceSnapshot,
   ): Prisma.WalletBalanceSnapshotCreateInput {
     return {
-      activeErrandBalance: balanceSnapshot.activeKobo,
-      availableBalance: balanceSnapshot.availableKobo,
+      activeErrandBalance: balanceSnapshot.activeMinorUnits,
+      availableBalance: balanceSnapshot.availableMinorUnits,
       id: balanceSnapshot.id.value,
       lastSequence: balanceSnapshot.lastSequence,
-      pendingBalance: balanceSnapshot.pendingKobo,
+      pendingBalance: balanceSnapshot.pendingMinorUnits,
       walletId: balanceSnapshot.walletId.value,
       updatedAt: balanceSnapshot.updatedAt,
     };

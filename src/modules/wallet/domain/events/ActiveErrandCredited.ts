@@ -1,27 +1,32 @@
 import { EscrowId } from 'src/modules/escrow';
 import { Wallet, WalletId } from '@module/wallet';
-import { DomainEvent } from '@src/common';
+import { BaseDomainEvent } from '@src/common';
 import { UserId } from '@module/user';
 
-class ActiveErrandCredited implements DomainEvent {
-  readonly eventId: string;
-  readonly aggregateId: WalletId;
-  readonly eventName: string;
-  readonly correlationId: string;
-  readonly occurredAt: Date;
+interface ActiveErrandCreditedPayload {
+  walletId: WalletId;
+  userId: UserId;
+  escrowId: EscrowId;
+}
 
+class ActiveErrandCredited extends BaseDomainEvent<
+  WalletId,
+  ActiveErrandCreditedPayload
+> {
   constructor(
-    public readonly walletId: WalletId,
-    public readonly userId: UserId,
-    public readonly escrowId: EscrowId,
+    walletId: WalletId,
+    userId: UserId,
+    escrowId: EscrowId,
     occurredAt: Date,
     correlationId: string,
   ) {
-    this.eventName = ActiveErrandCredited.name;
-    this.occurredAt = occurredAt;
-    this.eventId = crypto.randomUUID();
-    this.aggregateId = walletId;
-    this.correlationId = correlationId;
+    super({
+      aggregateId: walletId,
+      occurredAt,
+      correlationId,
+      eventName: ActiveErrandCredited.name,
+      payload: { walletId, userId, escrowId },
+    });
   }
 
   static fromAggregate(

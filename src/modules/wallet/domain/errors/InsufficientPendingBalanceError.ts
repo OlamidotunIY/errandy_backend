@@ -1,7 +1,8 @@
-class InsufficientPendingBalanceError extends Error {
+import { DomainError, DomainErrorStatus } from '@src/common';
+
+class InsufficientPendingBalanceError extends DomainError {
   constructor(message: string) {
-    super(message);
-    this.name = 'InsufficientPendingBalanceError';
+    super(message, { statusCode: DomainErrorStatus.UNPROCESSABLE_ENTITY });
   }
 }
 

@@ -21,7 +21,7 @@ class SubmitApplicationHandler implements ICommandHandler<SubmitApplicationComma
     const {
       errandId,
       workerId,
-      proposedAmountKobo,
+      proposedAmountMinorUnits,
       proposal,
       currency,
       applicantType,
@@ -46,7 +46,7 @@ class SubmitApplicationHandler implements ICommandHandler<SubmitApplicationComma
       errandId,
       workerId,
       proposal,
-      proposedAmountKobo,
+      proposedAmountMinorUnits,
       currency,
       applicantType,
     );

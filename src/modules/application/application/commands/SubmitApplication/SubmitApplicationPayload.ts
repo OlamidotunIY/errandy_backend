@@ -1,12 +1,12 @@
+import { PartyId } from '@module/party';
 import { ApplicationType } from '@module/application/domain';
-import { ErrandId } from '@module/errand';
-import { ProviderId } from '@module/providers';
+import { ErrandId } from '@module/errands';
 
 export interface SubmitApplicationPayload {
   errandId: ErrandId;
-  workerId: ProviderId;
+  workerId: PartyId;
   proposal: string;
-  proposedAmountKobo: number;
+  proposedAmountMinorUnits: number;
   currency: string;
   applicantType: ApplicationType;
 }

@@ -1,6 +1,9 @@
-export class ApplicationInvariantError extends Error {
+import { DomainError, DomainErrorStatus } from '@src/common';
+
+export class ApplicationInvariantError extends DomainError {
   constructor(message?: string) {
-    super(message);
-    this.name = 'ApplicationInvariantError';
+    super(message ?? 'Application invariant failed', {
+      statusCode: DomainErrorStatus.UNPROCESSABLE_ENTITY,
+    });
   }
 }

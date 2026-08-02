@@ -1,7 +1,8 @@
-class InvalidAmountError extends Error {
+import { DomainError, DomainErrorStatus } from '@src/common';
+
+class InvalidAmountError extends DomainError {
   constructor(message: string) {
-    super(message);
-    this.name = 'InvalidAmountError';
+    super(message, { statusCode: DomainErrorStatus.UNPROCESSABLE_ENTITY });
   }
 }
 
