@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { GqlConfig } from '@src/config/graphql-ws';
 import { GraphqlExceptionFilter } from '@src/common/filters/graphql-exception.filter';
+import { NotificationModule } from '@module/notification/notification.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { GraphqlExceptionFilter } from '@src/common/filters/graphql-exception.fi
     }),
     GqlConfig,
     EventEmitterModule.forRoot(),
+    NotificationModule,
   ],
   controllers: [],
   providers: [
