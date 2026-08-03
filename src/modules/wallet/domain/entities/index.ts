@@ -1,3 +1,3 @@
-export * from './LedgerEntry';
-export * from './Wallet';
-export * from './WalletBalanceSnapshot';
+export * from './ledger-entry.entity';
+export * from './wallet.entity';
+export * from './wallet-balance-snapshot.entity';

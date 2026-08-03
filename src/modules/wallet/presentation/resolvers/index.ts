@@ -1,1 +1,1 @@
-export * from './WalletResolver';
+export * from './wallet.resolver';

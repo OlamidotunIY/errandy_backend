@@ -7,23 +7,20 @@ import {
   WalletNotFoundError,
 } from '@module/wallet';
 import { Money } from '@module/escrow';
-import { MoveActiveToPendingCommand } from '.';
+import { RecordWithdrawalCommand } from './';
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 import { isTransientTransactionError } from '@src/prisma/prisma.service';
 
-@CommandHandler(MoveActiveToPendingCommand)
-class MoveActiveToPendingCommandHandler implements ICommandHandler<MoveActiveToPendingCommand> {
+@CommandHandler(RecordWithdrawalCommand)
+class RecordWithdrawalCommandHandler implements ICommandHandler<RecordWithdrawalCommand> {
   constructor(
     private readonly ledgerEntryRepository: LedgerEntryRepository,
     private readonly walletRepository: WalletRepository,
     private readonly walletBalanceRepository: WalletBalanceRepository,
     private readonly eventBus: EventBus,
   ) {}
-
-  async execute(command: MoveActiveToPendingCommand): Promise<void> {
-    const wallet = await this.walletRepository.findByUserId(
-      command.workerUserId,
-    );
+  async execute(command: RecordWithdrawalCommand): Promise<void> {
+    const wallet = await this.walletRepository.findByUserId(command.userId);
 
     if (!wallet) {
       throw new WalletNotFoundError();
@@ -32,18 +29,17 @@ class MoveActiveToPendingCommandHandler implements ICommandHandler<MoveActiveToP
     const snapshotBalance =
       await this.walletBalanceRepository.getSnapshotForDisplay(wallet.id);
 
-    const [debitEntry, creditEntry] = wallet.moveActiveToPending(
+    const entry = wallet.recordWithdrawal(
       command.amount,
-      command.escrowId,
+      command.gatewayReference,
       Money.fromMinorUnits(
-        snapshotBalance.activeMinorUnits,
+        snapshotBalance.availableMinorUnits,
         command.amount.currency,
       ),
       command.correlationId,
     );
 
     const maxRetries = 3;
-
     const persistedEntry: LedgerEntry[] = [];
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -51,9 +47,9 @@ class MoveActiveToPendingCommandHandler implements ICommandHandler<MoveActiveToP
         await this.ledgerEntryRepository
           .appendManyIfBalanceSufficient(
             wallet.id,
-            BucketType.ACTIVE,
-            snapshotBalance.activeMinorUnits,
-            [debitEntry, creditEntry],
+            BucketType.AVAILABLE,
+            snapshotBalance.availableMinorUnits,
+            [entry],
           )
           .then((entries) => {
             persistedEntry.push(...entries);
@@ -76,4 +72,4 @@ class MoveActiveToPendingCommandHandler implements ICommandHandler<MoveActiveToP
   }
 }
 
-export { MoveActiveToPendingCommandHandler };
+export { RecordWithdrawalCommandHandler };

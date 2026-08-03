@@ -1,5 +1,5 @@
-import { WalletId } from './WalletId';
-import { LedgerEntryType } from './';
+import { WalletId } from './wallet.id';
+import { LedgerEntryType } from '.';
 import { EscrowId, Money } from '@module/escrow';
 import { Json } from '@src/common';
 import { UserId } from '@module/user';

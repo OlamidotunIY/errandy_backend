@@ -1,1 +1,1 @@
-export * from './LedgerBalanceCalculator';
+export * from './ledger-balance-calculator.service';

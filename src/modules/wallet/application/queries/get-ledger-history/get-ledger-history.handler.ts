@@ -3,7 +3,7 @@ import {
   WalletRepository,
   WalletNotFoundError,
 } from 'src/modules/wallet';
-import { GetLedgerHistoryQuery, LedgerHistoryPageDTO } from '.';
+import { GetLedgerHistoryQuery, LedgerHistoryPageDTO } from './';
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 
 @QueryHandler(GetLedgerHistoryQuery)

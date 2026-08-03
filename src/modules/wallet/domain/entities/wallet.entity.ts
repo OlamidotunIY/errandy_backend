@@ -1,6 +1,6 @@
 import { LedgerEntryType, WalletId } from '..';
 import { Currency, EscrowId, Money } from '@module/escrow';
-import { LedgerEntry } from './LedgerEntry';
+import { LedgerEntry } from './ledger-entry.entity';
 import {
   InsufficientActiveBalanceError,
   InsufficientAvailableBalanceError,
