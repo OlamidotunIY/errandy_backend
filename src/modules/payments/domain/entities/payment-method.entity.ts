@@ -1,25 +1,6 @@
 import { AggregateRoot } from '@src/common';
-import { PaymentMethodId } from '../value-objects';
+import { PaymentMethodId, PaymentMethodProps, PaymentMethodType } from '../';
 import { PaymentMethodAddedEvent } from '../events';
-
-export type PaymentMethodType = 'card' | 'bank_account' | 'wallet' | 'paypal';
-
-interface PaymentMethodProps {
-  id: PaymentMethodId;
-  partyId: string;
-  provider: string;
-  providerRef: string;
-  type: PaymentMethodType;
-  cardBrand?: string;
-  last4?: string;
-  expMonth?: number;
-  expYear?: number;
-  isDefault: boolean;
-  verified: boolean;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}
 
 export class PaymentMethod extends AggregateRoot<PaymentMethodId> {
   private _isDefault: boolean;

@@ -1,5 +1,5 @@
 import { BaseDomainEvent } from '@src/common';
-import { PaymentMethodId } from '../value-objects';
+import { PaymentMethodId } from '../';
 
 interface ChargeFailedPayload {
   purposeId: string;

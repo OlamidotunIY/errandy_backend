@@ -1,1 +1,2 @@
-export * from './payment-method.repository.interface';
+export * from './payment-method.repository';
+export * from './payment-transaction.repository';
