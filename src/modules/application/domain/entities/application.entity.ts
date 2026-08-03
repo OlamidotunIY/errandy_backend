@@ -1,5 +1,5 @@
 import { PartyId } from '@module/party';
-import { ApplicationId, ApplicationStatus, ApplicationType } from '../';
+import { ApplicationId, ApplicationStatus, ApplicationType } from '..';
 import { ApplicationInvariantError } from '../errors';
 import {
   ApplicationAcceptedEvent,

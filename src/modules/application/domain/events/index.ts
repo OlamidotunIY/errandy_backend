@@ -1,3 +1,3 @@
-export * from './ApplicationRejectedEvent';
-export * from './ApplicationSubmittedEvent';
-export * from './ApplicationAcceptedEvent';
+export * from './application-rejected.event';
+export * from './application-submitted.event';
+export * from './application-accepted.event';

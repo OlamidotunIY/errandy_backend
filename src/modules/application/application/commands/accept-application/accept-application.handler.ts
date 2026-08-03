@@ -6,12 +6,14 @@ import {
   IAcceptApplicationProgressRepository,
   IApplicationRepository,
 } from '@module/application';
+import { IErrandRepository } from '@module/errands/domain';
 import { ILogger } from '@src/common';
 
 export class AcceptApplicationHandler implements ICommandHandler<AcceptApplicationCommand> {
   constructor(
     private readonly repository: IApplicationRepository,
     private readonly progressRepo: IAcceptApplicationProgressRepository,
+    private readonly errandRepository: IErrandRepository,
     private readonly event: EventBus,
     private readonly logger: ILogger,
   ) {}
@@ -56,7 +58,33 @@ export class AcceptApplicationHandler implements ICommandHandler<AcceptApplicati
     }
 
     if (progress.status() === AcceptApplicationProgressStatus.ACCEPTED) {
-      // todo: call asign errand command, mark progress asigned and save progress
+      const application = await this.repository.findById(id);
+
+      if (!application) {
+        throw new ApplicationInvariantError('Application not found');
+      }
+
+      const errand = await this.errandRepository.findById(
+        application.errandId.value,
+      );
+
+      if (!errand) {
+        throw new ApplicationInvariantError(
+          `Errand not found for application ${id.value}`,
+        );
+      }
+
+      errand.assignTo(application.id.value, correlationId);
+
+      await this.errandRepository.save(errand);
+      progress.markErrandAssigned();
+      await this.progressRepo.save(progress);
+
+      // Publish ErrandAssignedEvent (opens chat thread, etc.)
+      const errandEvents = errand.pullDomainEvents();
+      for (const event of errandEvents) {
+        this.event.publish(event);
+      }
     }
 
     if (progress.status() === AcceptApplicationProgressStatus.ASSIGNED) {

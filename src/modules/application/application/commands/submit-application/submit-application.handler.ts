@@ -1,5 +1,5 @@
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import { SubmitApplicationCommand } from '.';
+import { SubmitApplicationCommand } from './';
 import {
   Application,
   ApplicationId,

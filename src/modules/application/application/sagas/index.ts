@@ -1,1 +1,1 @@
-export * from './RejectOtherApplicationsSaga';
+export * from './reject-other-applications.saga';

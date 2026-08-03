@@ -1,5 +1,5 @@
 import { Command } from '@nestjs/cqrs';
-import { SubmitApplicationPayload } from './SubmitApplicationPayload';
+import { SubmitApplicationPayload } from './submit-application.payload';
 import { ApplicationId } from '@module/application/domain';
 
 class SubmitApplicationCommand extends Command<ApplicationId> {

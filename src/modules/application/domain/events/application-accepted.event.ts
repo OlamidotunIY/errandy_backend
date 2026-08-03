@@ -1,5 +1,5 @@
 import { PartyId } from '@module/party';
-import { ApplicationId, Application } from '../';
+import { ApplicationId, Application } from '..';
 import { BaseDomainEvent } from '@src/common';
 import { ErrandId } from '@module/errands';
 
