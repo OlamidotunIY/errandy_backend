@@ -1,5 +1,7 @@
 import { AggregateRoot } from '@src/common';
 import {
+  ClientRole,
+  ClientRoleAddedEvent,
   Organization,
   OrgMemberRole,
   OrganizationMemberAddedEvent,
@@ -13,7 +15,10 @@ import {
   ProviderRoleAddedEvent,
   ProviderRole,
 } from '@module/party';
-import { ProviderRoleAlreadyExistsError } from '../errors';
+import {
+  ClientRoleAlreadyExistsError,
+  ProviderRoleAlreadyExistsError,
+} from '../errors';
 import { UserId } from '@module/user';
 
 export class Party extends AggregateRoot<PartyId> {
@@ -28,6 +33,7 @@ export class Party extends AggregateRoot<PartyId> {
     private _person?: Person | null,
     private _organization?: Organization | null,
     private _providerRole?: ProviderRole | null,
+    private _clientRole?: ClientRole | null,
   ) {
     super(id);
   }
@@ -86,6 +92,18 @@ export class Party extends AggregateRoot<PartyId> {
     this.updatedAt = new Date();
     this.addDomainEvent(
       ProviderRoleAddedEvent.fromAggregate(this, correlationId),
+    );
+  }
+
+  addClientRole(correlationId?: string): void {
+    if (this._clientRole) {
+      throw new ClientRoleAlreadyExistsError(this.id.value);
+    }
+
+    this._clientRole = new ClientRole(this.id);
+    this.updatedAt = new Date();
+    this.addDomainEvent(
+      ClientRoleAddedEvent.fromAggregate(this, correlationId),
     );
   }
 
@@ -156,6 +174,10 @@ export class Party extends AggregateRoot<PartyId> {
 
   get isActive(): boolean {
     return this._isActive;
+  }
+
+  get clientRole(): ClientRole | null | undefined {
+    return this._clientRole;
   }
 
   get person(): Person | null | undefined {

@@ -1,3 +1,4 @@
+export * from './ClientRoleAddedEvent';
 export * from './OrganizationMemberAddedEvent';
 export * from './OrganizationMemberRemovedEvent';
 export * from './PartyCreatedEvent';

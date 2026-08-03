@@ -1,3 +1,5 @@
+export * from './ClientRoleAlreadyExistsError';
+export * from './ClientRoleNotFoundError';
 export * from './OrganizationMemberAlreadyExistsError';
 export * from './OrganizationMemberNotFoundError';
 export * from './OrganizationNotFoundError';
