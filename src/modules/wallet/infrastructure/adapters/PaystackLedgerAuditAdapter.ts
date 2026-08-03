@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   GatewayLedgerTransaction,
   GatewayLedgerTransactionPage,
@@ -11,8 +12,13 @@ import { ILogger, PaystackTransactionType } from '@src/common';
 export class PaystackLedgerAuditAdapter {
   private readonly paystack: Paystack;
 
-  constructor(private readonly logger: ILogger) {
-    this.paystack = new Paystack('');
+  constructor(
+    private readonly logger: ILogger,
+    private readonly configService: ConfigService,
+  ) {
+    this.paystack = new Paystack(
+      this.configService.getOrThrow<string>('PAYSTACK_SECRET_KEY'),
+    );
   }
 
   async fetchTransactions(
@@ -22,7 +28,7 @@ export class PaystackLedgerAuditAdapter {
   ): Promise<GatewayLedgerTransactionPage> {
     const page = cursor ? parseInt(cursor, 10) : 1;
 
-    const response = (await this.paystack.transactions.list({
+    const response = (await this.paystack.transaction.list({
       from: windowStart.toISOString(),
       to: windowEnd.toISOString(),
       perPage: 100,
