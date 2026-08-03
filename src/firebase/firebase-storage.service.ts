@@ -27,7 +27,9 @@ export class FirebaseStorageService {
     private readonly configService: ConfigService,
   ) {}
 
-  async uploadStream(options: FirebaseUploadOptions): Promise<FirebaseUploadResult> {
+  async uploadStream(
+    options: FirebaseUploadOptions,
+  ): Promise<FirebaseUploadResult> {
     const bucket = this.getBucket();
     const file = bucket.file(options.destination);
 
@@ -96,8 +98,9 @@ export class FirebaseStorageService {
       );
     }
 
-    const bucketName =
-      this.configService.get<string>('FIREBASE_STORAGE_BUCKET');
+    const bucketName = this.configService.get<string>(
+      'FIREBASE_STORAGE_BUCKET',
+    );
 
     if (!bucketName) {
       throw new InternalServerErrorException(

@@ -41,8 +41,9 @@ export class FirebaseAdminService implements OnModuleInit {
 
     try {
       const serviceAccount = JSON.parse(fs.readFileSync(fullPath, 'utf-8'));
-      const storageBucket =
-        this.configService.get<string>('FIREBASE_STORAGE_BUCKET');
+      const storageBucket = this.configService.get<string>(
+        'FIREBASE_STORAGE_BUCKET',
+      );
 
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
