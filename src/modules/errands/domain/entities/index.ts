@@ -1,2 +1,2 @@
-export * from './errand.entity';
 export * from './errand-assignment.entity';
+export * from './errand.entity';
