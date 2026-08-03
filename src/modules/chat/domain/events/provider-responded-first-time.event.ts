@@ -3,7 +3,7 @@ import { ChatThreadId } from '../value-objects';
 
 interface ProviderRespondedFirstTimePayload extends Record<string, unknown> {
   threadId: string;
-  providerId: string;
+  providerPartyId: string;
   responseTimeSeconds: number;
 }
 
