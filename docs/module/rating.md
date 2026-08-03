@@ -53,6 +53,22 @@ model Rating {
 **`Rating`**
 - `submit(errandId, raterId, rateeId, context, score, comment?)` — static factory; throws if `comment` is provided alongside `context: INTERNAL` (validation, not silent dropping — see open item below, since this was previously undecided and I'm resolving it here as the more defensive default: reject rather than silently discard)
 
+## Events
+
+| Event | Raised by | Payload |
+|---|---|---|
+| `RatingSubmitted` | `Rating.submit()` | `{ ratingId, errandId, rateeId, context, score, correlationId }` |
+
+## Commands
+
+| Command | Handler behavior |
+|---|---|
+| `SubmitRatingCommand` | Guards: `RatingNotAllowedError` unless `Errand.status = COMPLETED`; `RatingAlreadySubmittedError` per the `(errandId, raterId, rateeId, context)` unique constraint. Own fresh `correlationId` — standalone, arbitrary-delay transaction, never inherits `ErrandCompleted`'s id. |
+
+## Event Handlers, Sagas, Jobs
+
+None owned here — the *prompt* to rate (`RatingPromptSaga`) lives in `errands`; the recency-weighted average recompute (`ProfileRatingRecalcJob`) lives in `party`, since that's where `avgRatingCached` is actually stored.
+
 ## Repository interface
 
 ```typescript
@@ -98,6 +114,24 @@ interface RatingResponseDto {
   score: number;
   comment: string | null;
   createdAt: string;
+}
+```
+
+## Mappers
+
+`RatingMapper` — thin `toDomain`/`toPersistence`.
+
+## Presentation
+
+```graphql
+type Mutation {
+  submitRating(input: SubmitRatingInput!): SubmitRatingResult! @auth
+}
+type Query {
+  averageRating(rateeId: ID!): AverageRating   # CLIENT_FACING only — public
+  ratingsForRatee(rateeId: ID!, context: RatingContext!, limit: Int!, cursor: String): [Rating!]!
+  # INTERNAL context requires @auth and is enforced in the resolver, not the schema —
+  # CLIENT_FACING stays public without a separate field
 }
 ```
 

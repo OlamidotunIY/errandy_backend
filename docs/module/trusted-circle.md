@@ -63,7 +63,7 @@ model TrustedCircle {
 }
 ```
 
-**Flagging, not asserting as fact**: `findOwnersWhoTrust(partyId)` needs an index on the embedded `members.memberId`/`members.status` fields to perform well at scale. I haven't verified whether Prisma's schema language can express an index into a composite-type array field directly (`@@index([members.memberId])` may or may not be valid syntax as of the current Prisma version) — given the confirmed `2dsphere` limitation elsewhere in this project, I'd treat this the same way until checked: possibly needing the same raw-command workaround (`db.TrustedCircle.createIndex(...)`, re-asserted per deploy) rather than schema-declared.
+**Resolved**: rather than gamble on whether Prisma's schema language can express an index into a composite-type array field (uncertain, and the confirmed `2dsphere` limitation elsewhere in this project suggests it likely can't), `findOwnersWhoTrust(partyId)`'s index is asserted via the same raw-command workaround as the geospatial index — see the open item below.
 
 ## Domain entity methods
 
@@ -73,6 +73,40 @@ model TrustedCircle {
 - `receiveSuggestion(memberId, sharedFromPartyId)` — `SUGGESTED`, only ever called on the **target's** circle, never the sharer's
 - `confirmSuggestion(memberEntryId)` — `SUGGESTED → CONFIRMED`, sets `addedAt`
 - `declineSuggestion(memberEntryId)`
+
+## Events
+
+| Event | Raised by | Payload |
+|---|---|---|
+| `TrustedCircleMemberAdded` | `TrustedCircle.addMember()` | `{ circleId, memberId, correlationId }` |
+| `TrustedCircleMemberShareSuggested` | `TrustedCircle.receiveSuggestion()` | `{ targetCircleId, memberId, sharedFromPartyId, correlationId }` |
+| `TrustedCircleMemberConfirmed` | `TrustedCircle.confirmSuggestion()` | `{ circleId, memberId, correlationId }` |
+| `TrustedCircleMemberDeclined` | `TrustedCircle.declineSuggestion()` | `{ circleId, memberId, correlationId }` |
+| `TrustedCircleMemberRemoved` | `TrustedCircle.removeMember()` | `{ circleId, memberId, correlationId }` |
+
+## Commands
+
+| Command | Handler behavior |
+|---|---|
+| `AddTrustedMemberCommand` | Direct add, `CONFIRMED` immediately — owner's own authority, no gate. |
+| `RemoveTrustedMemberCommand` | — |
+| `ShareTrustedMemberCommand` | Loads the **sharer's own** circle, verifies the member is `CONFIRMED` there; loads/creates the **target's** circle, calls `receiveSuggestion()` — only ever mutates the target's aggregate. |
+| `ConfirmSharedMemberCommand` | Own fresh `correlationId` — arbitrary delay since the share. |
+| `DeclineSharedMemberCommand` | Same. |
+
+## Event Handlers
+
+None owned here.
+
+## Sagas
+
+| Saga | Trigger | Dispatches |
+|---|---|---|
+| `TrustedByCountSyncSaga` (trigger side — consumer lives in `party`) | `TrustedCircleMemberConfirmed`/`Removed` | No command — `party`'s consumer-side handler mutates `ProviderRole.trustedByCount` directly |
+
+## Jobs
+
+None.
 
 ## Repository interface
 
@@ -131,6 +165,27 @@ interface PendingSuggestionResponseDto {
 }
 ```
 
+## Mappers
+
+`TrustedCircleMapper` — maps the embedded `members` composite-type array into domain `TrustedCircleMember` value objects.
+
+## Presentation
+
+```graphql
+type Mutation {
+  addTrustedMember(memberId: ID!): TrustedCircle! @auth
+  removeTrustedMember(memberId: ID!): TrustedCircle! @auth
+  shareTrustedMember(input: ShareTrustedMemberInput!): Boolean! @auth
+  confirmSharedMember(memberEntryId: ID!): TrustedCircle! @auth
+  declineSharedMember(memberEntryId: ID!): TrustedCircle! @auth
+}
+type Query {
+  myTrustedCircle: TrustedCircle! @auth
+  mutualTrustCount(targetPartyId: ID!): Int! @auth
+  pendingSuggestions: [PendingSuggestion!]! @auth
+}
+```
+
 ## Open items
 
-- Prisma index support for the composite-type reverse lookup — needs verification (flagged above).
+- **Reverse-lookup index: resolved** — rather than depend on uncertain composite-type array indexing support, `findOwnersWhoTrust(partyId)` uses the same confirmed-necessary workaround as the geospatial index: a raw Mongo command (`db.TrustedCircle.createIndex({ "members.memberId": 1, "members.status": 1 })`) asserted in the deploy bootstrap script, re-run every deploy alongside the `2dsphere` index. No longer treated as an open question — it's the same known pattern, just applied here too.

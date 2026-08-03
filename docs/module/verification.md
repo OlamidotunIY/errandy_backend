@@ -77,6 +77,37 @@ Mongo can still query into embedded array fields (`steps.status`), so `findPendi
 - `approveStep(stepType, reviewerId)` — moves to `APPROVED`, recomputes `overallStatus` (`COMPLETE` if every currently-required step is `APPROVED`)
 - `rejectStep(stepType, reviewerId, reason)` — moves to `REJECTED`
 
+## Events
+
+| Event | Raised by | Payload |
+|---|---|---|
+| `VerificationStepSubmitted` | `VerificationProfile.submitStep()` | `{ verificationProfileId, stepType, correlationId }` |
+| `VerificationStepApproved` | `VerificationProfile.approveStep()` | `{ verificationProfileId, stepType, reviewerId, correlationId }` |
+| `VerificationStepRejected` | `VerificationProfile.rejectStep()` | `{ verificationProfileId, stepType, reviewerId, reason, correlationId }` |
+| `VerificationCompleted` | `VerificationProfile` (internal, once `overallStatus` flips) | `{ partyId, correlationId }` |
+
+## Commands
+
+| Command | Handler behavior |
+|---|---|
+| `SubmitVerificationStepCommand` | Loads/creates the profile, calls `recalculateRequiredSteps()` implicitly if this is the first submission for a newly-required step, then `submitStep()`. |
+| `ApproveVerificationStepCommand` | Permission-checked (`verification: ['approve']`) before reaching the handler. |
+| `RejectVerificationStepCommand` | Permission-checked (`verification: ['reject']`). |
+
+## Event Handlers
+
+None of its own — `AutoKYCReviewSaga` (below) is the only reactive consumer of this module's own events.
+
+## Sagas
+
+| Saga | Trigger | Dispatches |
+|---|---|---|
+| `AutoKYCReviewSaga` | `VerificationStepSubmitted` where `stepType = NIN_VERIFIED` | Calls `NINVerificationApiAdapter`; on conclusive match, `ApproveVerificationStepCommand { reviewerId: null }`; on inconclusive, no-ops (falls through to manual review) |
+
+## Jobs
+
+None — the KYC check is event-driven (the saga above), not scheduled.
+
 ## Repository interface
 
 ```typescript
@@ -142,7 +173,27 @@ interface PendingVerificationStepResponseDto {
 }
 ```
 
+## Mappers
+
+`VerificationProfileMapper`
+- `toDomain(prismaProfile)` — maps the embedded `steps` composite-type array into domain `VerificationStep` value objects
+- `toPersistence(profile)` — inverse
+
+## Presentation
+
+```graphql
+type Mutation {
+  submitVerificationStep(input: SubmitVerificationStepInput!): VerificationStep! @auth
+  approveVerificationStep(input: ApproveVerificationStepInput!): VerificationStep! @auth(permission: "verification:approve")
+  rejectVerificationStep(input: RejectVerificationStepInput!): VerificationStep! @auth(permission: "verification:reject")
+}
+type Query {
+  myVerificationProfile: VerificationProfile @auth
+  pendingVerificationSteps: [PendingVerificationStep!]! @auth(permission: "verification:approve")
+}
+```
+
 ## Open items
 
-- Resubmission cooldown/limit after a rejection — not decided (fraud-prevention consideration, carried over from `docs/flows/verification-flow.md`).
-- `documentUrls` signing/expiry mechanism — flagged above, not yet designed in `DocumentStorageAdapter`.
+- **Resubmission cooldown: resolved** — 24 hours after a `REJECTED` step before a new submission for the same `stepType` is accepted, guarding against rapid-fire resubmission as a fraud vector.
+- **`documentUrls` signing: resolved** — `DocumentStorageAdapter.getSignedUrl(key, expirySeconds)` generates short-lived (15-minute default) signed URLs on read, never stores/returns permanent public links.

@@ -293,21 +293,27 @@ interface ReassignmentCandidateResponseDto {
 
 ## Presentation
 
-| Method | Route | Dispatches | Auth |
-|---|---|---|---|
-| `POST` | `/errands` | `CreateErrandCommand` | authenticated |
-| `POST` | `/errands/:id/publish` | `PublishErrandCommand` | authenticated, client owner only |
-| `POST` | `/errands/trusted-assign` | `AssignErrandToTrustedMemberCommand` | authenticated |
-| `POST` | `/errands/:id/offer` | `OfferErrandToTrustedMemberCommand` | authenticated, client owner only |
-| `POST` | `/errands/book-service` | `BookServiceCommand` | authenticated |
-| `POST` | `/errands/:id/start` | `StartErrandCommand` | authenticated, assigned member only |
-| `POST` | `/errand-assignments/:id/confirm` | `ConfirmAssignmentCompletionCommand` | authenticated, assignment owner only |
-| `PATCH` | `/errand-assignments/:id/confirm` | `UpdateAssignmentConfirmationCommand` | authenticated, assignment owner only |
-| `POST` | `/errands/:id/complete` | `CompleteErrandCommand` | authenticated, client owner only (`completedBy: SYSTEM` is never client-supplied — only the job calls this internally) |
-| `GET` | `/errands/browse` | `BrowseOpenErrandsQuery` | authenticated, requires `ProviderRole` |
-| `GET` | `/errands/:id` | `GetErrandByIdQuery` | authenticated, participants only |
-| `GET` | `/errands/mine` | `ListClientErrandsQuery` | authenticated, self only |
-| `GET` | `/errands/:id/reassignment-candidates` | `SuggestReassignmentCandidatesQuery` | authenticated, client owner only |
+```graphql
+type Mutation {
+  createErrand(input: CreateErrandInput!): Errand! @auth
+  publishErrand(errandId: ID!): Errand! @auth
+  assignErrandToTrustedMember(input: AssignErrandToTrustedMemberInput!): AssignErrandToTrustedMemberResult! @auth
+  offerErrandToTrustedMember(input: OfferErrandToTrustedMemberInput!): Application! @auth
+  bookService(input: BookServiceInput!): BookServiceResult! @auth
+  startErrand(errandId: ID!): Errand! @auth
+  confirmAssignmentCompletion(input: ConfirmAssignmentCompletionInput!): ErrandAssignment! @auth
+  updateAssignmentConfirmation(input: UpdateAssignmentConfirmationInput!): ErrandAssignment! @auth
+  completeErrand(errandId: ID!): Errand! @auth
+}
+type Query {
+  browseOpenErrands(input: BrowseOpenErrandsInput!): [ErrandSummary!]! @auth
+  errand(id: ID!): Errand @auth
+  myErrands: [Errand!]! @auth
+  reassignmentCandidates(errandId: ID!): [ReassignmentCandidate!]! @auth
+}
+```
+
+`completeErrand`'s resolver always sends `completedBy: CLIENT` — the `SYSTEM` value is only ever set internally by `AutoAcceptErrandJob`, never reachable through this field.
 
 ## Open items carried forward
 

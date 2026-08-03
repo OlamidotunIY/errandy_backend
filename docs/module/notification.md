@@ -85,6 +85,24 @@ model NotificationPreference {
 **`NotificationPreference`**
 - `updatePreferences(emailEnabled?, smsEnabled?, pushEnabled?)`
 
+## Events
+
+| Event | Raised by | Payload |
+|---|---|---|
+| `NotificationSent` | `NotificationLog` (after adapter success) | `{ notificationId, correlationId }` |
+| `NotificationFailed` | `NotificationLog` (after adapter failure) | `{ notificationId, reason, correlationId }` |
+
+## Commands
+
+| Command | Handler behavior |
+|---|---|
+| `SendNotificationCommand` | Checks `CRITICAL_NOTIFICATION_TYPES` first — if `type` is in that set, sends regardless of preference. Otherwise checks `NotificationPreference` for the target channel, skips (no-op, no log entry) if muted. Never generates its own `correlationId` — always inherits whatever triggered it. |
+| `UpdateNotificationPreferenceCommand` | — |
+
+## Sagas
+
+None — every reactive entry here is a plain `@EventsHandler` dispatching `SendNotificationCommand`, not formalized as `@Saga()` since there's nothing conditional/branching about most of them (each event type maps to one notification type).
+
 ## Repository interfaces
 
 ```typescript
@@ -134,6 +152,23 @@ interface NotificationLogResponseDto {
 }
 ```
 
+## Mappers
+
+`NotificationLogMapper`, `NotificationPreferenceMapper` — thin.
+
+## Presentation
+
+```graphql
+type Mutation {
+  updateNotificationPreference(input: UpdateNotificationPreferenceInput!): NotificationPreference! @auth
+}
+type Query {
+  myNotifications(limit: Int!, cursor: String): [NotificationLog!]! @auth
+}
+```
+
+`sendNotification` has **no `Mutation` field** — always internally triggered, never reachable from the API layer.
+
 ## Open items
 
-- Whether critical sends (OTP, security alerts) should bypass `NotificationPreference` muting — still open, carried from the main doc.
+- **Critical-notification bypass: resolved** — a small static registry (`CRITICAL_NOTIFICATION_TYPES`, e.g. `OTP_VERIFICATION`, `SECURITY_ALERT`, `PAYMENT_FAILED`) is checked before applying `NotificationPreference` muting; types in that set always send regardless of channel preference. Everything else respects the preference.

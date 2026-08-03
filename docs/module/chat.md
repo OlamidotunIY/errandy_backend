@@ -149,13 +149,20 @@ interface MessageResponseDto {
 
 ## Presentation
 
-| Method | Route | Dispatches | Auth |
-|---|---|---|---|
-| — | — | `OpenChatThreadCommand` | **no route** — saga-only |
-| — | — | `CloseChatThreadCommand` | **no route** — saga-only |
-| `POST` | `/chat-threads/:id/messages` | `SendMessageCommand` | authenticated, thread participant only |
-| `GET` | `/chat-threads/errand/:errandId` | `GetChatThreadByErrandIdQuery` | authenticated, thread participant only |
-| `GET` | `/chat-threads/:id/messages` | `ListMessagesQuery` | authenticated, thread participant only |
+```graphql
+type Mutation {
+  sendMessage(input: SendMessageInput!): SendMessageResult! @auth
+}
+type Query {
+  chatThreadByErrand(errandId: ID!): ChatThread @auth
+  messages(threadId: ID!, limit: Int!, cursor: String): [Message!]! @auth
+}
+type Subscription {
+  messageSent(threadId: ID!): Message! @auth   # backed by RealtimeMessagingAdapter, not polling
+}
+```
+
+`openChatThread`/`closeChatThread` have **no fields at all** — saga-only, never reachable from the API layer.
 
 ## Open items
 
