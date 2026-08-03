@@ -1,6 +1,6 @@
 model PaymentMethod {
-    id     String  @id @default(uuid()) @map("_id")
-    userId String
+    id      String @id @default(uuid()) @map("_id")
+    partyId String // Party.id — gated to a ClientRole
 
     provider    String // "paystack", "stripe", "paypal", "adyen"
     providerRef String // e.g. Paystack authorization_code, Stripe paymentMethodId
@@ -13,19 +13,21 @@ model PaymentMethod {
 
     isDefault Boolean @default(false)
     verified  Boolean @default(false)
+    isActive  Boolean @default(true)
 
     createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
 
     @@map("payment_methods")
 }
 
 model PaystackCustomer {
-    id String  @id @default(uuid()) @map("_id")
+    id            String @id @default(uuid()) @map("_id")
     customer_code String
-    customer_id String
+    customer_id   String
 
     userId String
 
-    @@map("paystack_customers")
     @@unique([userId])
+    @@map("paystack_customers")
 }
