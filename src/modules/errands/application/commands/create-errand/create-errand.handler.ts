@@ -35,13 +35,13 @@ export class CreateErrandHandler implements ICommandHandler<CreateErrandCommand>
   ): Promise<CreateErrandResponseDto> {
     const { payload } = command;
 
-    if (!payload.clientId || !payload.categoryId || !payload.addressId) {
+    if (!payload.clientPartyId || !payload.categoryId || !payload.addressId) {
       throw new ErrandInvariantError('Missing required fields');
     }
 
-    const clientParty = await this.partyRepository.findById(payload.clientId);
+    const clientParty = await this.partyRepository.findById(payload.clientPartyId);
     if (!clientParty) {
-      throw new PartyNotFoundError(payload.clientId);
+      throw new PartyNotFoundError(payload.clientPartyId);
     }
 
     const category = await this.categoryRepository.findById(payload.categoryId);
@@ -66,7 +66,7 @@ export class CreateErrandHandler implements ICommandHandler<CreateErrandCommand>
     );
 
     const errand = Errand.create(
-      payload.clientId,
+      payload.clientPartyId,
       payload.categoryId,
       payload.title,
       payload.description,

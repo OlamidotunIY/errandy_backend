@@ -15,7 +15,7 @@ export class GetErrandByIdHandler implements IQueryHandler<GetErrandByIdQuery> {
 
     return {
       id: errand.id.value,
-      clientId: errand.clientId,
+      clientPartyId: errand.clientPartyId,
       categoryId: errand.categoryId,
       title: errand.title,
       description: errand.description,

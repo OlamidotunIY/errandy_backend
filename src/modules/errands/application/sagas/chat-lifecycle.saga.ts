@@ -52,12 +52,12 @@ export class ChatLifecycleSaga {
         }
 
         const clientParty = await this.partyRepository.findById(
-          errand.clientId,
+          errand.clientPartyId,
         );
         if (!clientParty?.person) {
           this.logger.warn('ChatLifecycleSaga: client party/person not found', {
             errandId,
-            clientId: errand.clientId,
+            clientPartyId: errand.clientPartyId,
           });
           return;
         }
@@ -68,7 +68,7 @@ export class ChatLifecycleSaga {
 
         for (const assignment of assignments) {
           const providerParty = await this.partyRepository.findById(
-            assignment.profileId,
+            assignment.providerPartyId,
           );
           if (providerParty?.person) {
             participantIds.add(providerParty.person.userId.value);

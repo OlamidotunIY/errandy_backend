@@ -49,12 +49,12 @@ export class RatingPromptSaga {
         // a. client -> rate org/individual
         try {
           const clientParty = await this.partyRepository.findById(
-            errand.clientId,
+            errand.clientPartyId,
           );
           if (!clientParty?.person) {
             this.logger.warn(
               'RatingPromptSaga: client party/person not found',
-              { errandId, clientId: errand.clientId },
+              { errandId, clientPartyId: errand.clientPartyId },
             );
           } else {
             const clientUserId = clientParty.person.userId.value;
@@ -102,12 +102,12 @@ export class RatingPromptSaga {
 
           try {
             const memberParty = await this.partyRepository.findById(
-              assignment.profileId,
+              assignment.providerPartyId,
             );
             if (!memberParty?.person) {
               this.logger.warn(
                 'RatingPromptSaga: member party/person not found',
-                { errandId, profileId: assignment.profileId },
+                { errandId, providerPartyId: assignment.providerPartyId },
               );
               continue;
             }
@@ -136,7 +136,7 @@ export class RatingPromptSaga {
                   template: 'rating-prompt',
                   context: {
                     errandId,
-                    organizationId: assignment.assignedByOrganizationId,
+                    organizationPartyId: assignment.assignedByOrganizationId,
                   },
                 },
               }),
@@ -144,21 +144,21 @@ export class RatingPromptSaga {
           } catch (error) {
             this.logger.warn('RatingPromptSaga: failed to notify member', {
               errandId,
-              profileId: assignment.profileId,
+              providerPartyId: assignment.providerPartyId,
               error: error instanceof Error ? error.message : error,
             });
           }
         }
 
         // c. org -> rate each assigned member (once per distinct org)
-        for (const organizationId of organizationIdsToNotify) {
+        for (const organizationPartyId of organizationIdsToNotify) {
           try {
             const orgParty =
-              await this.partyRepository.findById(organizationId);
+              await this.partyRepository.findById(organizationPartyId);
             if (!orgParty?.organization) {
               this.logger.warn(
                 'RatingPromptSaga: organization party not found',
-                { errandId, organizationId },
+                { errandId, organizationPartyId },
               );
               continue;
             }
@@ -171,7 +171,7 @@ export class RatingPromptSaga {
             if (!ownerUser?.email) {
               this.logger.warn(
                 'RatingPromptSaga: org owner user/email not found',
-                { errandId, organizationId, ownerUserId },
+                { errandId, organizationPartyId, ownerUserId },
               );
               continue;
             }
@@ -179,9 +179,9 @@ export class RatingPromptSaga {
             const memberProfileIds = assignments
               .filter(
                 (assignment) =>
-                  assignment.assignedByOrganizationId === organizationId,
+                  assignment.assignedByOrganizationId === organizationPartyId,
               )
-              .map((assignment) => assignment.profileId);
+              .map((assignment) => assignment.providerPartyId);
 
             await this.commandBus.execute(
               new SendNotificationCommand({
@@ -201,7 +201,7 @@ export class RatingPromptSaga {
               'RatingPromptSaga: failed to notify organization owner',
               {
                 errandId,
-                organizationId,
+                organizationPartyId,
                 error: error instanceof Error ? error.message : error,
               },
             );

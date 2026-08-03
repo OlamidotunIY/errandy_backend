@@ -25,14 +25,14 @@ export class ErrandAssignment extends AggregateRoot<ErrandAssignmentId> {
 
   static create(
     errandId: ErrandId,
-    profileId: string,
+    providerPartyId: string,
     assignedByOrganizationId?: string,
     splitPercentage?: number,
   ): ErrandAssignment {
     const assignment = new ErrandAssignment(
       ErrandAssignmentId.create(),
       errandId,
-      profileId,
+      providerPartyId,
       assignedByOrganizationId,
       splitPercentage,
       AssignmentStatus.ASSIGNED,
@@ -48,7 +48,7 @@ export class ErrandAssignment extends AggregateRoot<ErrandAssignmentId> {
     return this._errandId;
   }
 
-  get profileId(): string {
+  get providerPartyId(): string {
     return this._profileId;
   }
 
@@ -77,11 +77,11 @@ export class ErrandAssignment extends AggregateRoot<ErrandAssignmentId> {
   }
 
   confirmDone(
-    profileId: string,
+    providerPartyId: string,
     proofUrl?: string,
     correlationId?: string,
   ): void {
-    if (this._profileId !== profileId) {
+    if (this._profileId !== providerPartyId) {
       throw new ErrandInvariantError(
         'Only the assigned member may confirm their own assignment',
       );
@@ -100,18 +100,18 @@ export class ErrandAssignment extends AggregateRoot<ErrandAssignmentId> {
       new AssignmentConfirmedDoneEvent(this.id, correlationId, {
         errandAssignmentId: this.id.value,
         errandId: this._errandId.value,
-        profileId: this._profileId,
+        providerPartyId: this._profileId,
       }),
     );
   }
 
   updateConfirmation(
-    profileId: string,
+    providerPartyId: string,
     proofUrl: string,
     errandCompleted: boolean,
     correlationId?: string,
   ): void {
-    if (this._profileId !== profileId) {
+    if (this._profileId !== providerPartyId) {
       throw new ErrandInvariantError(
         'Only the assigned member may update their own confirmation',
       );

@@ -4,7 +4,7 @@ import { SourceType } from '../value-objects';
 
 interface ErrandCreatedPayload extends Record<string, unknown> {
   errandId: string;
-  clientId: string;
+  clientPartyId: string;
   sourceType: SourceType;
 }
 

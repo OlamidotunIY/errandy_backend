@@ -1,5 +1,5 @@
 export interface AssignErrandToTrustedMemberRequestDto {
-  clientId: string;
+  clientPartyId: string;
   categoryId: string;
   title: string;
   description: string;

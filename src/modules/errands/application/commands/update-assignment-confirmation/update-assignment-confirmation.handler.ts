@@ -22,7 +22,7 @@ export class UpdateAssignmentConfirmationHandler implements ICommandHandler<Upda
   async execute(
     command: UpdateAssignmentConfirmationCommand,
   ): Promise<UpdateAssignmentConfirmationResponseDto> {
-    const { errandAssignmentId, profileId, proofUrl } = command.payload;
+    const { errandAssignmentId, providerPartyId, proofUrl } = command.payload;
 
     const assignment =
       await this.errandRepository.findAssignmentById(errandAssignmentId);
@@ -38,7 +38,7 @@ export class UpdateAssignmentConfirmationHandler implements ICommandHandler<Upda
     }
 
     assignment.updateConfirmation(
-      profileId,
+      providerPartyId,
       proofUrl,
       errand.status === ErrandStatus.COMPLETED,
       crypto.randomUUID(),

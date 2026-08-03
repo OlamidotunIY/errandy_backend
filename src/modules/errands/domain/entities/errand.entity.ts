@@ -45,7 +45,7 @@ export class Errand extends AggregateRoot<ErrandId> {
   }
 
   static create(
-    clientId: string,
+    clientPartyId: string,
     categoryId: string,
     title: string,
     description: string,
@@ -59,7 +59,7 @@ export class Errand extends AggregateRoot<ErrandId> {
   ): Errand {
     const errand = new Errand(
       ErrandId.create(),
-      clientId,
+      clientPartyId,
       categoryId,
       title,
       description,
@@ -85,7 +85,7 @@ export class Errand extends AggregateRoot<ErrandId> {
     errand.addDomainEvent(
       new ErrandCreatedEvent(errand.id, correlationId, {
         errandId: errand.id.value,
-        clientId: errand._clientId,
+        clientPartyId: errand._clientId,
         sourceType: errand._sourceType,
       }),
     );
@@ -93,7 +93,7 @@ export class Errand extends AggregateRoot<ErrandId> {
     return errand;
   }
 
-  get clientId(): string {
+  get clientPartyId(): string {
     return this._clientId;
   }
 

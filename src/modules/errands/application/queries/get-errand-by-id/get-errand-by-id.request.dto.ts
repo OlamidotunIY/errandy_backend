@@ -4,7 +4,7 @@ export interface GetErrandByIdRequestDto {
 
 export interface ErrandDetailResponseDto {
   id: string;
-  clientId: string;
+  clientPartyId: string;
   categoryId: string;
   title: string;
   description: string;

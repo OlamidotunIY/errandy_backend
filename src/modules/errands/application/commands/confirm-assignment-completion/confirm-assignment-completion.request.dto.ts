@@ -1,6 +1,6 @@
 export interface ConfirmAssignmentCompletionRequestDto {
   errandAssignmentId: string;
-  profileId: string;
+  providerPartyId: string;
   proofUrl?: string;
 }
 

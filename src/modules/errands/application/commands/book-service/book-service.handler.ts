@@ -43,13 +43,13 @@ export class BookServiceHandler implements ICommandHandler<BookServiceCommand> {
   async execute(command: BookServiceCommand): Promise<BookServiceResponseDto> {
     const { payload } = command;
 
-    if (!payload.clientId || !payload.serviceId || !payload.addressId) {
+    if (!payload.clientPartyId || !payload.serviceId || !payload.addressId) {
       throw new ErrandInvariantError('Missing required fields');
     }
 
-    const clientParty = await this.partyRepository.findById(payload.clientId);
+    const clientParty = await this.partyRepository.findById(payload.clientPartyId);
     if (!clientParty) {
-      throw new PartyNotFoundError(payload.clientId);
+      throw new PartyNotFoundError(payload.clientPartyId);
     }
 
     const service = await this.serviceRepository.findById(payload.serviceId);
@@ -85,7 +85,7 @@ export class BookServiceHandler implements ICommandHandler<BookServiceCommand> {
     const location = address.toGeoJson();
 
     const errand = Errand.create(
-      payload.clientId,
+      payload.clientPartyId,
       service.categoryId,
       service.title,
       service.description,

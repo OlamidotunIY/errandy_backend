@@ -40,13 +40,13 @@ export class AssignErrandToTrustedMemberHandler implements ICommandHandler<Assig
   ): Promise<AssignErrandToTrustedMemberResponseDto> {
     const { payload } = command;
 
-    if (!payload.clientId || !payload.offeredToPartyId) {
+    if (!payload.clientPartyId || !payload.offeredToPartyId) {
       throw new ErrandInvariantError('Missing required fields');
     }
 
-    const clientParty = await this.partyRepository.findById(payload.clientId);
+    const clientParty = await this.partyRepository.findById(payload.clientPartyId);
     if (!clientParty) {
-      throw new PartyNotFoundError(payload.clientId);
+      throw new PartyNotFoundError(payload.clientPartyId);
     }
 
     const address = await this.addressRepository.findById(
@@ -63,7 +63,7 @@ export class AssignErrandToTrustedMemberHandler implements ICommandHandler<Assig
     );
 
     const errand = Errand.create(
-      payload.clientId,
+      payload.clientPartyId,
       payload.categoryId,
       payload.title,
       payload.description,

@@ -27,7 +27,7 @@ export class ConfirmAssignmentCompletionHandler implements ICommandHandler<Confi
   async execute(
     command: ConfirmAssignmentCompletionCommand,
   ): Promise<ConfirmAssignmentCompletionResponseDto> {
-    const { errandAssignmentId, profileId, proofUrl } = command.payload;
+    const { errandAssignmentId, providerPartyId, proofUrl } = command.payload;
 
     const assignment =
       await this.errandRepository.findAssignmentById(errandAssignmentId);
@@ -36,7 +36,7 @@ export class ConfirmAssignmentCompletionHandler implements ICommandHandler<Confi
     }
 
     const correlationId = crypto.randomUUID();
-    assignment.confirmDone(profileId, proofUrl, correlationId);
+    assignment.confirmDone(providerPartyId, proofUrl, correlationId);
     await this.errandRepository.saveAssignment(assignment);
 
     for (const event of assignment.pullDomainEvents()) {

@@ -16,7 +16,7 @@ export class StartErrandHandler implements ICommandHandler<StartErrandCommand> {
   ) {}
 
   async execute(command: StartErrandCommand): Promise<StartErrandResponseDto> {
-    const { errandId, profileId } = command.payload;
+    const { errandId, providerPartyId } = command.payload;
 
     const errand = await this.errandRepository.findById(errandId);
     if (!errand) {
@@ -25,7 +25,7 @@ export class StartErrandHandler implements ICommandHandler<StartErrandCommand> {
 
     const assignments =
       await this.errandRepository.findAssignmentsByErrandId(errandId);
-    const isAssignedMember = assignments.some((a) => a.profileId === profileId);
+    const isAssignedMember = assignments.some((a) => a.providerPartyId === providerPartyId);
     if (!isAssignedMember) {
       throw new ErrandInvariantError(
         'Only an assigned member may start this errand',
