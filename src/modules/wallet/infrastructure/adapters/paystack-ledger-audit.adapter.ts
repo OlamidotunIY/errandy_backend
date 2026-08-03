@@ -1,5 +1,4 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Inject, Injectable } from '@nestjs/common';
 import {
   GatewayLedgerTransaction,
   GatewayLedgerTransactionPage,
@@ -7,19 +6,15 @@ import {
 import { Currency, Money } from '@module/escrow';
 import { Paystack } from '@paystack/paystack-sdk';
 import { ILogger, PaystackTransactionType } from '@src/common';
+import { PAYMENT_PROVIDER } from '@src/infrastructure/payment-provider';
 
 @Injectable()
 export class PaystackLedgerAuditAdapter {
-  private readonly paystack: Paystack;
-
   constructor(
     private readonly logger: ILogger,
-    private readonly configService: ConfigService,
-  ) {
-    this.paystack = new Paystack(
-      this.configService.getOrThrow<string>('PAYSTACK_SECRET_KEY'),
-    );
-  }
+    @Inject(PAYMENT_PROVIDER)
+    private readonly paystack: Paystack,
+  ) {}
 
   async fetchTransactions(
     windowStart: Date,
