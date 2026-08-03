@@ -1,2 +1,2 @@
 export * from './event-retry';
-export * from './ILogger';
+export * from './logger.interface';

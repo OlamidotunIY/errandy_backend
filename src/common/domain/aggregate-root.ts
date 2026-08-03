@@ -1,5 +1,5 @@
-import { DomainEvent } from './';
-import { EntityId } from './EntityId';
+import { DomainEvent } from '.';
+import { EntityId } from './entity-id';
 
 abstract class AggregateRoot<T extends EntityId> {
   readonly id: T;

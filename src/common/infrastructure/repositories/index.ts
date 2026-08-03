@@ -1,1 +1,1 @@
-export * from './PrismaDeadLetterRepository';
+export * from './prisma-dead-letter.repository';

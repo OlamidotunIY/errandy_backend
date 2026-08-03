@@ -1,4 +1,4 @@
-import { EntityId } from './EntityId';
+import { EntityId } from './entity-id';
 
 type DomainEventPayload = object;
 

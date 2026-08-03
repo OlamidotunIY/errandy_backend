@@ -1,3 +1,3 @@
-export * from './ErrorClassification';
-export * from './PaystackTransactionType';
-export * from './ValueObject';
+export * from './error-classification';
+export * from './paystack-transaction-type.vo';
+export * from './value-object';

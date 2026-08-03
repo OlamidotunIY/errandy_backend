@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
-import { EventRetryPayload } from '../';
+import { EventRetryPayload } from '..';
 import { Queue } from 'bullmq';
 
 @Injectable()

@@ -1,6 +1,6 @@
 import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { CommandBus } from '@nestjs/cqrs';
-import { CommandRetryRegistry, EventRetryPayload } from './';
+import { CommandRetryRegistry, EventRetryPayload } from '.';
 import { Job } from 'bullmq';
 import { IDeadLetterRepository } from '@src/common/domain';
 
