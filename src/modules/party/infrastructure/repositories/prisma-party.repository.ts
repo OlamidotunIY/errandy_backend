@@ -53,7 +53,7 @@ export class PrismaPartyRepository implements IPartyRepository {
           party.organization,
         );
         await tx.organizationMember.deleteMany({
-          where: { organizationId: party.organization.id.value },
+          where: { organizationPartyId: party.organization.id.value },
         });
 
         if (members.length > 0) {

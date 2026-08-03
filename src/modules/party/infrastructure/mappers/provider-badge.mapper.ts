@@ -14,7 +14,7 @@ export class ProviderBadgeMapper {
       ProviderBadgeId.fromString(row.id),
       PartyId.fromString(row.partyId),
       row.badgeType as BadgeType,
-      PartyId.fromString(row.awardedByOrganizationId),
+      PartyId.fromString(row.awardedByOrganizationPartyId),
       row.period,
       row.awardedAt,
     );
@@ -25,7 +25,7 @@ export class ProviderBadgeMapper {
       id: badge.id.value,
       partyId: badge.partyId.value,
       badgeType: badge.badgeType,
-      awardedByOrganizationId: badge.awardedByOrganizationId.value,
+      awardedByOrganizationPartyId: badge.awardedByOrganizationId.value,
       period: badge.period,
       awardedAt: badge.awardedAt,
     };

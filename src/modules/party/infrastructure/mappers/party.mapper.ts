@@ -51,7 +51,7 @@ export class PartyMapper {
             (member) =>
               new OrganizationMember(
                 OrganizationMemberId.fromString(member.id),
-                PartyId.fromString(member.organizationId),
+                PartyId.fromString(member.organizationPartyId),
                 UserId.fromString(member.userId),
                 member.role as OrgMemberRole,
                 member.active,
@@ -220,7 +220,7 @@ export class PartyMapper {
   ): Prisma.OrganizationMemberCreateManyInput[] {
     return organization.members.map((member) => ({
       id: member.id.value,
-      organizationId: organization.id.value,
+      organizationPartyId: organization.id.value,
       userId: member.userId.value,
       role: member.role,
       active: member.active,
@@ -230,7 +230,7 @@ export class PartyMapper {
   toOrganizationMembers(
     rows: Array<{
       id: string;
-      organizationId: string;
+      organizationPartyId: string;
       userId: string;
       role: string;
       active: boolean;
@@ -240,7 +240,7 @@ export class PartyMapper {
       (member) =>
         new OrganizationMember(
           OrganizationMemberId.fromString(member.id),
-          PartyId.fromString(member.organizationId),
+          PartyId.fromString(member.organizationPartyId),
           UserId.fromString(member.userId),
           member.role as OrgMemberRole,
           member.active,
