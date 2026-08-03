@@ -1,5 +1,5 @@
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
-import { SendNotificationCommand, SendNotificationResponseDto } from './';
+import { SendNotificationCommand, SendNotificationResponseDto } from '.';
 import {
   INotificationLogRepository,
   INotificationPreferenceRepository,
