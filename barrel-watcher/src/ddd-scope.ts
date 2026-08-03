@@ -30,7 +30,7 @@ export class DddScope {
   }
 
   getWatchRoots(): string[] {
-    return this.modules.map((scope) => scope.moduleRoot);
+    return [SRC_ROOT];
   }
 
   getAllKnownDddDirectories(): string[] {
@@ -50,9 +50,26 @@ export class DddScope {
   }
 
   findOwningModule(filePath: string): DddModuleScope | null {
-    return (
-      this.modules.find((scope) => isInside(scope.moduleRoot, filePath)) ?? null
-    );
+    const relative = path.relative(SRC_ROOT, filePath);
+    if (relative.startsWith('..') || path.isAbsolute(relative) || relative === '') {
+      return null;
+    }
+    const segments = relative.split(path.sep);
+    const moduleName = segments[0];
+    if (!moduleName) return null;
+    const moduleRoot = path.join(SRC_ROOT, moduleName);
+
+    try {
+      const stat = fs.statSync(moduleRoot);
+      if (!stat.isDirectory()) return null;
+    } catch {
+      return null;
+    }
+
+    return {
+      moduleRoot,
+      layerRoots: discoverLayerRoots(moduleRoot),
+    };
   }
 
   isDddDirectory(directoryPath: string): boolean {
