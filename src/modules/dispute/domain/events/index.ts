@@ -1,1 +1,1 @@
-export * from './DisputeOpenedEvent';
+export * from './dispute-opened.event';

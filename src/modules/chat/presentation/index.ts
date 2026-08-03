@@ -1,2 +1,2 @@
-export * from './resolvers/ChatResolver';
+export * from './resolvers/chat.resolver';
 export * from './graphql';
