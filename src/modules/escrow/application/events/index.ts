@@ -1,1 +1,1 @@
-export * from './OnErrandCompletedMarkEscrow';
+export * from './on-errand-completed-mark-escrow.event';

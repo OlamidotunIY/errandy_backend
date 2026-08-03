@@ -1,1 +1,1 @@
-export * from './PaymentGatewayAdapter';
+export * from './payment-gateway.adapter';

@@ -1,1 +1,1 @@
-export * from './IPlatformFeePolicy';
+export * from './platform-fee-policy.interface';

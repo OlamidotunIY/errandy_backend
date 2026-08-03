@@ -1,1 +1,1 @@
-export * from './EscrowMapper';
+export * from './escrow.mapper';

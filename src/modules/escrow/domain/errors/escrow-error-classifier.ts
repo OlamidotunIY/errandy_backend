@@ -6,7 +6,7 @@ import {
   InvalidFeeRateError,
   InvalidStatusTransitionError,
   NegativeAmountError,
-} from './';
+} from '.';
 
 export class EscrowErrorClassifier implements IErrorClassifier {
   private static readonly PERMANENT_ERROR_TYPES = [

@@ -1,5 +1,5 @@
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import { MarkEscrowCompletedCommand } from '.';
+import { MarkEscrowCompletedCommand } from './';
 import { EscrowInvariantError, EscrowRepository } from '@module/escrow/domain';
 import { ILogger } from '@src/common';
 

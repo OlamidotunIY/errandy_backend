@@ -1,5 +1,5 @@
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { GetEscrowByErrandQuery } from './GetEscrowByErrandQuery';
+import { GetEscrowByErrandQuery } from './get-escrow-by-errand.query';
 import {
   EscrowDTO,
   EscrowInvariantError,

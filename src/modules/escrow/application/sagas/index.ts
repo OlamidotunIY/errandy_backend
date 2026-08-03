@@ -1,1 +1,1 @@
-export * from './FundEscrowSaga';
+export * from './fund-escrow.saga';
