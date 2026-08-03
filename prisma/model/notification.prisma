@@ -1,0 +1,24 @@
+model NotificationLog {
+    id            String   @id @default(uuid()) @map("_id")
+    userId        String
+    type          String
+    channel       String // EMAIL | SMS | PUSH
+    payload       Json
+    status        String   @default("SENT") // SENT | FAILED
+    failureReason String?
+    createdAt     DateTime @default(now())
+
+    @@index([userId])
+    @@map("notification_logs")
+}
+
+model NotificationPreference {
+    id           String   @id @default(uuid()) @map("_id")
+    userId       String   @unique
+    emailEnabled Boolean  @default(true)
+    smsEnabled   Boolean  @default(true)
+    pushEnabled  Boolean  @default(true)
+    updatedAt    DateTime @updatedAt
+
+    @@map("notification_preferences")
+}
