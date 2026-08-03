@@ -15,10 +15,10 @@ model Service {
 }
 
 model ServicesOnProviders {
-  id         String @id @default(uuid()) @map("_id")
-  serviceId  String
-  providerId String
+  id              String @id @default(uuid()) @map("_id")
+  serviceId       String
+  providerPartyId String
 
-  @@unique([providerId, serviceId])
+  @@unique([providerPartyId, serviceId])
   @@map("services_on_providers")
 }

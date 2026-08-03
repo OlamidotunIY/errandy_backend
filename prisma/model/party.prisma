@@ -31,14 +31,14 @@ model Organization {
 }
 
 model OrganizationMember {
-  id             String        @id @map("_id")
-  organizationId String
-  organization   Organization  @relation(fields: [organizationId], references: [id])
-  userId         String
-  role           OrgMemberRole
-  active         Boolean       @default(true)
+  id                  String        @id @map("_id")
+  organizationPartyId String
+  organization        Organization  @relation(fields: [organizationPartyId], references: [id])
+  userId              String
+  role                OrgMemberRole
+  active              Boolean       @default(true)
 
-  @@unique([organizationId, userId])
+  @@unique([organizationPartyId, userId])
 }
 
 model ProviderRole {
@@ -62,7 +62,7 @@ model ProviderBadge {
   id                      String    @id @map("_id")
   partyId                 String
   badgeType               BadgeType
-  awardedByOrganizationId String
+  awardedByOrganizationPartyId String
   period                  String
   awardedAt               DateTime  @default(now())
 }

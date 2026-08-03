@@ -1,6 +1,6 @@
 model Errand {
     id                     String       @id @default(uuid()) @map("_id")
-    clientId               String        
+    clientPartyId          String        
     title                  String
     description            String?
     pricingType            PricingType   @default(FIXED)
@@ -20,7 +20,7 @@ model Errand {
     sourceType     ErrandSourceType @default(CLIENT_JOB)
 
     // Snapshot of provider org (for listings)
-    providerOrgId  String?          
+    organizationPartyId  String?          
 
     serviceAddress String?
     location       Json?
@@ -75,7 +75,7 @@ model ErrandTemplate {
     location       Json?
 
     // Listing ownership
-    providerOrgId String? 
+    organizationPartyId String? 
 
     // Listing state
     publishState ListingPublishState @default(DRAFT)
@@ -95,10 +95,10 @@ model ErrandAssignment {
   errandId String 
 
   // who is responsible at org level
-  providerOrgId  String 
+  organizationPartyId  String 
 
   // optional: specific members assigned
-  workerId String? 
+  providerPartyId String? 
 
   role AssignmentRole @default(MEMBER)
   status AssignmentStatus @default(ASSIGNED)
@@ -112,8 +112,8 @@ model ErrandAssignment {
 model RecurringContract {
   id String  @id @default(uuid()) @map("_id")
 
-  clientId      String 
-  providerOrgId String 
+  clientPartyId      String 
+  organizationPartyId String 
   templateId    String 
 
   frequency RecurrenceFrequency

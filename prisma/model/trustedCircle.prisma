@@ -1,8 +1,8 @@
 model TrustedCircle {
-  id        String    @id @default(uuid()) @map("_id")
-  clientId  String   
-  name      String? // e.g. "Family Helpers"
-  createdAt DateTime @default(now())
+  id            String    @id @default(uuid()) @map("_id")
+  clientPartyId String   
+  name          String? // e.g. "Family Helpers"
+  createdAt     DateTime @default(now())
 
   @@map("trusted_circles")
 }
@@ -10,13 +10,13 @@ model TrustedCircle {
 model TrustedCircleMember {
   id              String        @id @default(uuid()) @map("_id")
   trustedCircleId String       
-  providerId      String       
+  providerPartyId String       
   addedAt         DateTime     @default(now())
   source          CircleSource @default(COMPLETED_TASK)
 
   status TrustedCircleMemberStatus @default(ACTIVE)
 
-  @@unique([trustedCircleId, providerId])
+  @@unique([trustedCircleId, providerPartyId])
   @@map("trusted_circle_members")
 }
 
