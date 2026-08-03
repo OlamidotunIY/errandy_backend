@@ -25,8 +25,8 @@ class FundEscrowHandler {
     if (
       !payload.errandId ||
       !payload.amountGross ||
-      !payload.clientId ||
-      !payload.workerId ||
+      !payload.clientPartyId ||
+      !payload.providerPartyId ||
       !payload.paymentMethodId ||
       !payload.platformFeeRate
     ) {
@@ -35,8 +35,8 @@ class FundEscrowHandler {
 
     const escrow = Escrow.create(
       payload.errandId,
-      payload.clientId,
-      payload.workerId,
+      payload.clientPartyId,
+      payload.providerPartyId,
       payload.amountGross,
       payload.platformFeeRate,
     );

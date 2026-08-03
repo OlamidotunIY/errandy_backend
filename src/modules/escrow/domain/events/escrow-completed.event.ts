@@ -24,7 +24,7 @@ export class EscrowCompletedEvent extends BaseDomainEvent<EscrowId> {
   ): EscrowCompletedEvent {
     return new EscrowCompletedEvent(escrow.id, new Date(), correlationId, {
       errandId: escrow.errandId,
-      clientId: escrow.clientId,
+      clientPartyId: escrow.clientPartyId,
       amount: escrow.amountGross,
     });
   }

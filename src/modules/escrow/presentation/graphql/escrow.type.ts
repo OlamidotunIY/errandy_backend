@@ -25,10 +25,10 @@ export class EscrowGraphQLType implements EscrowDTO {
   errandId!: string;
 
   @Field(() => String)
-  workerId!: string;
+  providerPartyId!: string;
 
   @Field(() => String)
-  clientId!: string;
+  clientPartyId!: string;
 
   @Field(() => Number)
   amountGross!: number;

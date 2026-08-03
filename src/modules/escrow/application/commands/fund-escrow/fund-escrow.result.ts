@@ -11,8 +11,8 @@ interface FundEscrowResult {
 
 interface FundEscrowPayload {
   errandId: EscrowId;
-  clientId: PartyId;
-  workerId: PartyId;
+  clientPartyId: PartyId;
+  providerPartyId: PartyId;
   amountGross: Money;
   paymentMethodId: PaymentMethodId;
   platformFeeRate: number;

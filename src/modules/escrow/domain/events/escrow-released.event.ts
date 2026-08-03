@@ -23,7 +23,7 @@ export class EscrowReleasedEvent extends BaseDomainEvent<EscrowId> {
   ): EscrowReleasedEvent {
     return new EscrowReleasedEvent(escrow.id, new Date(), correlationId, {
       errandId: escrow.errandId,
-      workerId: escrow.workerId,
+      providerPartyId: escrow.providerPartyId,
       amount: escrow.amountNetWorker,
       releasedAt: escrow.releasedAt!,
     });

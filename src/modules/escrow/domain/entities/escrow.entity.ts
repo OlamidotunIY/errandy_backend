@@ -22,8 +22,8 @@ class Escrow extends AggregateRoot<EscrowId> {
   constructor(
     public readonly id: EscrowId,
     public readonly errandId: ErrandId,
-    public readonly clientId: PartyId,
-    public readonly workerId: PartyId,
+    public readonly clientPartyId: PartyId,
+    public readonly providerPartyId: PartyId,
     private _amountGross: Money,
     private _platformFee: Money,
     private _amountNetWorker: Money,
@@ -42,8 +42,8 @@ class Escrow extends AggregateRoot<EscrowId> {
 
   static create(
     errandId: ErrandId,
-    clientId: PartyId,
-    workerId: PartyId,
+    clientPartyId: PartyId,
+    providerPartyId: PartyId,
     amountGross: Money,
     platformFeeRate: number,
   ): Escrow {
@@ -67,8 +67,8 @@ class Escrow extends AggregateRoot<EscrowId> {
     return new Escrow(
       EscrowId.create(),
       errandId,
-      clientId,
-      workerId,
+      clientPartyId,
+      providerPartyId,
       amountGross,
       platformFee,
       amountNetWorker,
@@ -85,8 +85,8 @@ class Escrow extends AggregateRoot<EscrowId> {
   static reconstitute(props: {
     id: EscrowId;
     errandId: ErrandId;
-    clientId: PartyId;
-    workerId: PartyId;
+    clientPartyId: PartyId;
+    providerPartyId: PartyId;
     amountGross: Money;
     platformFee: Money;
     amountNetWorker: Money;
@@ -101,8 +101,8 @@ class Escrow extends AggregateRoot<EscrowId> {
     return new Escrow(
       props.id,
       props.errandId,
-      props.clientId,
-      props.workerId,
+      props.clientPartyId,
+      props.providerPartyId,
       props.amountGross,
       props.platformFee,
       props.amountNetWorker,

@@ -5,11 +5,11 @@ abstract class EscrowRepository {
   abstract findById(id: EscrowId): Promise<Escrow | null>;
   abstract findByErrandId(errandId: ErrandId): Promise<Escrow | null>;
   // abstract findByClientId(
-  //   clientId: ClientId,
+  //   clientPartyId: ClientId,
   //   status?: EscrowStatus,
   // ): Promise<Escrow[]>;
   // abstract findByWorkerId(
-  //   workerId: ProviderId,
+  //   providerPartyId: ProviderId,
   //   status?: EscrowStatus,
   // ): Promise<Escrow[]>;
   abstract findMaturedForRelease(): Promise<Escrow[]>;

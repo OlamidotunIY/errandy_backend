@@ -24,7 +24,7 @@ export class EscrowRefundingEvent extends BaseDomainEvent<EscrowId> {
   ): EscrowRefundingEvent {
     return new EscrowRefundingEvent(escrow.id, new Date(), correlationId, {
       errandId: escrow.errandId,
-      clientId: escrow.clientId,
+      clientPartyId: escrow.clientPartyId,
       amount: escrow.amountGross,
       reason: reason,
     });

@@ -7,8 +7,8 @@ export interface GetEscrowByErrandPayload {
 export interface EscrowDTO {
   id: string;
   errandId: string;
-  clientId: string;
-  workerId: string;
+  clientPartyId: string;
+  providerPartyId: string;
   amountGross: number;
   amountNetWorker: number;
   platformFee: number;
