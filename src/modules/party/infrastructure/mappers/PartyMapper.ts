@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import {
+  ClientRole,
   OrgMemberRole,
   Organization,
   OrganizationMember,
@@ -23,6 +24,7 @@ type PrismaPartyWithRelations = Prisma.PartyGetPayload<{
       };
     };
     providerRole: true;
+    clientRole: true;
   };
 }>;
 
@@ -76,6 +78,16 @@ export class PartyMapper {
         )
       : null;
 
+    const clientRole = prismaParty.clientRole
+      ? new ClientRole(
+          PartyId.fromString(prismaParty.clientRole.id),
+          prismaParty.clientRole.defaultPaymentMethodId ?? undefined,
+          prismaParty.clientRole.isActive,
+          prismaParty.clientRole.createdAt,
+          prismaParty.clientRole.updatedAt,
+        )
+      : null;
+
     return new Party(
       PartyId.fromString(prismaParty.id),
       prismaParty.kind as PartyKind,
@@ -86,6 +98,7 @@ export class PartyMapper {
       person,
       organization,
       providerRole,
+      clientRole,
     );
   }
 
@@ -179,6 +192,26 @@ export class PartyMapper {
       avgRatingCached: providerRole.avgRatingCached,
       isActive: providerRole.isActive,
       updatedAt: providerRole.updatedAt,
+    };
+  }
+
+  toClientRoleCreatePersistence(party: Party): Prisma.ClientRoleCreateInput {
+    const clientRole = party.clientRole!;
+    return {
+      defaultPaymentMethodId: clientRole.defaultPaymentMethodId,
+      isActive: clientRole.isActive,
+      createdAt: clientRole.createdAt,
+      updatedAt: clientRole.updatedAt,
+      party: { connect: { id: party.id.value } },
+    };
+  }
+
+  toClientRoleUpdatePersistence(party: Party): Prisma.ClientRoleUpdateInput {
+    const clientRole = party.clientRole!;
+    return {
+      defaultPaymentMethodId: clientRole.defaultPaymentMethodId,
+      isActive: clientRole.isActive,
+      updatedAt: clientRole.updatedAt,
     };
   }
 

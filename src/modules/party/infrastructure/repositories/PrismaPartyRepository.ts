@@ -70,6 +70,14 @@ export class PrismaPartyRepository implements IPartyRepository {
           create: this.mapper.toProviderRoleCreatePersistence(party),
         });
       }
+
+      if (party.clientRole) {
+        await tx.clientRole.upsert({
+          where: { id: party.id.value },
+          update: this.mapper.toClientRoleUpdatePersistence(party),
+          create: this.mapper.toClientRoleCreatePersistence(party),
+        });
+      }
     });
   }
 
@@ -84,6 +92,7 @@ export class PrismaPartyRepository implements IPartyRepository {
           },
         },
         providerRole: true,
+        clientRole: true,
       },
     });
 
@@ -107,6 +116,7 @@ export class PrismaPartyRepository implements IPartyRepository {
           },
         },
         providerRole: true,
+        clientRole: true,
       },
     });
 
@@ -132,6 +142,7 @@ export class PrismaPartyRepository implements IPartyRepository {
           },
         },
         providerRole: true,
+        clientRole: true,
       },
     });
 
@@ -155,6 +166,7 @@ export class PrismaPartyRepository implements IPartyRepository {
           },
         },
         providerRole: true,
+        clientRole: true,
       },
     });
 
@@ -207,6 +219,7 @@ export class PrismaPartyRepository implements IPartyRepository {
           },
         },
         providerRole: true,
+        clientRole: true,
       },
       take: limit,
       orderBy: {

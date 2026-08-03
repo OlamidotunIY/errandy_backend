@@ -2,6 +2,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
 import {
+  AddClientRoleHandler,
   AddOrganizationMemberHandler,
   AddProviderRoleHandler,
   AwardBadgeHandler,
@@ -29,6 +30,7 @@ import {
   RemoveOrganizationMemberHandler,
   RequestTierUpgradeHandler,
   SearchProvidersByServiceHandler,
+  SetDefaultPaymentMethodHandler,
   TrustedByCountSyncSaga,
   UpdateProviderRoleHandler,
 } from '@module/party';
@@ -55,6 +57,8 @@ import {
     },
     CreatePersonPartyHandler,
     AddProviderRoleHandler,
+    AddClientRoleHandler,
+    SetDefaultPaymentMethodHandler,
     CreateOrganizationPartyHandler,
     AddOrganizationMemberHandler,
     RemoveOrganizationMemberHandler,
@@ -76,5 +80,6 @@ import {
     ProfileRatingRecalcJob,
     MonthlyTrustStatsJob,
   ],
+  exports: [IPartyRepository],
 })
 export class PartyModule {}
