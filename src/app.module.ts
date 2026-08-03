@@ -13,12 +13,14 @@ import { ServiceModule } from '@module/service/service.module';
 import { CategoryModule } from '@module/category/category.module';
 import { WalletModule } from '@module/wallet/wallet.module';
 import { ChatModule } from '@module/chat/chat.module';
+import { PaymentProviderModule } from '@src/infrastructure/payment-provider';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    PaymentProviderModule,
     GqlConfig,
     EventEmitterModule.forRoot(),
     PrismaModule,
