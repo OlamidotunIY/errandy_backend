@@ -7,10 +7,10 @@ export abstract class IApplicationRepository {
   abstract save(application: Application): Promise<void>;
   abstract findById(id: ApplicationId): Promise<Application | null>;
   abstract findByErrandId(errandId: ErrandId): Promise<Application[]>;
-  abstract findByWorkerId(workerId: PartyId): Promise<Application[]>;
+  abstract findByWorkerId(providerPartyId: PartyId): Promise<Application[]>;
   abstract findPendingByErrandId(errandId: ErrandId): Promise<Application[]>;
   abstract existsByErrandAndWorker(
     errandId: ErrandId,
-    workerId: PartyId,
+    providerPartyId: PartyId,
   ): Promise<boolean>;
 }

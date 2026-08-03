@@ -16,7 +16,7 @@ export class RequestApplicationAcceptanceHandler implements ICommandHandler<Requ
   ) {}
 
   async execute(command: RequestApplicationAcceptanceCommand): Promise<void> {
-    const { applicationId, clientId } = command.payload;
+    const { applicationId, clientPartyId } = command.payload;
 
     const application = await this.applicationRepo.findById(applicationId);
 

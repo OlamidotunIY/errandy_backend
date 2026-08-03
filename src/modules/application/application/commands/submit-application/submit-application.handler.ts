@@ -20,14 +20,14 @@ class SubmitApplicationHandler implements ICommandHandler<SubmitApplicationComma
   async execute(command: SubmitApplicationCommand): Promise<ApplicationId> {
     const {
       errandId,
-      workerId,
+      providerPartyId,
       proposedAmountMinorUnits,
       proposal,
       currency,
       applicantType,
     } = command.payload;
 
-    if (!errandId && !workerId) {
+    if (!errandId && !providerPartyId) {
       throw new ApplicationInvariantError(
         'ErrandId and ProviderId must be provided',
       );
@@ -35,16 +35,16 @@ class SubmitApplicationHandler implements ICommandHandler<SubmitApplicationComma
 
     const application = await this.repository.existsByErrandAndWorker(
       errandId,
-      workerId,
+      providerPartyId,
     );
 
     if (application) {
-      throw new DuplicateApplicationError(errandId.value, workerId.value);
+      throw new DuplicateApplicationError(errandId.value, providerPartyId.value);
     }
 
     const newApplication = Application.create(
       errandId,
-      workerId,
+      providerPartyId,
       proposal,
       proposedAmountMinorUnits,
       currency,

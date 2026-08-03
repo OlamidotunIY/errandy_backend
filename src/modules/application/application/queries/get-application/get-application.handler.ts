@@ -21,7 +21,7 @@ export class GetApplicationHandler implements IQueryHandler<GetApplicationQuery>
         {
           id: application.id.value,
           errandId: application.errandId.value,
-          workerId: application.workerId.value,
+          providerPartyId: application.providerPartyId.value,
           status: application.status(),
           type: application.type(),
           proposal: application.proposal(),

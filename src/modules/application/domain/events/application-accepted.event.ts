@@ -6,7 +6,7 @@ import { ErrandId } from '@module/errands';
 interface ApplicationAcceptedPayload {
   applicationId: ApplicationId;
   errandId: ErrandId;
-  workerId: PartyId;
+  providerPartyId: PartyId;
 }
 
 class ApplicationAcceptedEvent extends BaseDomainEvent<
@@ -41,7 +41,7 @@ class ApplicationAcceptedEvent extends BaseDomainEvent<
       {
         applicationId: application.id,
         errandId: application.errandId,
-        workerId: application.workerId,
+        providerPartyId: application.providerPartyId,
       },
     );
   }

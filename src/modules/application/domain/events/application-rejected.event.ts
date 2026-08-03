@@ -27,7 +27,7 @@ class ApplicationRejectedEvent extends BaseDomainEvent<ApplicationId> {
       correlationId,
       {
         errandId: application.errandId,
-        workerId: application.workerId,
+        providerPartyId: application.providerPartyId,
       },
     );
   }

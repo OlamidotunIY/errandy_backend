@@ -4,7 +4,7 @@ import { ErrandId } from '@module/errands';
 
 export interface SubmitApplicationPayload {
   errandId: ErrandId;
-  workerId: PartyId;
+  providerPartyId: PartyId;
   proposal: string;
   proposedAmountMinorUnits: number;
   currency: string;

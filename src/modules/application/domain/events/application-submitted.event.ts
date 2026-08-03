@@ -28,7 +28,7 @@ class ApplicationSubmittedEvent extends BaseDomainEvent<ApplicationId> {
       correlationId,
       {
         errandId: application.errandId,
-        workerId: application.workerId,
+        providerPartyId: application.providerPartyId,
         proposal: application.proposal(),
         proposedAmountMinorUnits: application.proposedAmountMinorUnits(),
         currency: application.currency(),

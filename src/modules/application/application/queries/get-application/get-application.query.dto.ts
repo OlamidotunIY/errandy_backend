@@ -8,7 +8,7 @@ export interface GetApplicationQueryDTO {
 export interface ApplicationDto {
   id: string;
   errandId: string;
-  workerId: string;
+  providerPartyId: string;
   status: ApplicationStatus;
   type: ApplicationType;
   proposal: string;

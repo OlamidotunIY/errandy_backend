@@ -13,7 +13,7 @@ export class Application extends AggregateRoot<ApplicationId> {
   constructor(
     public readonly id: ApplicationId,
     public readonly errandId: ErrandId,
-    public readonly workerId: PartyId,
+    public readonly providerPartyId: PartyId,
     private _status: ApplicationStatus,
     private _type: ApplicationType,
     private readonly _proposal: string,
@@ -29,7 +29,7 @@ export class Application extends AggregateRoot<ApplicationId> {
 
   static create(
     errandId: ErrandId,
-    workerId: PartyId,
+    providerPartyId: PartyId,
     proposal: string,
     proposedAmountMinorUnits: number,
     currency: string,
@@ -54,7 +54,7 @@ export class Application extends AggregateRoot<ApplicationId> {
     const application = new Application(
       id,
       errandId,
-      workerId,
+      providerPartyId,
       status,
       applicationType,
       proposal,
@@ -76,7 +76,7 @@ export class Application extends AggregateRoot<ApplicationId> {
   static reconstitute(props: {
     id: ApplicationId;
     errandId: ErrandId;
-    workerId: PartyId;
+    providerPartyId: PartyId;
     status: ApplicationStatus;
     type: ApplicationType;
     proposal: string;
@@ -90,7 +90,7 @@ export class Application extends AggregateRoot<ApplicationId> {
     return new Application(
       props.id,
       props.errandId,
-      props.workerId,
+      props.providerPartyId,
       props.status,
       props.type,
       props.proposal,
