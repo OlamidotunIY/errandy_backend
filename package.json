@@ -54,6 +54,7 @@
     "firebase-admin": "^13.6.0",
     "graphql": "^16.11.0",
     "graphql-redis-subscriptions": "^2.7.0",
+    "graphql-subscriptions": "^3.0.0",
     "graphql-type-json": "^0.3.2",
     "graphql-upload-ts": "^2.1.2",
     "graphql-ws": "^6.0.6",

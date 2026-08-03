@@ -92,6 +92,9 @@ importers:
       graphql-redis-subscriptions:
         specifier: ^2.7.0
         version: 2.7.0(graphql-subscriptions@3.0.0(graphql@16.14.2))
+      graphql-subscriptions:
+        specifier: ^3.0.0
+        version: 3.0.0(graphql@16.14.2)
       graphql-type-json:
         specifier: ^0.3.2
         version: 0.3.2(graphql@16.14.2)
