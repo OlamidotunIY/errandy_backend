@@ -105,3 +105,8 @@ model Verification {
 
   @@map("verifications")
 }
+
+type Money {
+  amountMinorUnits Int
+  currency         String
+}
