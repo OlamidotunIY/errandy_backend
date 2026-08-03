@@ -4,7 +4,7 @@ import {
   AddressId,
   Coordinates,
   DefaultAddressChangedEvent,
-} from '../';
+} from '..';
 import { UserId } from '@module/user';
 
 export class Address extends AggregateRoot<AddressId> {

@@ -1,1 +1,1 @@
-export * from './IAddressRepository';
+export * from './address.repository.interface';
