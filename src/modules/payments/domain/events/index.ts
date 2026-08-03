@@ -1,3 +1,4 @@
-export * from './payment-failed.events';
-export * from './payment-refunded.events';
-export * from './payment-succeeded.event';
+export * from './payment-method-added.event';
+export * from './charge-succeeded.event';
+export * from './charge-failed.event';
+export * from './charge-refunded.event';
