@@ -1,1 +1,1 @@
-export * from './RatingSubmittedEvent';
+export * from './rating-submitted.event';

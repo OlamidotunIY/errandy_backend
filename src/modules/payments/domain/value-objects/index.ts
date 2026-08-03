@@ -1,1 +1,1 @@
-export * from './PaymentMethodId';
+export * from './payment-method.id';

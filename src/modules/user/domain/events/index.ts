@@ -1,1 +1,1 @@
-export * from './AuthUserRegisteredEvent';
+export * from './auth-user-registered.event';
