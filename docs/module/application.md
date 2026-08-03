@@ -253,19 +253,22 @@ interface ListMyApplicationsRequestDto {
 
 ## Presentation
 
-| Method | Route | Dispatches | Auth |
-|---|---|---|---|
-| `POST` | `/applications` | `SubmitApplicationCommand` | authenticated, requires `ProviderRole` |
-| `POST` | `/applications/:id/request-acceptance` | `RequestApplicationAcceptanceCommand` | authenticated, see authorization branch above |
-| — | — | `AcceptApplicationCommand` | **no route** — processor-only |
-| — | — | `MarkApplicationAcceptanceFailedCommand` | **no route** — processor-only |
-| `POST` | `/applications/:id/reject` | `RejectApplicationCommand` | authenticated, errand's client only |
-| — | — | `RejectOtherApplicationsCommand` | **no route** — saga-only |
-| `GET` | `/applications/:id` | `GetApplicationQuery` | authenticated, `ApplicationAccessPolicy`-checked |
-| `GET` | `/errands/:id/applications` | `ListErrandApplicationsQuery` | authenticated, `ApplicationAccessPolicy`-checked |
-| `GET` | `/errands/:id/my-application` | `GetMyApplicationQuery` | authenticated, self only |
-| `GET` | `/applications/summary` | `GetApplicationSummaryQuery` | authenticated, self only |
-| `GET` | `/applications/mine` | `ListMyApplicationsQuery` | authenticated, self only |
+```graphql
+type Mutation {
+  submitApplication(input: SubmitApplicationInput!): Application! @auth
+  requestApplicationAcceptance(input: RequestApplicationAcceptanceInput!): Boolean! @auth
+  rejectApplication(applicationId: ID!): Application! @auth
+}
+type Query {
+  application(id: ID!): Application @auth
+  errandApplications(errandId: ID!, limit: Int!, cursor: String): [Application!]! @auth
+  myApplicationForErrand(errandId: ID!): Application @auth
+  applicationSummary: ApplicationSummary! @auth
+  myApplications(limit: Int!, cursor: String): [Application!]! @auth
+}
+```
+
+`acceptApplication`, `markApplicationAcceptanceFailed`, and `rejectOtherApplications` have **no `Mutation` fields** — processor-only and saga-only respectively, never reachable from the API layer.
 
 ## Open items
 

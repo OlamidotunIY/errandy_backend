@@ -1,5 +1,5 @@
 import { ObjectType, Field } from '@nestjs/graphql';
-import { LedgerEntryGraphQLType } from './';
+import { LedgerEntryGraphQLType } from '.';
 
 @ObjectType()
 class LedgerHistoryPageType {

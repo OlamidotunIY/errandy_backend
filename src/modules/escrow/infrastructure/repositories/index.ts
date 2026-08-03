@@ -1,1 +1,1 @@
-export * from './PrismaEscrowRepository';
+export * from './prisma-escrow.repository';

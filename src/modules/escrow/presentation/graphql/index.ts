@@ -1,1 +1,1 @@
-export * from './EscrowGraphQLType.type';
+export * from './escrow.type';

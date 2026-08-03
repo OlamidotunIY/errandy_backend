@@ -64,6 +64,27 @@ No geospatial index is defined here directly — `Address` itself is rarely quer
 - `setDefault()` — the command handler (not this method) is responsible for un-setting any previous default for the same `ownerUserId`, since that's a cross-record invariant this single entity can't enforce on its own
 - `toGeoJson()` — internal helper, `{ type: 'Point', coordinates: [longitude, latitude] }`
 
+## Events
+
+| Event | Raised by | Payload |
+|---|---|---|
+| `AddressCreated` | `Address.create()` | `{ addressId, ownerUserId, correlationId }` |
+| `AddressUpdated` | `Address.update()` | `{ addressId, correlationId }` |
+| `DefaultAddressChanged` | `Address.setDefault()` | `{ ownerUserId, addressId, correlationId }` |
+
+## Commands
+
+| Command | Handler behavior |
+|---|---|
+| `CreateAddressCommand` | Resolves coordinates (via `GeocodingAdapter` or passthrough if device GPS supplied), saves. |
+| `UpdateAddressCommand` | Re-geocodes only if the text fields changed and no new `coordinates` were supplied. |
+| `SetDefaultAddressCommand` | Un-sets any previous default for the same `ownerUserId` first (cross-record invariant, enforced here, not in the entity). |
+| `DeleteAddressCommand` | Hard delete. |
+
+## Event Handlers / Sagas / Jobs
+
+None — this is a supporting subdomain, deliberately kept simple, no reactive behavior.
+
 ## Repository interface
 
 ```typescript
@@ -127,6 +148,27 @@ interface AddressResponseDto {
   country: string;
   coordinates: { latitude: number; longitude: number };   // converted back from GeoJSON's [lng, lat] at the DTO boundary — API consumers never have to deal with GeoJSON's inverted order directly
   isDefault: boolean;
+}
+```
+
+## Mappers
+
+`AddressMapper`
+- `toDomain(prismaAddress)` — converts the GeoJSON `location` field into the entity's internal `Coordinates` shape
+- `toPersistence(address)` — inverse, produces the GeoJSON `Point`
+
+## Presentation
+
+```graphql
+type Mutation {
+  createAddress(input: CreateAddressInput!): Address! @auth
+  updateAddress(input: UpdateAddressInput!): Address! @auth
+  setDefaultAddress(addressId: ID!): Address! @auth
+  deleteAddress(addressId: ID!): Boolean! @auth
+}
+type Query {
+  address(id: ID!): Address @auth
+  myAddresses: [Address!]! @auth
 }
 ```
 

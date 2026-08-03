@@ -1,3 +1,3 @@
-export * from './LedgerEntryMapper';
-export * from './WalletBalanceSnapshotMapper';
-export * from './WalletMapper';
+export * from './ledger-entry.mapper';
+export * from './wallet-balance-snapshot.mapper';
+export * from './wallet.mapper';

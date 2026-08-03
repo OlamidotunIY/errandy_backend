@@ -2,7 +2,7 @@ model Search {
     id      String  @id @default(uuid()) @map("_id")
     keyword String
 
-    providerId String? 
+    providerPartyId String? 
 
     @@map("searches")
 }

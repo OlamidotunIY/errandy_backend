@@ -1,6 +1,6 @@
 export interface StartErrandRequestDto {
   errandId: string;
-  profileId: string;
+  providerPartyId: string;
 }
 
 export interface StartErrandResponseDto {

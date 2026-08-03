@@ -45,7 +45,7 @@ export class Errand extends AggregateRoot<ErrandId> {
   }
 
   static create(
-    clientId: string,
+    clientPartyId: string,
     categoryId: string,
     title: string,
     description: string,
@@ -59,7 +59,7 @@ export class Errand extends AggregateRoot<ErrandId> {
   ): Errand {
     const errand = new Errand(
       ErrandId.create(),
-      clientId,
+      clientPartyId,
       categoryId,
       title,
       description,
@@ -85,7 +85,7 @@ export class Errand extends AggregateRoot<ErrandId> {
     errand.addDomainEvent(
       new ErrandCreatedEvent(errand.id, correlationId, {
         errandId: errand.id.value,
-        clientId: errand._clientId,
+        clientPartyId: errand._clientId,
         sourceType: errand._sourceType,
       }),
     );
@@ -93,7 +93,7 @@ export class Errand extends AggregateRoot<ErrandId> {
     return errand;
   }
 
-  get clientId(): string {
+  get clientPartyId(): string {
     return this._clientId;
   }
 
@@ -115,6 +115,30 @@ export class Errand extends AggregateRoot<ErrandId> {
 
   get location(): unknown {
     return this._location;
+  }
+
+  distanceInMetersFrom(latitude: number, longitude: number): number | null {
+    const location = this._location as {
+      coordinates: [number, number];
+    } | null;
+
+    if (!location) {
+      return null;
+    }
+
+    const [longitude2, latitude2] = location.coordinates;
+    const earthRadiusMeters = 6371000;
+    const toRadians = (deg: number) => (deg * Math.PI) / 180;
+
+    const deltaLat = toRadians(latitude2 - latitude);
+    const deltaLon = toRadians(longitude2 - longitude);
+    const a =
+      Math.sin(deltaLat / 2) ** 2 +
+      Math.cos(toRadians(latitude)) *
+        Math.cos(toRadians(latitude2)) *
+        Math.sin(deltaLon / 2) ** 2;
+
+    return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
 
   get budget(): Money {

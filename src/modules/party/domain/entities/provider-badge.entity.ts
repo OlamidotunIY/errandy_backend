@@ -1,5 +1,5 @@
 import { AggregateRoot } from '@src/common';
-import { BadgeType, PartyId, ProviderBadgeId } from '../';
+import { BadgeType, PartyId, ProviderBadgeId } from '..';
 import { ProviderBadgeAwardedEvent } from '../events';
 
 export class ProviderBadge extends AggregateRoot<ProviderBadgeId> {

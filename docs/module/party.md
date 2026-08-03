@@ -1,8 +1,12 @@
 # Module: party
 
-Merges the former `client`, `provider`, `organizations` modules, built on the Party pattern (Fowler, *Analysis Patterns*) — a shared identity (`Party`) for anything that can post/apply-to errands, with structure (`Person`/`Organization`) and time-varying role data (`ProviderRole`) split into separate tables rather than one wide, nullable-heavy record.
+## Revision note
 
-**Capability model, simplified by this pattern**: there's no `capabilities` array anymore. "Does this party have provider capability" is just "does a `ProviderRole` row exist for it" — adding/removing the capability is inserting/deleting that row, not mutating flags on a shared record. There's no `ClientRole` table yet, since no client-specific data exists beyond posting errands — any `Party` can post an errand by default (add `ClientRole` later if that changes — YAGNI).
+`ClientRole` is now added — the earlier "no client-specific data exists, any Party can post an errand by default" reasoning held until payment methods needed a home. A `Party` needs a `ClientRole` to hold `defaultPaymentMethodId` (the actual `PaymentMethod` entity lives in `payment-gateway` — gateway tokens/authorization codes belong there — `ClientRole` just holds the pointer). Auto-created alongside `Person`/`Organization` at `Party` creation, same as before, just now backed by a real row instead of being implicit.
+
+Merges the former `client`, `provider`, `organizations` modules, built on the Party pattern (Fowler, *Analysis Patterns*) — a shared identity (`Party`) for anything that can post/apply-to errands, with structure (`Person`/`Organization`) and time-varying role data (`ClientRole`/`ProviderRole`) split into separate tables rather than one wide, nullable-heavy record.
+
+**Capability model**: "does this party have provider capability" is "does a `ProviderRole` row exist for it." `ClientRole` now exists for every `Party` unconditionally (created at the same time as `Person`/`Organization`), since every party can post errands and needs somewhere to hold payment method references — it's not optional/added-later the way `ProviderRole` is.
 
 ## Folder placement
 
@@ -13,6 +17,7 @@ src/modules/party/
 │   │   ├── party.entity.ts
 │   │   ├── person.entity.ts
 │   │   ├── organization.entity.ts
+│   │   ├── client-role.entity.ts
 │   │   ├── provider-role.entity.ts
 │   │   └── provider-badge.entity.ts
 │   ├── value-objects/
@@ -88,7 +93,15 @@ model Party {
 
   person       Person?
   organization Organization?
+  clientRole   ClientRole?
   providerRole ProviderRole?
+}
+
+model ClientRole {
+  id                     String   @id @map("_id") @db.ObjectId   // shared PK with Party
+  party                  Party    @relation(fields: [id], references: [id])
+  defaultPaymentMethodId String?  @db.ObjectId   // PaymentMethod lives in payment-gateway — plain scalar, cross-module reference
+  createdAt              DateTime @default(now())
 }
 
 model Person {
@@ -163,6 +176,9 @@ model ProviderBadge {
 - `incrementDisputedErrandsCount()`
 - `recomputeAvgRating(newWeightedAverage)`
 
+**`ClientRole`**
+- `setDefaultPaymentMethod(paymentMethodId)` — no validation that the payment method is actually verified here; that check belongs in `payment-gateway` at the point of actually charging, not duplicated here
+
 **`Organization`**
 - `addMember(userId, role)` — throws `OrganizationMemberAlreadyExistsError`
 - `removeMember(userId)` — throws `OrganizationMemberNotFoundError`
@@ -192,6 +208,7 @@ model ProviderBadge {
 | `DeactivatePartyCommand` | Full account-level deactivation — cascades from `UserDeactivated`, see `docs/modules/notification.md`-adjacent user lifecycle. |
 | `AddOrganizationMemberCommand` | Throws `OrganizationMemberAlreadyExistsError` if the `(organizationId, userId)` pair exists. |
 | `RemoveOrganizationMemberCommand` | Throws `OrganizationMemberNotFoundError` otherwise. |
+| `SetDefaultPaymentMethodCommand` | `{ partyId, paymentMethodId }` — validates the payment method belongs to this party and is verified (cross-module read into `payment-gateway`) before setting. |
 | `AwardBadgeCommand` | Org-only action; validates the requesting org actually has/had the member. |
 
 ## Event Handlers
@@ -264,6 +281,16 @@ interface AwardBadgeResponseDto {
   badgeId: string;
 }
 
+// commands/set-default-payment-method/set-default-payment-method.request.dto.ts
+interface SetDefaultPaymentMethodRequestDto {
+  partyId: string;
+  paymentMethodId: string;
+}
+interface SetDefaultPaymentMethodResponseDto {
+  clientRoleId: string;
+  defaultPaymentMethodId: string;
+}
+
 // queries/get-public-provider-profile/get-public-provider-profile.request.dto.ts
 interface GetPublicProviderProfileRequestDto {
   partyId: string;
@@ -301,21 +328,27 @@ interface GetOrgFacingProviderProfileResponseDto extends GetPublicProviderProfil
 
 ## Presentation
 
-REST controllers, dispatching via `CommandBus`/`QueryBus` — never touching repositories directly.
+GraphQL resolvers, dispatching via `CommandBus`/`QueryBus` — never touching repositories directly.
 
-| Method | Route | Dispatches | Auth |
-|---|---|---|---|
-| — | — | `CreatePersonPartyCommand` | internal only — no route, triggered by the ACL event handler |
-| `POST` | `/parties/:id/provider-role` | `AddProviderRoleCommand` | authenticated, self only |
-| `PATCH` | `/parties/:id/provider-role` | `UpdateProviderRoleCommand` | authenticated, self only |
-| `POST` | `/parties/:id/tier-upgrade-request` | `RequestTierUpgradeCommand` | authenticated, self only |
-| `POST` | `/organizations/:id/members` | `AddOrganizationMemberCommand` | authenticated, requires `OWNER`/`ADMIN` role on that org |
-| `DELETE` | `/organizations/:id/members/:userId` | `RemoveOrganizationMemberCommand` | same |
-| `POST` | `/organizations/:id/members/:userId/badges` | `AwardBadgeCommand` | authenticated, requires `OWNER`/`ADMIN` role on that org |
-| `GET` | `/parties/:id/public-profile` | `GetPublicProviderProfileQuery` | public |
-| `GET` | `/parties/:id/org-facing-profile` | `GetOrgFacingProviderProfileQuery` | authenticated, requires an active organization membership somewhere (any org, not the target's) |
-| `GET` | `/parties/search` | `SearchProvidersByServiceQuery` | public |
+```graphql
+type Mutation {
+  addProviderRole(input: AddProviderRoleInput!): AddProviderRoleResult! @auth
+  updateProviderRole(input: UpdateProviderRoleInput!): Party! @auth
+  requestTierUpgrade(input: RequestTierUpgradeInput!): Party! @auth
+  addOrganizationMember(input: AddOrganizationMemberInput!): Organization! @auth(role: ["OWNER", "ADMIN"])
+  removeOrganizationMember(input: RemoveOrganizationMemberInput!): Organization! @auth(role: ["OWNER", "ADMIN"])
+  awardBadge(input: AwardBadgeInput!): ProviderBadge! @auth(role: ["OWNER", "ADMIN"])
+  setDefaultPaymentMethod(input: SetDefaultPaymentMethodInput!): ClientRole! @auth
+}
+type Query {
+  publicProviderProfile(partyId: ID!): ProviderProfile
+  orgFacingProviderProfile(partyId: ID!): OrgFacingProviderProfile @auth
+  searchProvidersByService(categoryId: ID!, marketId: ID!): [ProviderProfile!]!
+}
+```
+
+`createPersonParty` has **no `Mutation` field** — internal only, triggered by the ACL event handler, never reachable from the API layer.
 
 ## Open item
 
-Should `ProviderBadge` live in this module (as shown) or be split into its own tiny `badges` module, given it's queried independently from the core `ProviderRole` aggregate and never participates in `Party`'s save/load unit? Leaning toward keeping it here for now since it's small — revisit if it grows.
+**Resolved**: `ProviderBadge` stays in `party` permanently — it's small, directly tied to `ProviderRole`, and doesn't warrant its own module.

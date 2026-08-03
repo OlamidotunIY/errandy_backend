@@ -9,10 +9,11 @@ model Party {
   person       Person?
   organization Organization?
   providerRole ProviderRole?
+  clientRole   ClientRole?
 }
 
 model Person {
-  id     String @id @map("_id")    // shared PK with Party
+  id     String @id @map("_id") // shared PK with Party
   party  Party  @relation(fields: [id], references: [id])
   userId String @unique
 }
@@ -30,18 +31,18 @@ model Organization {
 }
 
 model OrganizationMember {
-  id             String   @id @map("_id")
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  userId         String
-  role           OrgMemberRole
-  active         Boolean  @default(true)
+  id                  String        @id @map("_id")
+  organizationPartyId String
+  organization        Organization  @relation(fields: [organizationPartyId], references: [id])
+  userId              String
+  role                OrgMemberRole
+  active              Boolean       @default(true)
 
-  @@unique([organizationId, userId])
+  @@unique([organizationPartyId, userId])
 }
 
 model ProviderRole {
-  id                     String       @id @map("_id")    // shared PK with Party
+  id                     String       @id @map("_id") // shared PK with Party
   party                  Party        @relation(fields: [id], references: [id])
   tier                   ProviderTier @default(COMMUNITY)
   bio                    String?
@@ -58,12 +59,21 @@ model ProviderRole {
 }
 
 model ProviderBadge {
-  id                     String   @id @map("_id")
-  partyId                String
-  badgeType              BadgeType
-  awardedByOrganizationId String
-  period                 String
-  awardedAt              DateTime @default(now())
+  id                      String    @id @map("_id")
+  partyId                 String
+  badgeType               BadgeType
+  awardedByOrganizationPartyId String
+  period                  String
+  awardedAt               DateTime  @default(now())
+}
+
+model ClientRole {
+  id                     String   @id @map("_id") // shared PK with Party
+  party                  Party    @relation(fields: [id], references: [id])
+  defaultPaymentMethodId String?
+  isActive               Boolean  @default(true)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 }
 
 enum PartyKind {

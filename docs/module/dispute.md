@@ -1,5 +1,16 @@
 # Module: dispute
 
+## Alignment with wallet's pending-window (discovered while reviewing `wallet.md`)
+
+`EscrowReleaseSaga` moves funds out of `Escrow` immediately on `ErrandCompleted` — it doesn't wait for a dispute window. By the time most disputes would be raised, `Escrow` is already `RELEASED`, so calling `Escrow.refund()` would throw `EscrowAlreadyFinalizedError`. The actual protection against late disputes now lives in `wallet`'s `PENDING` balance bucket (a 7-day hold after release, before funds become withdrawable — see `docs/modules/wallet.md`).
+
+This means dispute eligibility and the wallet's pending window are the **same window — decided at 7 days** (matching `wallet.md`'s `ReleasePendingWindowJob`), and `DisputeResolutionSaga` needs a branch:
+- **Resolved within the window** → dispatches `ReversePendingCommand` into `wallet` (writes `PENDING_REVERSAL`, no `AVAILABLE_CREDIT`), **not** `RefundEscrowCommand`.
+- **Resolved in the party's favor** → no action needed — the existing `PENDING_CREDIT` proceeds to `AVAILABLE` normally.
+- `Escrow.refund()`/`RefundEscrowCommand` now only apply to the deferred pre-completion cancel path.
+
+`OpenDisputeCommand`'s guard is updated: `ErrandNotEligibleForDisputeError` if `Errand.status != COMPLETED` **or** if the pending window has already elapsed (a cross-module read into `wallet`).
+
 ## Folder placement
 
 ```
@@ -71,6 +82,38 @@ model Dispute {
 - `resolve(resolution, resolvedById)` → `RESOLVED`, throws `DisputeAlreadyResolvedError` if not `OPEN`/`UNDER_REVIEW`
 - `reject(resolvedById, reason)` → `REJECTED`
 
+## Events
+
+| Event | Raised by | Payload |
+|---|---|---|
+| `DisputeOpened` | `Dispute.open()` | `{ disputeId, errandId, correlationId }` |
+| `DisputeUnderReview` | `Dispute.assignReviewer()` | `{ disputeId, reviewerId, correlationId }` |
+| `DisputeResolved` | `Dispute.resolve()` | `{ disputeId, errandId, resolution, correlationId }` |
+| `DisputeRejected` | `Dispute.reject()` | `{ disputeId, correlationId }` |
+
+## Commands
+
+| Command | Handler behavior |
+|---|---|
+| `OpenDisputeCommand` | Cross-module read of `Errand.status` first — `ErrandNotEligibleForDisputeError` unless `COMPLETED`. |
+| `AssignReviewerCommand` | Permission-checked (`dispute:assign-reviewer`). |
+| `ResolveDisputeCommand` | Permission-checked (`dispute:resolve`). Fresh `correlationId` — arbitrary delay since opening. |
+| `RejectDisputeCommand` | Permission-checked (`dispute:reject`). |
+
+## Event Handlers
+
+None owned here.
+
+## Sagas
+
+| Saga | Trigger | Dispatches |
+|---|---|---|
+| `DisputeResolutionSaga` | `DisputeResolved` | `ReversePendingCommand` into `wallet` if resolved against the party (within the pending window); no action if resolved in the party's favor. `RefundEscrowCommand` is no longer dispatched from here — see the alignment note above. |
+
+## Jobs
+
+None.
+
 ## Repository interface
 
 ```typescript
@@ -132,6 +175,25 @@ interface DisputeResponseDto {
 
 // queries/list-open-disputes/list-open-disputes.response.dto.ts
 // returns DisputeResponseDto[], admin-facing only
+```
+
+## Mappers
+
+`DisputeMapper` — thin `toDomain`/`toPersistence`.
+
+## Presentation
+
+```graphql
+type Mutation {
+  openDispute(input: OpenDisputeInput!): Dispute! @auth
+  assignReviewer(input: AssignReviewerInput!): Dispute! @auth(permission: "dispute:assign-reviewer")
+  resolveDispute(input: ResolveDisputeInput!): Dispute! @auth(permission: "dispute:resolve")
+  rejectDispute(input: RejectDisputeInput!): Dispute! @auth(permission: "dispute:reject")
+}
+type Query {
+  dispute(id: ID!): Dispute @auth
+  openDisputes: [Dispute!]! @auth(permission: "dispute:assign-reviewer")
+}
 ```
 
 ## Open items

@@ -1,3 +1,3 @@
-export * from './ReleaseMaturedEscrowsJob';
-export * from './ReleaseMaturedEscrowsPayload';
-export * from './ReleaseMaturedEscrowsProcessor';
+export * from './release-matured-escrows.job';
+export * from './release-matured-escrows.payload';
+export * from './release-matured-escrows.processor';

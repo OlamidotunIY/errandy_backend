@@ -4,7 +4,7 @@ import { ErrandAssignmentId } from '../value-objects';
 interface AssignmentConfirmedDonePayload extends Record<string, unknown> {
   errandAssignmentId: string;
   errandId: string;
-  profileId: string;
+  providerPartyId: string;
 }
 
 export class AssignmentConfirmedDoneEvent extends BaseDomainEvent<

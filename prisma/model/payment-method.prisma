@@ -1,31 +1,49 @@
+model PaymentTransaction {
+    id              String   @id @default(auto()) @map("_id") @db.ObjectId
+    clientPartyId   String   @db.ObjectId   // Party — plain scalar
+    purposeId       String   @db.ObjectId   // an applicationId, or an errand id for direct bookings
+    amount          Money
+    status          String   @default("PENDING")   // PENDING | SUCCEEDED | FAILED | REFUNDED
+    gatewayReference String?
+    method          String?
+    failureReason   String?
+    createdAt       DateTime @default(now())
+    updatedAt       DateTime @updatedAt
+
+    @@index([purposeId])
+    @@index([gatewayReference])
+}
+
 model PaymentMethod {
-    id     String  @id @default(uuid()) @map("_id")
-    userId String
+    id      String @id @map("_id")
+    partyId String
 
-    provider    String // "paystack", "stripe", "paypal", "adyen"
-    providerRef String // e.g. Paystack authorization_code, Stripe paymentMethodId
-    type        String // "card", "bank_account", "wallet", "paypal"
+    provider    String
+    providerRef String
+    type        String
 
-    cardBrand String? // Visa, Mastercard, Amex
-    last4     String? // Last 4 digits for display
+    cardBrand String?
+    last4     String?
     expMonth  Int?
     expYear   Int?
 
     isDefault Boolean @default(false)
     verified  Boolean @default(false)
+    isActive  Boolean @default(true)
 
     createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
 
     @@map("payment_methods")
 }
 
 model PaystackCustomer {
-    id String  @id @default(uuid()) @map("_id")
+    id            String @id @map("_id")
     customer_code String
-    customer_id String
+    customer_id   String
 
     userId String
 
-    @@map("paystack_customers")
     @@unique([userId])
+    @@map("paystack_customers")
 }

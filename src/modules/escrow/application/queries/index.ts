@@ -1,1 +1,1 @@
-export * from './GetEscrowByErrand';
+export * from './get-escrow-by-errand';

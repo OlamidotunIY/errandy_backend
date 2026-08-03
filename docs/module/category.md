@@ -47,6 +47,24 @@ model Category {
 
 Otherwise intentionally thin — this is a supporting/reference subdomain, not core, so no rich behavior beyond the leaf check.
 
+## Events, Commands, Event Handlers, Sagas, Jobs
+
+None — seed-managed, no write-side commands exist yet (see the main doc's open items; add these if/when `Category` becomes admin-editable).
+
+## Mappers
+
+`CategoryMapper`
+- `toDomain(prismaCategory)` / `toPersistence(category)` — thin, no transformation beyond field mapping
+- `toTreeDto(categories: Category[])` — assembles the flat repository result into the nested `CategoryTreeNodeResponseDto` shape for the query response
+
+## Presentation
+
+```graphql
+type Query {
+  categoryTree: [CategoryTreeNode!]!
+}
+```
+
 ## Repository interface
 
 ```typescript

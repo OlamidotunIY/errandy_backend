@@ -1,2 +1,2 @@
-export * from './AddressId';
-export * from './CoordinatesType';
+export * from './address.id';
+export * from './coordinates-type.vo';

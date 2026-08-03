@@ -1,1 +1,1 @@
-export * from './IEscrowRepository';
+export * from './escrow.repository.interface';

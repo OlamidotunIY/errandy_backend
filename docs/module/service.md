@@ -61,6 +61,25 @@ model Service {
 - `updatePrice(newPrice: Money)`
 - `deactivate()`
 
+## Events
+
+| Event | Raised by | Payload |
+|---|---|---|
+| `ServiceListed` | `Service.create()` | `{ serviceId, listedById, correlationId }` |
+| `ServiceDeactivated` | `Service.deactivate()` | `{ serviceId, correlationId }` |
+
+## Commands
+
+| Command | Handler behavior |
+|---|---|
+| `ListServiceCommand` | Synchronous gate check: `listerProviderRole.tier >= category.requiredTier`, throws otherwise — not an event reaction. |
+| `UpdateServicePriceCommand` | Ownership check: `ServiceNotOwnedByListerError` if `listedById` doesn't match the requester. |
+| `DeactivateServiceCommand` | Same ownership check. |
+
+## Event Handlers, Sagas, Jobs
+
+None — the verification gate is synchronous, no reactive behavior needed.
+
 ## Repository interface
 
 ```typescript
@@ -113,6 +132,25 @@ interface ServiceResponseDto {
   title: string;
   description: string;
   price: { amountMinorUnits: number; currency: string };
+}
+```
+
+## Mappers
+
+`ServiceMapper`
+- `toDomain(prismaService)` / `toPersistence(service)` — includes `Money` ↔ Prisma `Money` composite-type conversion via `Money.fromJSON()`/`.toJSON()`
+
+## Presentation
+
+```graphql
+type Mutation {
+  listService(input: ListServiceInput!): Service! @auth
+  updateServicePrice(input: UpdateServicePriceInput!): Service! @auth
+  deactivateService(serviceId: ID!): Boolean! @auth
+}
+type Query {
+  searchServices(categoryId: ID, marketId: ID!, limit: Int!, cursor: String): [Service!]!
+  service(id: ID!): Service
 }
 ```
 

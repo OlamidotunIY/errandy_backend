@@ -1,1 +1,1 @@
-export * from './PartyResolver';
+export * from './party.resolver';

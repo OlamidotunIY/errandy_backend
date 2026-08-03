@@ -1,1 +1,1 @@
-export * from './EscrowResolver';
+export * from './escrow.resolver';

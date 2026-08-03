@@ -1,1 +1,1 @@
-export * from './VerificationCompletedEvent';
+export * from './verification-completed.event';

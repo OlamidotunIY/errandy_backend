@@ -30,4 +30,4 @@ Same composite-score ranking + top-K selection as `errand-discovery-flow.md` —
 
 ## Open items
 
-- Should a client be able to offer to *multiple* trusted members simultaneously (first to accept wins), or strictly one-at-a-time as designed here? Not yet decided — one-at-a-time is simpler but slower if someone doesn't respond promptly.
+- **Resolved**: one-at-a-time, as designed above — not parallel multi-offers. Simpler to reason about (no race between two members both accepting), and the suggestion list makes re-offering to the next candidate fast enough that the "slower but simpler" tradeoff is worth it.

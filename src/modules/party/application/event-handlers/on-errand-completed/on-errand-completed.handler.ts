@@ -19,8 +19,8 @@ export class OnErrandCompletedHandler implements IEventHandler<ErrandCompletedEv
     const escrow = await this.prisma.escrow.findUnique({
       where: { errandId },
       select: {
-        workerId: true,
-        clientId: true,
+        providerPartyId: true,
+        clientPartyId: true,
       },
     });
 
@@ -31,7 +31,7 @@ export class OnErrandCompletedHandler implements IEventHandler<ErrandCompletedEv
       return;
     }
 
-    const affectedPartyIds = [...new Set([escrow.workerId, escrow.clientId])];
+    const affectedPartyIds = [...new Set([escrow.providerPartyId, escrow.clientPartyId])];
 
     for (const partyId of affectedPartyIds) {
       const party = await this.partyRepository.findById(partyId);

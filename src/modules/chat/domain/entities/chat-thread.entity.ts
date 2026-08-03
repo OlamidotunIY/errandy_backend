@@ -77,7 +77,7 @@ export class ChatThread extends AggregateRoot<ChatThreadId> {
     );
   }
 
-  recordFirstResponse(providerId: string, correlationId?: string): void {
+  recordFirstResponse(providerPartyId: string, correlationId?: string): void {
     if (!this.isOpen()) {
       throw new ChatThreadClosedError(this.id.value);
     }
@@ -97,7 +97,7 @@ export class ChatThread extends AggregateRoot<ChatThreadId> {
     this.addDomainEvent(
       new ProviderRespondedFirstTimeEvent(this.id, correlationId, {
         threadId: this.id.value,
-        providerId,
+        providerPartyId,
         responseTimeSeconds,
       }),
     );

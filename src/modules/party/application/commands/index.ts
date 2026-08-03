@@ -1,3 +1,4 @@
+export * from './add-client-role';
 export * from './add-organization-member';
 export * from './add-provider-role';
 export * from './award-badge';
@@ -6,4 +7,5 @@ export * from './create-person-party';
 export * from './deactivate-party';
 export * from './remove-organization-member';
 export * from './request-tier-upgrade';
+export * from './set-default-payment-method';
 export * from './update-provider-role';

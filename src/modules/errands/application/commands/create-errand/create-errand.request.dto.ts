@@ -1,5 +1,5 @@
 export interface CreateErrandRequestDto {
-  clientId: string;
+  clientPartyId: string;
   categoryId: string;
   title: string;
   description: string;

@@ -63,6 +63,24 @@ model Escrow {
 - `release()` → `RELEASED`, throws `EscrowAlreadyFinalizedError` if not `HELD`
 - `refund()` → `REFUNDED`, same guard
 
+## Commands
+
+| Command | Handler behavior |
+|---|---|
+| `CreateEscrowCommand` | Dispatched by the accept-flow's resumed `AcceptApplicationCommand`, never independently triggered. |
+| `ReleaseEscrowCommand` | Dispatched by `EscrowReleaseSaga` (in `errands`) or `DisputeResolutionSaga` (in `dispute`), depending on which path led here. |
+| `RefundEscrowCommand` | Dispatched by `EscrowRefundSaga` or `DisputeResolutionSaga`. |
+
+## Event Handlers, Sagas
+
+None — see the correction note at the top of this file.
+
+## Jobs
+
+| Job | Schedule | Does |
+|---|---|---|
+| `EscrowAutoReleaseJob` | Periodic (daily) | For `HELD` escrows past a grace window since `ErrandCompleted`, queries `dispute.findOpen(errandId)` first — skips (no-op, no event) if one exists, otherwise dispatches `ReleaseEscrowCommand` |
+
 ## Repository interface
 
 ```typescript
@@ -108,6 +126,21 @@ interface EscrowResponseDto {
   heldAt: string;
   releasedAt: string | null;
   refundedAt: string | null;
+}
+```
+
+## Mappers
+
+`EscrowMapper`
+- `toDomain(prismaEscrow)` / `toPersistence(escrow)` — includes `Money` conversion
+
+## Presentation
+
+No `Mutation` fields at all — every command here is dispatched internally by another module's saga/processor, never directly from the API layer.
+
+```graphql
+type Query {
+  escrowByErrand(errandId: ID!): Escrow @auth
 }
 ```
 

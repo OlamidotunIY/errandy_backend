@@ -1,5 +1,5 @@
 export interface BookServiceRequestDto {
-  clientId: string;
+  clientPartyId: string;
   serviceId: string;
   addressId: string;
 }

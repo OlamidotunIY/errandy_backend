@@ -1,2 +1,2 @@
-export * from './Application';
-export * from './ApplicationProgress';
+export * from './application-progress.entity';
+export * from './application.entity';

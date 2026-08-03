@@ -7,7 +7,7 @@ import {
   EventRetryQueueService,
   IDeadLetterRepository,
   PrismaDeadLetterRepository,
-} from './';
+} from '.';
 
 @Global()
 @Module({

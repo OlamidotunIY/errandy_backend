@@ -1,2 +1,2 @@
-export * from './IApplicationProgressRepository';
-export * from './IApplicationRepository';
+export * from './application-progress.repository.interface';
+export * from './application.repository.interface';

@@ -1,21 +1,21 @@
-import { PaymentSucceeded } from '@module/payments';
+import { ChargeSucceededEvent } from '@module/payments';
 import { InjectQueue } from '@nestjs/bullmq';
 import { EventsHandler, IEventHandler } from '@nestjs/cqrs';
 import { Queue } from 'bullmq';
 
-@EventsHandler(PaymentSucceeded)
-export class OnPaymentSucceededHandler implements IEventHandler<PaymentSucceeded> {
+@EventsHandler(ChargeSucceededEvent)
+export class OnPaymentSucceededHandler implements IEventHandler<ChargeSucceededEvent> {
   constructor(
     @InjectQueue('accept-application')
     private readonly queue: Queue,
   ) {}
 
-  async handle(event: PaymentSucceeded): Promise<void> {
-    const { purposeId, amount, gatewayReference } = event.payload;
+  async handle(event: ChargeSucceededEvent): Promise<void> {
+    const { purposeId, amountMinorUnits, currency, gatewayReference } = event.payload;
 
     await this.queue.add('payment-succeeded', {
       purposeId,
-      amount: amount.toJSON(),
+      amount: { amountMinorUnits, currency },
       correlationId: event.correlationId,
       gatewayReference,
     });

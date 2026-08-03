@@ -1,1 +1,1 @@
-export * from './AddressNotFoundError';
+export * from './address-not-found.error';
