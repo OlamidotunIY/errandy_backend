@@ -23,10 +23,11 @@
    - **Also cancels the pending `AutoAcceptErrandJob`** — no point letting it fire against an already-completed errand
 3a. **If the 24 hours elapse first**: `AutoAcceptErrandJob` fires — re-checks `Errand.status` is still eligible (idempotent no-op if the client already completed it in the meantime, since BullMQ delayed jobs and manual completion can race) — then completes it as the system: `Errand.complete()` → `completedBy: SYSTEM` → `ErrandCompleted { errandId, completedBy: SYSTEM, correlationId }` *(fresh id, since this is the system acting well after the original confirmation chain ended)*
 4. **`EscrowReleaseSaga`** (thin, single-hop) → `ReleaseEscrowCommand { escrowId, correlationId }` → `Escrow.release()` → `status: RELEASED` → `EscrowReleased { escrowId, errandId, amountMinorUnits, correlationId }`
-5. **Payout split** (see algorithm below) — one or more `Wallet.credit()` calls, each writing a `Ledger` row (`referenceType: ESCROW_RELEASE`, `referenceId: escrowId`), each raising its own `WalletCredited { walletId, amountMinorUnits, referenceId, correlationId }`, all sharing the same `correlationId`
-6. **`RatingPromptSaga`** → notifications prompting: client → rate the org/individual (client-facing), each assigned member → rate the org (internal), org → rate each member (internal). Actual `Rating` submission is its own later, standalone transaction — see `rating-flow.md` (pending)
-7. **`ChatLifecycleSaga`** → `ChatThread.close()`
-8. Correlation chain stops — nothing left to cascade
+5. **Payout split** (see algorithm below) — `wallet`'s `OnEscrowReleasedHandler` computes the split (`Money.split()`), then dispatches `ReleaseToPendingCommand` per recipient — **not** a direct credit to available balance. Each writes a paired `ACTIVE_ERRAND_REVERSAL` + `PENDING_CREDIT` `LedgerEntry` (see `docs/modules/wallet.md` for the full bucket-transfer model), raising `LedgerEntryRecorded { ..., correlationId }`, all sharing the same `correlationId`.
+6. **Funds sit in `pendingBalance` for a 7-day grace window** (`ReleasePendingWindowJob`, scheduled per-entry) — this is also the dispute-eligibility window, see `docs/modules/dispute.md`'s alignment note. If undisputed, the job dispatches `MovePendingToAvailableCommand` (own fresh `correlationId` — arbitrary delay, a scheduled job firing days later is not a continuation of the original completion transaction), moving the funds to `availableBalance`, finally withdrawable.
+7. **`RatingPromptSaga`** → notifications prompting: client → rate the org/individual (client-facing), each assigned member → rate the org (internal), org → rate each member (internal). Actual `Rating` submission is its own later, standalone transaction — see `rating-flow.md` (pending)
+8. **`ChatLifecycleSaga`** → `ChatThread.close()`
+9. Correlation chain stops — nothing left to cascade
 
 ## Payout split calculation
 
@@ -45,7 +46,7 @@ else:
   the single assignment's profile gets 100% of total
 ```
 
-**Algorithmic component — this is the one real subtlety here.** Splitting an integer amount (minor units — minor units, cents) proportionally across N recipients using floor/truncated division will not necessarily sum back to the original total — you can silently lose a few minor units to nowhere, or in some formulations over-allocate. This is the classic **apportionment / fair-division rounding problem**, not something CLRS covers (it's closer to social-choice/election-science literature than algorithms texts) — but it's a real, easy-to-get-wrong correctness issue in any financial split logic:
+**Algorithmic component — this is the one real subtlety here.** Splitting an integer amount (minor units — kobo, cents) proportionally across N recipients using floor/truncated division will not necessarily sum back to the original total — you can silently lose a few minor units to nowhere, or in some formulations over-allocate. This is the classic **apportionment / fair-division rounding problem**, not something CLRS covers (it's closer to social-choice/election-science literature than algorithms texts) — but it's a real, easy-to-get-wrong correctness issue in any financial split logic:
 
 1. Compute each recipient's **exact floor** share: `floor(total × percentage / 100)`
 2. Sum the floors — this will be `≤ total`, the difference is the leftover minor units from truncation
@@ -62,8 +63,8 @@ This guarantees the sum of all recipient shares exactly equals `total`, with no 
 | `ErrandReadyForCompletion` | `errands` | `{ errandId, correlationId }` | Notification, schedules `AutoAcceptErrandJob` |
 | `ErrandCompleted` | `errands` | `{ errandId, completedBy: CLIENT \| SYSTEM, correlationId }` | `EscrowReleaseSaga`, `RatingPromptSaga`, `ChatLifecycleSaga` |
 | `EscrowReleased` | `escrow` | `{ escrowId, errandId, amountMinorUnits, correlationId }` | Payout split handler (`wallet`) |
-| `WalletCredited` | `wallet` | `{ walletId, amountMinorUnits, referenceId, correlationId }` (one per recipient) | Notification |
+| `LedgerEntryRecorded` | `wallet` | `{ ledgerEntryId, walletId, type, amountMinorUnits, correlationId }` (multiple — `ACTIVE_ERRAND_REVERSAL` + `PENDING_CREDIT` per recipient) | Notification |
 
 ## Open items
 
-- Whether `dispute` eligibility differs based on `completedBy` (e.g. does an auto-accepted errand get a longer dispute window, since the client never actively reviewed it)? Worth considering given disputes can now only be raised after completion (see `dispute-flow.md`).
+- Whether `dispute` eligibility differs based on `completedBy` (e.g. does an auto-accepted errand get a longer dispute window, since the client never actively reviewed it)? **Resolved: no differential treatment** — same 7-day window regardless of `completedBy`. The auto-accept only fires after the client already had the full window to act; extending it further for `SYSTEM` completions would just reward inaction.

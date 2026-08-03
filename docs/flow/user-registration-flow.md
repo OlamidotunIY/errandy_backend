@@ -49,7 +49,9 @@ export const auth = betterAuth({
 });
 ```
 
-**Flagging, not asserting as fact**: I haven't verified whether better-auth's `before` hook actually supports aborting creation by throwing (the docs I found show it modifying data, not explicitly confirming throw-to-abort behavior) — worth a quick confirmation against the current version before relying on it. If it doesn't support this, the market check has to move to `after` instead, with the account left inert (no `Profile`, effectively unusable) until support/a broader-market launch resolves it — a materially worse UX, so worth getting this confirmed early.
+**Confirmed against better-auth's own docs** (previously flagged as needing verification): `before` hooks can abort two ways — `return false`, or `throw new APIError(...)` (imported from `better-auth/api`). Either stops user creation entirely, so the market-enforcement design below is valid as written.
+
+**New caveat, also confirmed**: `databaseHooks.user.create.after` does **not** run inside the same database transaction as the user creation itself. This means if `Party` creation in the `after` hook fails for some reason (validation error, transient DB issue), you'd be left with a `User` row and no corresponding `Party` — an orphaned account that can sign in but can't do anything. Mitigation: the `after` hook should be defensive (retry-safe, idempotent-checked — i.e. check whether a `Party` already exists for this `userId` before creating one), and a reconciliation job (`OrphanedUserSweepJob`) should periodically find `User`s with no `Party` and either retry creation or flag for support.
 
 ## Step-by-step sequence
 
@@ -78,4 +80,4 @@ None.
 
 ## Open item
 
-Confirm better-auth's `before` hook actually supports throwing to abort creation (see flag above) before relying on it for market enforcement.
+None remaining — `OrphanedUserSweepJob` (new, see the caveat above) handles the one real gap this uncovered.

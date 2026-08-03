@@ -59,5 +59,5 @@ None beyond a straightforward tree lookup (is this category a leaf) — trivial 
 
 ## Open items carried forward
 
-- Whether `sourceType` changes if a declined `TRUSTED_DIRECT_ASSIGN` errand is later published (does it become `OPEN_BID` for reporting purposes, or keep its origin tag forever with just `status` changing)? Leaning toward keeping `sourceType` as an immutable origin record and letting `status` alone reflect current visibility — but not formally decided.
+- **Resolved**: `sourceType` stays immutable — it's an origin record, not a current-mode indicator. If a declined `TRUSTED_DIRECT_ASSIGN` errand later gets published, `status` changes to `PUBLISHED` but `sourceType` still reads `TRUSTED_DIRECT_ASSIGN`, preserving the true origin for analytics/reporting.
 - No auto-expiry timeout on Path B (service booking) equivalent to `ArchiveInactiveErrandsJob` was discussed — bookings go straight to `ASSIGNED` so this shouldn't apply, but worth a sanity check once written up in full.

@@ -1,56 +1,51 @@
 # Flow: Withdrawal (Debit-First, Compensating Credit)
 
+## Revision note
+
+`Withdrawal` as a separate status-tracking entity is gone (see `docs/modules/wallet.md`'s revision note). "Is this transfer still pending" now lives in `payment-gateway`'s `PaymentTransaction` (via `direction: TRANSFER`), the same entity that already tracked charges. Wallet's role is now just: debit the ledger immediately, react to the eventual `TransferSucceeded`/`TransferFailed`.
+
 ## Actors
 
-- **Profile** (worker/org, requesting payout)
-- **wallet module** — owns `Wallet`, `Ledger`, `Withdrawal`, `BankAccount`
-- **payment-gateway module** — external transfer execution
-
-## Why this is a genuine Process Manager, not a thin saga
-
-Real money moves in a specific order with a hard failure branch, and a mid-flight crash (debited, but transfer never confirmed) would leave a bad state — same criteria as `AcceptApplicationProcessManager`. This one keeps persisted progress.
+- **Party** (worker/org, requesting payout)
+- **wallet module** — owns `LedgerEntry`, `WalletBalanceSnapshot`, `BankAccount`
+- **payment-gateway module** — owns the transfer's external status end-to-end
 
 ## Preconditions
 
-- `bankAccount.isVerified === true` (see `verification`-adjacent `BankAccountResolutionProcessor` — added async, not blocking at add-time)
-- `bankAccount.marketId === wallet.marketId` — no NGN wallet paying out to a GHS account, structurally enforced
-- `wallet.balanceMinorUnits >= requestedAmount` (checked against the cached balance, immediately re-verified via `Ledger` sum if there's any doubt about drift)
+- `bankAccount.isVerified === true`
+- `bankAccount.currency === wallet.currency` — no NGN wallet paying out to a GHS account, structurally enforced (aligned with `Wallet`'s currency-based matching, not `marketId`)
+- `wallet.availableBalance >= requestedAmount` — checked against the snapshot's `availableBalance` bucket specifically, not the total across all three buckets
 
 ## Step-by-step sequence
 
 1. `RequestWithdrawalCommand { walletId, amountMinorUnits, destinationBankAccountId }`
-2. Fresh `correlationId` — this is a new top-level transaction
-3. `WithdrawalProcessManager.start()`:
-   - Creates `Withdrawal { status: PENDING }`
-   - **Debits immediately** — `Wallet.debit()` + `Ledger { type: DEBIT, referenceType: WITHDRAWAL, referenceId: withdrawalId }` — this is the deliberate design choice from earlier in this project: debiting at request-time, not at completion-time, specifically to prevent a double-withdrawal race (two requests both reading the same "available" balance before either completes)
-   - `WalletDebited { walletId, amountMinorUnits, referenceId: withdrawalId, correlationId }`
-   - `WithdrawalRequested { withdrawalId, walletId, amountMinorUnits, correlationId }`
-   - Dispatches the actual transfer call into `payment-gateway`
-4. **Async gateway confirmation** — same shape as the payment-charge flow: a webhook fires later, `payment-gateway` raises `TransferSucceeded`/`TransferFailed`
-5. Bridge event handlers in `wallet` enqueue a job onto `withdrawal-continue` (Competing Consumers, same BullMQ pattern as `accept-application-continue`)
-6. `WithdrawalContinueProcessor` dispatches the matching command:
-   - **Success** → `WithdrawalCompleted { withdrawalId, correlationId }`, `Withdrawal.status: COMPLETED` — nothing further to compensate, the earlier debit stands
-   - **Failure** → `WithdrawalFailed { withdrawalId, reason, correlationId }` **and** a compensating `Wallet.credit()` + `Ledger { type: CREDIT, referenceType: WITHDRAWAL_REVERSAL, referenceId: withdrawalId }`, raising `WalletCredited { ..., correlationId }` — same `correlationId` throughout, since this is still the same transaction unwinding, not a new one. **No auto-retry** — the user is simply notified their withdrawal failed (with `reason`) and must manually re-initiate a fresh `RequestWithdrawalCommand` if they want to try again; that's a brand-new transaction with its own `correlationId`, not a continuation of the failed one.
-7. Permanent gateway failures (bad account details, etc.) are dead-lettered via `IDeadLetterRepository`, same classifier pattern as `ReleaseMaturedEscrowsProcessor`; transient ones retry via BullMQ backoff
+2. Fresh `correlationId` — new top-level transaction
+3. **Debits immediately** — the deliberate design choice from earlier in this project, to prevent a double-withdrawal race: `LedgerEntry.record({ type: WITHDRAWAL_DEBIT, ... })`, applied to `WalletBalanceSnapshot.availableBalance` via the sequence-guarded `applyEntry()` (see `docs/modules/wallet.md` for the optimistic-concurrency mechanism)
+4. `LedgerEntryRecorded { ledgerEntryId, walletId, type: WITHDRAWAL_DEBIT, amountMinorUnits, correlationId }`
+5. Dispatches `InitiateTransferCommand { recipientPartyId, purposeId: ledgerEntryId, amount, destinationBankAccountId, correlationId }` into `payment-gateway` — `purposeId` is the `LedgerEntry`'s own id, giving the eventual webhook response something to correlate back to
+6. **Async gateway confirmation** — `payment-gateway`'s webhook controller receives the callback, calls `PaymentTransaction.markSucceeded()`/`markFailed()`, raises `TransferSucceeded`/`TransferFailed`
+7. `wallet`'s `OnTransferFailedHandler` (bridge, no business logic) enqueues a job onto `withdrawal-reversal` — *(Competing Consumers)*. **No handler is needed for `TransferSucceeded`** — nothing further happens in `wallet` on success, the debit simply stands.
+8. `WithdrawalReversalProcessor` dispatches `ReverseWithdrawalCommand` → `LedgerEntry.record({ type: REFUND_CREDIT, ... })`, reversing the original debit. **No auto-retry** — the user is notified their withdrawal failed (with `reason`) and must manually re-initiate a fresh `RequestWithdrawalCommand` if they want to try again; that's a brand-new transaction with its own `correlationId`.
+9. Permanent gateway failures are dead-lettered via `IDeadLetterRepository`; transient ones retry via BullMQ backoff
 
 ## Event table
 
 | Event | Publisher | Payload | Consumers |
 |---|---|---|---|
-| `WalletDebited` | `wallet` | `{ walletId, amountMinorUnits, referenceId, correlationId }` | Notification |
-| `WithdrawalRequested` | `wallet` | `{ withdrawalId, walletId, amountMinorUnits, correlationId }` | Notification |
-| `WithdrawalCompleted` | `wallet` | `{ withdrawalId, correlationId }` | Notification |
-| `WithdrawalFailed` | `wallet` | `{ withdrawalId, reason, correlationId }` | Notification |
-| `WalletCredited` (compensating) | `wallet` | `{ walletId, amountMinorUnits, referenceId: withdrawalId, correlationId }` | Notification |
+| `LedgerEntryRecorded` (`WITHDRAWAL_DEBIT`) | `wallet` | `{ ledgerEntryId, walletId, type, amountMinorUnits, correlationId }` | Notification |
+| `TransferSucceeded` | `payment-gateway` | `{ paymentTransactionId, purposeId, correlationId }` | Notification only — wallet does nothing further |
+| `TransferFailed` | `payment-gateway` | `{ paymentTransactionId, purposeId, reason, correlationId }` | `wallet` (bridge → reversal), Notification |
+| `LedgerEntryRecorded` (`REFUND_CREDIT`, compensating) | `wallet` | `{ ledgerEntryId, walletId, type, amountMinorUnits, correlationId }` | Notification |
+
+## `StuckTransferSweepJob`
+
+Moved to `payment-gateway` (was `wallet`'s `StuckWithdrawalSweepJob`) — "stuck" = `direction: TRANSFER`, `status: PENDING` past 6h (default, tunable). Flags for ops review, does not auto-resolve.
 
 ## Algorithmic component
 
-None — this is orchestration and compensation logic, not a computational problem.
-
-## `StuckWithdrawalSweepJob`
-
-"Stuck" = `Withdrawal.status: PENDING` for longer than a configurable threshold (default proposed: 6 hours — gateway transfers typically resolve in minutes, so this is generous headroom before flagging for manual ops review, not a hard technical limit). Sweeps and surfaces these for support to investigate — it doesn't retry or auto-resolve them itself, just flags.
+None — orchestration and compensation logic, not a computational problem.
 
 ## Open items
 
-- Does a failed withdrawal's `BankAccount` get flagged for re-verification if the failure reason suggests bad account details, or is that left entirely to the user to notice and fix on their next attempt? Not yet decided.
+- Bank account re-verification trigger after a withdrawal failure suggesting bad details — not decided.
+- Whether `TransferSucceeded` should still trigger *any* wallet-side event (e.g. for audit-log completeness) even though no state changes — currently designed as a pure no-op on success, worth confirming that's intentional rather than an oversight.
