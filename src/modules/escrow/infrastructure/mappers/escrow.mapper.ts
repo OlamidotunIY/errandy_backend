@@ -16,8 +16,8 @@ export class EscrowMapper {
     return Escrow.reconstitute({
       id: EscrowId.fromString(escrow.id),
       errandId: ErrandId.fromString(escrow.errandId),
-      clientId: PartyId.fromString(escrow.clientId),
-      workerId: PartyId.fromString(escrow.workerId),
+      clientId: PartyId.fromString(escrow.clientPartyId),
+      workerId: PartyId.fromString(escrow.providerPartyId),
       amountGross: Money.fromMinorUnits(
         escrow.amountGross,
         escrow.currency as Currency,
@@ -44,8 +44,8 @@ export class EscrowMapper {
     return {
       id: escrow.id.toString(),
       errandId: escrow.errandId.toString(),
-      clientId: escrow.clientId.toString(),
-      workerId: escrow.workerId.toString(),
+      clientPartyId: escrow.clientId.toString(),
+      providerPartyId: escrow.workerId.toString(),
       amountGross: escrow.amountGross.toMinorUnits(),
       platformFee: escrow.platformFee.toMinorUnits(),
       amountNetWorker: escrow.amountNetWorker.toMinorUnits(),
