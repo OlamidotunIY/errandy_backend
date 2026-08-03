@@ -2,7 +2,7 @@ import { BaseDomainEvent } from '@src/common';
 import { PartyId } from '../value-objects';
 
 interface OrganizationMemberAddedPayload {
-  organizationId: string;
+  organizationPartyId: string;
   userId: string;
 }
 
@@ -29,7 +29,7 @@ export class OrganizationMemberAddedEvent extends BaseDomainEvent<
     correlationId?: string,
   ): OrganizationMemberAddedEvent {
     return new OrganizationMemberAddedEvent(partyId, correlationId, {
-      organizationId: partyId.value,
+      organizationPartyId: partyId.value,
       userId,
     });
   }
