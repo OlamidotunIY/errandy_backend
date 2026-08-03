@@ -117,6 +117,30 @@ export class Errand extends AggregateRoot<ErrandId> {
     return this._location;
   }
 
+  distanceInMetersFrom(latitude: number, longitude: number): number | null {
+    const location = this._location as {
+      coordinates: [number, number];
+    } | null;
+
+    if (!location) {
+      return null;
+    }
+
+    const [longitude2, latitude2] = location.coordinates;
+    const earthRadiusMeters = 6371000;
+    const toRadians = (deg: number) => (deg * Math.PI) / 180;
+
+    const deltaLat = toRadians(latitude2 - latitude);
+    const deltaLon = toRadians(longitude2 - longitude);
+    const a =
+      Math.sin(deltaLat / 2) ** 2 +
+      Math.cos(toRadians(latitude)) *
+        Math.cos(toRadians(latitude2)) *
+        Math.sin(deltaLon / 2) ** 2;
+
+    return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
   get budget(): Money {
     return this._budget;
   }
