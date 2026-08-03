@@ -4,7 +4,7 @@ import { CommandBus } from '@nestjs/cqrs';
 import { ILogger } from '@src/common';
 import { IErrandRepository, ErrandStatus } from '@module/errands/domain';
 import { CompleteErrandCommand } from '../commands';
-import { AutoAcceptErrandPayload } from './AutoAcceptErrandPayload';
+import { AutoAcceptErrandPayload } from './auto-accept-errand.payload';
 
 @Processor('auto-accept-errand')
 export class AutoAcceptErrandProcessor extends WorkerHost {

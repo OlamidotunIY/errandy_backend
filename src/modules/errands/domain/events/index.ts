@@ -1,4 +1,4 @@
-export * from './ErrandCompletedEvent';
+export * from './errand-completed.event';
 export * from './errand-created.event';
 export * from './errand-published.event';
 export * from './errand-assigned.event';

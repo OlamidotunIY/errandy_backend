@@ -5,6 +5,7 @@ import {
 } from '.';
 import {
   Errand,
+  ErrandAssignment,
   ErrandInvariantError,
   IErrandRepository,
   SourceType,
@@ -82,17 +83,28 @@ export class AssignErrandToTrustedMemberHandler implements ICommandHandler<Assig
       ApplicationType.DIRECT_OFFER,
     );
 
+    // Immediately assign the errand — this is a direct-trusted assignment,
+    // no bidding is needed. This fires ErrandAssignedEvent (opens chat thread, etc.)
+    errand.assignTo(application.id.value);
+
+    const assignment = ErrandAssignment.create(
+      errand.id,
+      payload.offeredToPartyId,
+    );
+
     await this.errandRepository.save(errand);
     await this.applicationRepository.save(application);
+    await this.errandRepository.saveAssignment(assignment);
 
     for (const event of [
       ...errand.pullDomainEvents(),
       ...application.pullDomainEvents(),
+      ...assignment.pullDomainEvents(),
     ]) {
       this.eventBus.publish(event);
     }
 
-    this.logger.info('Errand created and offered to trusted member', {
+    this.logger.info('Errand created and directly assigned to trusted member', {
       errandId: errand.id.value,
       applicationId: application.id.value,
     });

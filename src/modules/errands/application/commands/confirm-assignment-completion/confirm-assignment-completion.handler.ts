@@ -12,7 +12,7 @@ import {
   IErrandRepository,
 } from '@module/errands/domain';
 import { ILogger } from '@src/common';
-import { AutoAcceptErrandPayload } from '../../jobs/AutoAcceptErrandPayload';
+import { AutoAcceptErrandPayload } from '../../jobs/auto-accept-errand.payload';
 
 @CommandHandler(ConfirmAssignmentCompletionCommand)
 export class ConfirmAssignmentCompletionHandler implements ICommandHandler<ConfirmAssignmentCompletionCommand> {

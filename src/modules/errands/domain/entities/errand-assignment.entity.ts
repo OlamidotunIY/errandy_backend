@@ -4,7 +4,7 @@ import {
   ErrandId,
   AssignmentStatus,
 } from '../value-objects';
-import { AssignmentConfirmedDoneEvent } from '../events';
+import { AssignmentConfirmedDoneEvent, ErrandAssignedEvent } from '../events';
 import { AssignmentConfirmationUpdatedEvent } from '../events';
 import { ErrandInvariantError } from '../errors';
 
@@ -29,7 +29,7 @@ export class ErrandAssignment extends AggregateRoot<ErrandAssignmentId> {
     assignedByOrganizationId?: string,
     splitPercentage?: number,
   ): ErrandAssignment {
-    return new ErrandAssignment(
+    const assignment = new ErrandAssignment(
       ErrandAssignmentId.create(),
       errandId,
       profileId,
@@ -40,6 +40,8 @@ export class ErrandAssignment extends AggregateRoot<ErrandAssignmentId> {
       undefined,
       new Date(),
     );
+
+    return assignment;
   }
 
   get errandId(): ErrandId {

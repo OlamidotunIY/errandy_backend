@@ -1,4 +1,4 @@
-export * from './ErrandId';
+export * from './errand.id';
 export * from './errand-assignment.id';
 export * from './errand-status.vo';
 export * from './source-type.vo';
