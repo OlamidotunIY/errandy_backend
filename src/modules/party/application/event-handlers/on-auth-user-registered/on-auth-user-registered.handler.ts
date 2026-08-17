@@ -11,6 +11,7 @@ export class OnAuthUserRegisteredHandler implements IEventHandler<AuthUserRegist
       new CreatePersonPartyCommand({
         userId: event.payload.userId,
         marketId: event.payload.marketId,
+        role: event.payload.role,
         correlationId: event.payload.correlationId,
       }),
     );
