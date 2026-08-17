@@ -143,8 +143,10 @@ model ProviderRole {
   trustedByCount         Int          @default(0)
   completedErrandsCount  Int          @default(0)
   disputedErrandsCount   Int          @default(0)
+  cancelledErrandsCount  Int          @default(0)   // incremented only for WORKER_CANCELLED/WORKER_NO_SHOW, never CLIENT_CANCELLED — see application.md's Cancel design
   avgResponseTimeSeconds Int?
   avgRatingCached        Float?
+  defaultSearchRadiusKm  Int?         // nullable = no personal limit beyond the state boundary, which always applies regardless
   isActive               Boolean      @default(true)
   createdAt              DateTime     @default(now())
   updatedAt              DateTime     @updatedAt
@@ -210,6 +212,7 @@ model ProviderBadge {
 | `RemoveOrganizationMemberCommand` | Throws `OrganizationMemberNotFoundError` otherwise. |
 | `SetDefaultPaymentMethodCommand` | `{ partyId, paymentMethodId }` — validates the payment method belongs to this party and is verified (cross-module read into `payment-gateway`) before setting. |
 | `AwardBadgeCommand` | Org-only action; validates the requesting org actually has/had the member. |
+| `AdminSuspendPartyCommand` | Admin-only, permission-checked (`party:suspend`, new resource). Reuses `Party.deactivate()`, but `reason` and `resolvedById` are always required — never an optional param for the admin path. |
 
 ## Event Handlers
 
@@ -219,6 +222,7 @@ model ProviderBadge {
 | `OnVerificationCompletedHandler` | `VerificationCompleted` | Sets `verificationStatus`, updates `tier` on `ProviderRole` |
 | `OnErrandCompletedHandler` | `ErrandCompleted` | Increments `completedErrandsCount` on the assigned member(s), and the org if it was the applicant |
 | `OnDisputeOpenedHandler` | `DisputeOpened` | Increments `disputedErrandsCount` |
+| `OnApplicationCancelledHandler` | `ApplicationCancelled` | Increments `cancelledErrandsCount` on the applicant **only if** `reason` is `WORKER_CANCELLED` or `WORKER_NO_SHOW` — `CLIENT_CANCELLED` is not the worker's fault and doesn't touch trust signals |
 | `OnRatingSubmittedHandler` | `RatingSubmitted` (CLIENT_FACING only) | Immediate recompute of `avgRatingCached` for that one party |
 
 ## Sagas
@@ -291,6 +295,23 @@ interface SetDefaultPaymentMethodResponseDto {
   defaultPaymentMethodId: string;
 }
 
+// commands/admin-suspend-party/admin-suspend-party.request.dto.ts
+interface AdminSuspendPartyRequestDto {
+  partyId: string;
+  reason: string;
+  resolvedById: string;
+}
+
+// queries/admin-search-parties/admin-search-parties.request.dto.ts
+interface AdminSearchPartiesRequestDto {
+  searchTerm?: string;
+  kind?: 'INDIVIDUAL' | 'ORGANIZATION';
+  tier?: string;
+  isActive?: boolean;
+  limit: number;
+  cursor?: string;
+}
+
 // queries/get-public-provider-profile/get-public-provider-profile.request.dto.ts
 interface GetPublicProviderProfileRequestDto {
   partyId: string;
@@ -339,11 +360,13 @@ type Mutation {
   removeOrganizationMember(input: RemoveOrganizationMemberInput!): Organization! @auth(role: ["OWNER", "ADMIN"])
   awardBadge(input: AwardBadgeInput!): ProviderBadge! @auth(role: ["OWNER", "ADMIN"])
   setDefaultPaymentMethod(input: SetDefaultPaymentMethodInput!): ClientRole! @auth
+  adminSuspendParty(input: AdminSuspendPartyInput!): Party! @auth(permission: "party:suspend")
 }
 type Query {
   publicProviderProfile(partyId: ID!): ProviderProfile
   orgFacingProviderProfile(partyId: ID!): OrgFacingProviderProfile @auth
   searchProvidersByService(categoryId: ID!, marketId: ID!): [ProviderProfile!]!
+  adminSearchParties(input: AdminSearchPartiesInput!): [Party!]! @auth(permission: "party:suspend")
 }
 ```
 
