@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
 import { ConfigModule } from '@nestjs/config';
-import { EmailModule } from '@src/email/email.module';
 import { FirebaseModule } from '@src/firebase/firebase.module';
 import {
   EmailAdapter,
@@ -19,7 +18,7 @@ import {
 } from '@module/notification';
 
 @Module({
-  imports: [CqrsModule, ConfigModule, EmailModule, FirebaseModule],
+  imports: [CqrsModule, ConfigModule, FirebaseModule],
   providers: [
     NotificationLogMapper,
     NotificationPreferenceMapper,
@@ -38,6 +37,6 @@ import {
     UpdateNotificationPreferenceHandler,
     ListNotificationsByUserHandler,
   ],
-  exports: [INotificationLogRepository, INotificationPreferenceRepository],
+  exports: [INotificationLogRepository, INotificationPreferenceRepository, EmailAdapter, SmsAdapter],
 })
 export class NotificationModule {}
