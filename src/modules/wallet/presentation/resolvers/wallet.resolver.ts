@@ -7,7 +7,7 @@ import {
 } from '@module/wallet';
 import { QueryBus } from '@nestjs/cqrs';
 import { Args, Query, Resolver } from '@nestjs/graphql';
-import { CurrentUser } from '@src/auth/decorator/current-user.decorator';
+import { CurrentUser } from '@src/common/decorators/current-user.decorator';
 import { User } from 'better-auth';
 import { UserId } from '@module/user';
 
