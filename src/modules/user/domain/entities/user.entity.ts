@@ -12,7 +12,6 @@ export class User extends AggregateRoot<UserId> {
     public readonly phoneNumberVerified: boolean | null,
     public readonly username: string | null,
     public readonly displayUsername: string | null,
-    public readonly country: string | null,
     public readonly twoFactorEnabled: boolean | null,
     public readonly activeAddressId: string | null,
     public readonly chatRoomIds: string[],

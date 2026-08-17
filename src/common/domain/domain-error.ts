@@ -28,4 +28,9 @@ abstract class DomainError extends Error {
   }
 }
 
-export { DomainError, DomainErrorDetails, DomainErrorOptions, DomainErrorStatus };
+export {
+  DomainError,
+  DomainErrorDetails,
+  DomainErrorOptions,
+  DomainErrorStatus,
+};

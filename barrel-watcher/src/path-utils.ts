@@ -1,5 +1,9 @@
 import * as path from 'node:path';
-import { IGNORED_DIRECTORY_NAMES, IGNORED_FILE_PATTERNS, SRC_ROOT } from './constants';
+import {
+  IGNORED_DIRECTORY_NAMES,
+  IGNORED_FILE_PATTERNS,
+  SRC_ROOT,
+} from './constants';
 
 export function toPosixPath(filePath: string): string {
   return filePath.split(path.sep).join('/');
@@ -7,7 +11,10 @@ export function toPosixPath(filePath: string): string {
 
 export function isInside(parent: string, child: string): boolean {
   const relative = path.relative(parent, child);
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+  return (
+    relative === '' ||
+    (!relative.startsWith('..') && !path.isAbsolute(relative))
+  );
 }
 
 export function isIgnoredPath(filePath: string): boolean {
@@ -35,7 +42,9 @@ export function exportSpecifierForDirectory(directoryName: string): string {
 }
 
 export function normalizeEventPath(eventPath: string): string {
-  return path.isAbsolute(eventPath) ? eventPath : path.join(process.cwd(), eventPath);
+  return path.isAbsolute(eventPath)
+    ? eventPath
+    : path.join(process.cwd(), eventPath);
 }
 
 export function isUnderSrc(filePath: string): boolean {

@@ -13,4 +13,3 @@ export async function initializeBarrels(): Promise<void> {
     }; updated ${updated} barrel file${updated === 1 ? '' : 's'}.`,
   );
 }
-

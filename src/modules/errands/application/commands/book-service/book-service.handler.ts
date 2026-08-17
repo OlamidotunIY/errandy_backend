@@ -47,7 +47,9 @@ export class BookServiceHandler implements ICommandHandler<BookServiceCommand> {
       throw new ErrandInvariantError('Missing required fields');
     }
 
-    const clientParty = await this.partyRepository.findById(payload.clientPartyId);
+    const clientParty = await this.partyRepository.findById(
+      payload.clientPartyId,
+    );
     if (!clientParty) {
       throw new PartyNotFoundError(payload.clientPartyId);
     }

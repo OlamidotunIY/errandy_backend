@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { User as PrismaUser, UserRole, OnboardingProgress } from '@prisma/client';
+import { User as PrismaUser, Role, OnboardingProgress } from '@prisma/client';
 import { User } from '../../domain/entities/user.entity';
 import { UserId } from '../../domain/value-objects/user.id';
 
@@ -16,7 +16,6 @@ export class UserMapper {
       raw.phoneNumberVerified,
       raw.username,
       raw.displayUsername,
-      raw.country,
       raw.twoFactorEnabled,
       raw.activeAddressId,
       raw.chatRoomIds,
@@ -36,11 +35,10 @@ export class UserMapper {
       phoneNumberVerified: domain.phoneNumberVerified,
       username: domain.username,
       displayUsername: domain.displayUsername,
-      country: domain.country,
       twoFactorEnabled: domain.twoFactorEnabled,
       activeAddressId: domain.activeAddressId,
       chatRoomIds: domain.chatRoomIds,
-      activeRole: null,
+      role: Role.USER,
       onboardingProgress: OnboardingProgress.NONE,
       createdAt: domain.createdAt,
       updatedAt: domain.updatedAt,

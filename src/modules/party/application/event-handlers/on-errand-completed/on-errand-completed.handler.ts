@@ -31,7 +31,9 @@ export class OnErrandCompletedHandler implements IEventHandler<ErrandCompletedEv
       return;
     }
 
-    const affectedPartyIds = [...new Set([escrow.providerPartyId, escrow.clientPartyId])];
+    const affectedPartyIds = [
+      ...new Set([escrow.providerPartyId, escrow.clientPartyId]),
+    ];
 
     for (const partyId of affectedPartyIds) {
       const party = await this.partyRepository.findById(partyId);

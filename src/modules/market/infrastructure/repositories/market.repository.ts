@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, CountryCode } from '@prisma/client';
 import { IMarketRepository, Market, MarketId, MarketMapper } from '../../';
 
 @Injectable()
@@ -17,7 +17,7 @@ export class MarketRepository implements IMarketRepository {
 
   async findByCountryCode(countryCode: string): Promise<Market | null> {
     const market = await this.prisma.market.findUnique({
-      where: { countryCode },
+      where: { countryCode: countryCode as CountryCode },
     });
 
     if (!market) return null;

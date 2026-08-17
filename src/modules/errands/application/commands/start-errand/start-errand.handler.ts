@@ -25,7 +25,9 @@ export class StartErrandHandler implements ICommandHandler<StartErrandCommand> {
 
     const assignments =
       await this.errandRepository.findAssignmentsByErrandId(errandId);
-    const isAssignedMember = assignments.some((a) => a.providerPartyId === providerPartyId);
+    const isAssignedMember = assignments.some(
+      (a) => a.providerPartyId === providerPartyId,
+    );
     if (!isAssignedMember) {
       throw new ErrandInvariantError(
         'Only an assigned member may start this errand',

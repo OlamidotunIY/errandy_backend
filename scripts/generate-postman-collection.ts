@@ -1,5 +1,14 @@
 import { readFileSync, writeFileSync } from 'fs';
-import { parse, DocumentNode, DefinitionNode, FieldDefinitionNode, InputObjectTypeDefinitionNode, ObjectTypeDefinitionNode, InputValueDefinitionNode, TypeNode } from 'graphql';
+import {
+  parse,
+  DocumentNode,
+  DefinitionNode,
+  FieldDefinitionNode,
+  InputObjectTypeDefinitionNode,
+  ObjectTypeDefinitionNode,
+  InputValueDefinitionNode,
+  TypeNode,
+} from 'graphql';
 import { join } from 'path';
 
 interface PostmanRequest {
@@ -87,7 +96,7 @@ function generateDefaultValue(typeName: string, isNonNull: boolean): any {
 // Generate variables object for input types
 function generateVariables(
   schema: DocumentNode,
-  args: readonly InputValueDefinitionNode[]
+  args: readonly InputValueDefinitionNode[],
 ): string {
   const variables: Record<string, any> = {};
   const inputTypeDefinitions = new Map<string, InputObjectTypeDefinitionNode>();
@@ -125,11 +134,17 @@ function generateVariables(
           nestedInputTypeDef.fields.forEach((nestedField) => {
             const nestedTypeName = getTypeName(nestedField.type);
             const nestedIsNonNull = nestedTypeName.includes('!');
-            nestedObject[nestedField.name.value] = generateDefaultValue(nestedTypeName, nestedIsNonNull);
+            nestedObject[nestedField.name.value] = generateDefaultValue(
+              nestedTypeName,
+              nestedIsNonNull,
+            );
           });
           inputObject[field.name.value] = nestedObject;
         } else {
-          inputObject[field.name.value] = generateDefaultValue(fieldTypeName, fieldIsNonNull);
+          inputObject[field.name.value] = generateDefaultValue(
+            fieldTypeName,
+            fieldIsNonNull,
+          );
         }
       });
 
@@ -147,7 +162,7 @@ function generateReturnFields(
   schema: DocumentNode,
   returnType: string,
   maxDepth: number = 2,
-  currentDepth: number = 0
+  currentDepth: number = 0,
 ): string {
   if (currentDepth >= maxDepth) return '';
 
@@ -161,7 +176,7 @@ function generateReturnFields(
 
   const objectTypeDef = schema.definitions.find(
     (def): def is ObjectTypeDefinitionNode =>
-      def.kind === 'ObjectTypeDefinition' && def.name.value === baseType
+      def.kind === 'ObjectTypeDefinition' && def.name.value === baseType,
   );
 
   if (!objectTypeDef || !objectTypeDef.fields) {
@@ -179,9 +194,16 @@ function generateReturnFields(
       fields.push(`        ${field.name.value}`);
     } else {
       // For nested objects, recurse if we haven't reached max depth
-      const nestedFields = generateReturnFields(schema, fieldTypeName, maxDepth, currentDepth + 1);
+      const nestedFields = generateReturnFields(
+        schema,
+        fieldTypeName,
+        maxDepth,
+        currentDepth + 1,
+      );
       if (nestedFields) {
-        fields.push(`        ${field.name.value} {\n${nestedFields}\n        }`);
+        fields.push(
+          `        ${field.name.value} {\n${nestedFields}\n        }`,
+        );
       } else {
         fields.push(`        ${field.name.value}`);
       }
@@ -195,7 +217,7 @@ function generateReturnFields(
 function generateGraphQLQuery(
   schema: DocumentNode,
   operationType: 'query' | 'mutation' | 'subscription',
-  field: FieldDefinitionNode
+  field: FieldDefinitionNode,
 ): string {
   const fieldName = field.name.value;
   const args = field.arguments || [];
@@ -228,7 +250,13 @@ function generateGraphQLQuery(
 // Main function to generate Postman collection
 function generatePostmanCollection() {
   const schemaPath = join(__dirname, '..', 'src', 'schema.gql');
-  const collectionPath = join(__dirname, '..', 'postman', 'collections', '31841861-7cefd49a-5965-4ea1-9aa4-a43c810a3e9e.json');
+  const collectionPath = join(
+    __dirname,
+    '..',
+    'postman',
+    'collections',
+    '31841861-7cefd49a-5965-4ea1-9aa4-a43c810a3e9e.json',
+  );
 
   // Read and parse GraphQL schema
   const schemaContent = readFileSync(schemaPath, 'utf-8');
@@ -237,46 +265,48 @@ function generatePostmanCollection() {
   // Find Query, Mutation, and Subscription types
   const queryType = schema.definitions.find(
     (def): def is ObjectTypeDefinitionNode =>
-      def.kind === 'ObjectTypeDefinition' && def.name.value === 'Query'
+      def.kind === 'ObjectTypeDefinition' && def.name.value === 'Query',
   );
 
   const mutationType = schema.definitions.find(
     (def): def is ObjectTypeDefinitionNode =>
-      def.kind === 'ObjectTypeDefinition' && def.name.value === 'Mutation'
+      def.kind === 'ObjectTypeDefinition' && def.name.value === 'Mutation',
   );
 
   const subscriptionType = schema.definitions.find(
     (def): def is ObjectTypeDefinitionNode =>
-      def.kind === 'ObjectTypeDefinition' && def.name.value === 'Subscription'
+      def.kind === 'ObjectTypeDefinition' && def.name.value === 'Subscription',
   );
 
   const folders: PostmanFolder[] = [];
 
   // Generate mutations
   if (mutationType && mutationType.fields) {
-    const mutationRequests: PostmanRequest[] = mutationType.fields.map((field) => ({
-      name: field.name.value,
-      id: generatePostmanId(),
-      protocolProfileBehavior: {
-        disableBodyPruning: true,
-      },
-      request: {
-        method: 'POST',
-        header: [],
-        body: {
-          mode: 'graphql',
-          graphql: {
-            query: generateGraphQLQuery(schema, 'mutation', field),
-            variables: generateVariables(schema, field.arguments || []),
+    const mutationRequests: PostmanRequest[] = mutationType.fields.map(
+      (field) => ({
+        name: field.name.value,
+        id: generatePostmanId(),
+        protocolProfileBehavior: {
+          disableBodyPruning: true,
+        },
+        request: {
+          method: 'POST',
+          header: [],
+          body: {
+            mode: 'graphql',
+            graphql: {
+              query: generateGraphQLQuery(schema, 'mutation', field),
+              variables: generateVariables(schema, field.arguments || []),
+            },
+          },
+          url: {
+            raw: '{{url}}',
+            host: ['{{url}}'],
           },
         },
-        url: {
-          raw: '{{url}}',
-          host: ['{{url}}'],
-        },
-      },
-      response: [],
-    }));
+        response: [],
+      }),
+    );
 
     folders.push({
       name: 'mutations',
@@ -318,29 +348,31 @@ function generatePostmanCollection() {
 
   // Generate subscriptions
   if (subscriptionType && subscriptionType.fields) {
-    const subscriptionRequests: PostmanRequest[] = subscriptionType.fields.map((field) => ({
-      name: field.name.value,
-      id: generatePostmanId(),
-      protocolProfileBehavior: {
-        disableBodyPruning: true,
-      },
-      request: {
-        method: 'POST',
-        header: [],
-        body: {
-          mode: 'graphql',
-          graphql: {
-            query: generateGraphQLQuery(schema, 'subscription', field),
-            variables: generateVariables(schema, field.arguments || []),
+    const subscriptionRequests: PostmanRequest[] = subscriptionType.fields.map(
+      (field) => ({
+        name: field.name.value,
+        id: generatePostmanId(),
+        protocolProfileBehavior: {
+          disableBodyPruning: true,
+        },
+        request: {
+          method: 'POST',
+          header: [],
+          body: {
+            mode: 'graphql',
+            graphql: {
+              query: generateGraphQLQuery(schema, 'subscription', field),
+              variables: generateVariables(schema, field.arguments || []),
+            },
+          },
+          url: {
+            raw: '{{url}}',
+            host: ['{{url}}'],
           },
         },
-        url: {
-          raw: '{{url}}',
-          host: ['{{url}}'],
-        },
-      },
-      response: [],
-    }));
+        response: [],
+      }),
+    );
 
     folders.push({
       name: 'subscriptions',
@@ -353,7 +385,8 @@ function generatePostmanCollection() {
     info: {
       _postman_id: '31841861-7cefd49a-5965-4ea1-9aa4-a43c810a3e9e',
       name: 'Errandy Collection - GraphQL',
-      schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
+      schema:
+        'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
     },
     item: folders,
   };

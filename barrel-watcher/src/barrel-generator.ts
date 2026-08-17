@@ -12,7 +12,10 @@ export class BarrelGenerator {
   constructor(private readonly scope: DddScope) {}
 
   async updateDirectory(directoryPath: string): Promise<boolean> {
-    if (!this.scope.isDddDirectory(directoryPath) || isIgnoredPath(directoryPath)) {
+    if (
+      !this.scope.isDddDirectory(directoryPath) ||
+      isIgnoredPath(directoryPath)
+    ) {
       return false;
     }
 
@@ -42,7 +45,8 @@ export class BarrelGenerator {
 
     const lines = [
       ...exportableDirectories.map(
-        (directoryName) => `export * from '${exportSpecifierForDirectory(directoryName)}';`,
+        (directoryName) =>
+          `export * from '${exportSpecifierForDirectory(directoryName)}';`,
       ),
       ...exportableFiles.map(
         (fileName) => `export * from '${exportSpecifierForFile(fileName)}';`,

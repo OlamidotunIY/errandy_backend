@@ -33,7 +33,13 @@ class Wallet extends AggregateRoot<WalletId> {
       throw new Error('UserId is required to create a wallet');
     }
     const now = new Date();
-    return new Wallet(new WalletId(crypto.randomUUID()), userId, currency, now, now);
+    return new Wallet(
+      new WalletId(crypto.randomUUID()),
+      userId,
+      currency,
+      now,
+      now,
+    );
   }
 
   static reconstitute(

@@ -9,7 +9,7 @@ export class MarketNotFoundError extends DomainError {
       {
         code: 'MARKET_NOT_FOUND',
         statusCode: 404,
-      }
+      },
     );
   }
 }

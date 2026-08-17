@@ -1,4 +1,4 @@
-import { Market as PrismaMarket } from '@prisma/client';
+import { Market as PrismaMarket, CountryCode, Currency } from '@prisma/client';
 import { Market, MarketId } from '../../';
 
 export class MarketMapper {
@@ -7,7 +7,8 @@ export class MarketMapper {
       id: MarketId.fromString(prismaMarket.id),
       countryCode: prismaMarket.countryCode,
       currency: prismaMarket.currency,
-      verificationChargeAmountMinorUnits: prismaMarket.verificationChargeAmountMinorUnits,
+      verificationChargeAmountMinorUnits:
+        prismaMarket.verificationChargeAmountMinorUnits,
       createdAt: prismaMarket.createdAt,
       updatedAt: prismaMarket.updatedAt,
     });
@@ -16,9 +17,10 @@ export class MarketMapper {
   static toPersistence(market: Market): PrismaMarket {
     return {
       id: market.id.value,
-      countryCode: market.countryCode,
-      currency: market.currency,
-      verificationChargeAmountMinorUnits: market.verificationChargeAmountMinorUnits,
+      countryCode: market.countryCode as CountryCode,
+      currency: market.currency as Currency,
+      verificationChargeAmountMinorUnits:
+        market.verificationChargeAmountMinorUnits,
       createdAt: market.createdAt,
       updatedAt: market.updatedAt,
     };
