@@ -19,62 +19,62 @@ services:
       timeout: 5s
       retries: 10
 
-  api:
-    image: ${REGISTRY_IMAGE}:do-latest
-    restart: unless-stopped
-    env_file: .env
-    depends_on:
-      redis:
-        condition: service_healthy
-    expose:
-      - "8080"
-    environment:
-      NODE_ENV: production
-      PORT: 8080
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
-      REDIS_URL: ""
-    command: ["node", "dist/src/main.js"]
-    healthcheck:
-      # no curl dependency; node exists in your image
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "require('http').get('http://127.0.0.1:'+(process.env.PORT||8080)+'/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1));",
-        ]
-      interval: 10s
-      timeout: 3s
-      retries: 20
-      start_period: 20s
+#  api:
+#    image: ${REGISTRY_IMAGE}:do-latest
+#    restart: unless-stopped
+#    env_file: .env
+#    depends_on:
+#      redis:
+#        condition: service_healthy
+#    expose:
+#      - "8080"
+#    environment:
+#      NODE_ENV: production
+#      PORT: 8080
+#      REDIS_HOST: redis
+#      REDIS_PORT: 6379
+#      REDIS_PASSWORD: ${REDIS_PASSWORD}
+#      REDIS_URL: ""
+#    command: ["node", "dist/src/main.js"]
+#    healthcheck:
+#      # no curl dependency; node exists in your image
+#      test:
+#        [
+#          "CMD",
+#          "node",
+#          "-e",
+#          "require('http').get('http://127.0.0.1:'+(process.env.PORT||8080)+'/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1));",
+#        ]
+#      interval: 10s
+#      timeout: 3s
+#      retries: 20
+#      start_period: 20s
 
-  nginx:
-    image: nginx:stable-alpine
-    restart: unless-stopped
-    depends_on:
-      api:
-        condition: service_healthy
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
-
-  worker:
-    image: ${REGISTRY_IMAGE}:do-latest
-    restart: unless-stopped
-    env_file: .env
-    depends_on:
-      redis:
-        condition: service_healthy
-    environment:
-      NODE_ENV: production
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
-      REDIS_URL: ""
-    command: ["node", "dist/src/worker.js"]
+#  nginx:
+#    image: nginx:stable-alpine
+#    restart: unless-stopped
+#    depends_on:
+#      api:
+#        condition: service_healthy
+#    ports:
+#      - "80:80"
+#    volumes:
+#      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+#
+#  worker:
+#    image: ${REGISTRY_IMAGE}:do-latest
+#    restart: unless-stopped
+#    env_file: .env
+#    depends_on:
+#      redis:
+#        condition: service_healthy
+#    environment:
+#      NODE_ENV: production
+#      REDIS_HOST: redis
+#      REDIS_PORT: 6379
+#      REDIS_PASSWORD: ${REDIS_PASSWORD}
+#      REDIS_URL: ""
+#    command: ["node", "dist/src/worker.js"]
 
 volumes:
   redis_data:
