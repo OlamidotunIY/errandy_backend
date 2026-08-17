@@ -22,3 +22,15 @@ model NotificationPreference {
 
     @@map("notification_preferences")
 }
+
+model NotificationTemplate {
+    id               String   @id @default(uuid()) @map("_id")
+    marketId         String
+    type             String
+    resendTemplateId String   @unique
+    createdAt        DateTime @default(now())
+    updatedAt        DateTime @updatedAt
+
+    @@unique([marketId, type])
+    @@map("notification_templates")
+}
