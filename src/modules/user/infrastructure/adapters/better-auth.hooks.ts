@@ -40,12 +40,34 @@ export class BetterAuthIntegration implements OnModuleInit {
     type: 'sign-in' | 'email-verification' | 'forget-password' | 'change-email';
     token: string;
   }) {
+    let subject = 'Verify your email address';
+    let template = 'verify-email';
+
+    switch (type) {
+      case 'sign-in':
+        subject = 'Sign in to Errandy';
+        template = 'sign-in';
+        break;
+      case 'email-verification':
+        subject = 'Verify your email address';
+        template = 'verify-email';
+        break;
+      case 'forget-password':
+        subject = 'Reset your password';
+        template = 'reset-password';
+        break;
+      case 'change-email':
+        subject = 'Verify your new email address';
+        template = 'change-email';
+        break;
+    }
+
     await this.emailAdapter.send({
       to: user.email,
-      subject: 'Verify your email address',
-      template: 'verify-email',
+      subject,
+      template,
       context: { token },
-      emailType: 'transactional',
+      emailType: 'SYSTEM',
     });
   }
 
