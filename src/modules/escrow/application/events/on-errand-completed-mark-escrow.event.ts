@@ -33,19 +33,19 @@ export class OnErrandCompletedMarkEscrow implements IEventHandler<ErrandComplete
       throw new EscrowInvariantError('Event ID is missing');
     }
 
-    try {
-      const escrow = await this.escrowRepository.findByErrandId(
-        ErrandId.fromString(payload.errandId),
+    const escrow = await this.escrowRepository.findByErrandId(
+      ErrandId.fromString(payload.errandId),
+    );
+
+    if (!escrow) {
+      this.logger.error(
+        `Escrow not found for errand ID: ${payload.errandId}`,
+        {} as Error,
       );
+      throw new EscrowInvariantError('Escrow not found for errand');
+    }
 
-      if (!escrow) {
-        this.logger.error(
-          `Escrow not found for errand ID: ${payload.errandId}`,
-          {} as Error,
-        );
-        throw new EscrowInvariantError('Escrow not found for errand');
-      }
-
+    try {
       await this.command.execute(
         new MarkEscrowCompletedCommand({
           escrowId: escrow.id,
