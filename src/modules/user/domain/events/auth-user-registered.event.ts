@@ -5,6 +5,7 @@ export class AuthUserRegisteredEvent {
       email?: string;
       phoneNumber: string;
       marketId: string;
+      role?: 'client' | 'provider';
       correlationId?: string;
     },
   ) {}
