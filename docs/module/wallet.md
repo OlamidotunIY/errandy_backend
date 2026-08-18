@@ -95,6 +95,7 @@ enum LedgerEntryType {
   WITHDRAWAL_DEBIT
   REFUND_CREDIT             // compensating entry if a withdrawal transfer fails after debit
   COMPENSATION_CREDIT       // admin-issued, e.g. resolving a FailedRefund via COMPENSATE_WALLET rather than a gateway retry
+  MANUAL_ADJUSTMENT         // admin-issued support correction — always requires reason + resolvedById in metadata, never optional
 }
 
 model LedgerEntry {
@@ -257,6 +258,7 @@ abstract class IBankAccountRepository {
 | `ReversePendingCommand` | Internal — dispatched by `DisputeResolutionSaga` when resolution lands within the window. |
 | `AddBankAccountCommand` / `RemoveBankAccountCommand` / `SetDefaultBankAccountCommand` | As before, `currency` in place of `marketId`. |
 | `VerifyBankAccountCommand` | Internal — processor-only. |
+| `AdminAdjustWalletBalanceCommand` | Admin-only, permission-checked (`wallet:manual-adjustment`, new resource — deliberately separate from other admin permissions given how dangerous this is). Writes a `MANUAL_ADJUSTMENT` `LedgerEntry`, `reason` and `resolvedById` always required in `metadata`, never optional. |
 
 ## Event Handlers
 
@@ -296,6 +298,15 @@ interface AddBankAccountResponseDto {
   isVerified: false;
 }
 
+// commands/admin-adjust-wallet-balance/admin-adjust-wallet-balance.request.dto.ts
+interface AdminAdjustWalletBalanceRequestDto {
+  walletId: string;
+  amountMinorUnits: number;
+  direction: 'CREDIT' | 'DEBIT';
+  reason: string;
+  resolvedById: string;
+}
+
 // queries/get-wallet-balance/get-wallet-balance.response.dto.ts
 interface WalletBalanceResponseDto {
   walletId: string;
@@ -327,6 +338,7 @@ type Mutation {
   addBankAccount(input: AddBankAccountInput!): AddBankAccountResult! @auth
   removeBankAccount(bankAccountId: ID!): Boolean! @auth
   setDefaultBankAccount(bankAccountId: ID!): BankAccount! @auth
+  adminAdjustWalletBalance(input: AdminAdjustWalletBalanceInput!): LedgerEntry! @auth(permission: "wallet:manual-adjustment")
 }
 type Query {
   walletBalance: WalletBalance! @auth

@@ -7,19 +7,24 @@ src/modules/notification/
 ├── domain/
 │   ├── entities/
 │   │   ├── notification-log.entity.ts
-│   │   └── notification-preference.entity.ts
+│   │   ├── notification-preference.entity.ts
+│   │   └── device-token.entity.ts
 │   ├── repositories/
 │   │   ├── notification-log.repository.interface.ts
-│   │   └── notification-preference.repository.interface.ts
+│   │   ├── notification-preference.repository.interface.ts
+│   │   └── device-token.repository.interface.ts
 │   ├── events/
 │   │   ├── notification-sent.event.ts
-│   │   └── notification-failed.event.ts
+│   │   ├── notification-failed.event.ts
+│   │   └── device-token-registered.event.ts
 │   └── errors/
 │       └── notification-delivery.error.ts
 ├── application/
 │   ├── commands/
 │   │   ├── send-notification/       (checks NotificationPreference per channel before dispatch)
-│   │   └── update-notification-preference/
+│   │   ├── update-notification-preference/
+│   │   ├── register-device-token/
+│   │   └── unregister-device-token/
 │   ├── event-handlers/               (near-universal sink — representative subset shown)
 │   │   ├── on-profile-created.handler.ts
 │   │   ├── on-application-submitted.handler.ts
@@ -44,10 +49,12 @@ src/modules/notification/
 │   │   └── push-notification.adapter.ts
 │   ├── mappers/
 │   │   ├── notification-log.mapper.ts
-│   │   └── notification-preference.mapper.ts
+│   │   ├── notification-preference.mapper.ts
+│   │   └── device-token.mapper.ts
 │   └── repositories/
 │       ├── notification-log.repository.ts
-│       └── notification-preference.repository.ts
+│       ├── notification-preference.repository.ts
+│       └── device-token.repository.ts
 └── notification.module.ts
 ```
 

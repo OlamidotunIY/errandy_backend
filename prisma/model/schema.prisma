@@ -8,7 +8,7 @@ datasource db {
 }
 
 model User {
-  id                  String              @id @default(uuid()) @map("_id")
+  id                  String             @id @default(uuid()) @map("_id")
   name                String
   email               String
   emailVerified       Boolean
@@ -19,13 +19,12 @@ model User {
   phoneNumberVerified Boolean?
   username            String?
   displayUsername     String?
-  country             String?
   twoFactorEnabled    Boolean?
   onboardingProgress  OnboardingProgress @default(NONE)
   sessions            Session[]
   accounts            Account[]
   twofactors          TwoFactor[]
-  activeRole          UserRole?
+  role                Role
 
   // Active address reference
   activeAddressId String?
@@ -38,7 +37,7 @@ model User {
 }
 
 model Session {
-  id        String    @id @default(uuid()) @map("_id")
+  id        String   @id @default(uuid()) @map("_id")
   expiresAt DateTime
   token     String
   createdAt DateTime
@@ -53,7 +52,7 @@ model Session {
 }
 
 model Account {
-  id                    String     @id @default(uuid()) @map("_id")
+  id                    String    @id @default(uuid()) @map("_id")
   accountId             String
   providerId            String
   userId                String
@@ -72,7 +71,7 @@ model Account {
 }
 
 model TwoFactor {
-  id          String  @id @default(uuid()) @map("_id")
+  id          String @id @default(uuid()) @map("_id")
   secret      String
   backupCodes String
   userId      String
@@ -81,17 +80,17 @@ model TwoFactor {
   @@map("two_factors")
 }
 
-enum UserRole {
-  PROVIDER
-  CLIENT
+enum Role {
+  USER  @map("user")
+  ADMIN @map("admin")
 }
 
 enum OnboardingProgress {
-  NONE
-  ROLE_SELECTED
-  SERVICES_SELECTED
-  ADDRESS_ADDED
-  COMPLETED
+  NONE              @map("none")
+  ROLE_SELECTED     @map("role_selected")
+  SERVICES_SELECTED @map("services_selected")
+  ADDRESS_ADDED     @map("address_added")
+  COMPLETED         @map("completed")
 }
 
 // better-auth verification model for OAuth state storage
@@ -108,5 +107,5 @@ model Verification {
 
 type Money {
   amountMinorUnits Int
-  currency         String
+  currency         Currency
 }

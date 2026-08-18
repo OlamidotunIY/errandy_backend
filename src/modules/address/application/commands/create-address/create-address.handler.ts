@@ -1,4 +1,4 @@
-import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
+import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 import {
   Address,
   AddressDto,
@@ -13,6 +13,7 @@ export class CreateAddressHandler implements ICommandHandler<CreateAddressComman
   constructor(
     private readonly addressRepo: IAddressRepository,
     private readonly logger: ILogger,
+    private readonly eventPublisher: EventBus,
   ) {}
 
   async execute(command: CreateAddressCommand): Promise<AddressDto> {
@@ -35,6 +36,12 @@ export class CreateAddressHandler implements ICommandHandler<CreateAddressComman
     );
 
     await this.addressRepo.save(address);
+
+    const addressEvents = address.pullDomainEvents();
+
+    for (const event of addressEvents) {
+      this.eventPublisher.publish(event);
+    }
 
     this.logger.info(`Address created for user ${userId.value}`, {
       addressId: address.id.value,

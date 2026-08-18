@@ -1,36 +1,25 @@
 import { PrismaClient } from '@prisma/client';
+import * as dotenv from 'dotenv';
+
+dotenv.config();
+
+import { seedIndexes } from './seed/indexes.seed';
+import { seedMarkets } from './seed/market.seed';
+import { seedTemplates } from './seed/templates.seed';
+import { seedAdmins } from './seed/admin.seed';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  // Create 2dsphere index for Errand collection
-  await prisma.$runCommandRaw({
-    createIndexes: 'errands', // collection name in MongoDB
-    indexes: [
-      {
-        key: { location: '2dsphere' },
-        name: 'location_2dsphere'
-      }
-    ]
-  });
-  console.log('✅ 2dsphere index created for Errand collection');
-
-  // Create 2dsphere index for UserAddress collection
-  await prisma.$runCommandRaw({
-    createIndexes: 'user_addresses', // collection name in MongoDB
-    indexes: [
-      {
-        key: { location: '2dsphere' },
-        name: 'location_2dsphere'
-      }
-    ]
-  });
-  console.log('✅ 2dsphere index created for UserAddress collection');
+  await seedIndexes(prisma);
+  const { ngMarket } = await seedMarkets(prisma);
+  await seedAdmins(prisma);
+  await seedTemplates(prisma, ngMarket.id);
 }
 
 main()
   .then(() => {
-    console.log('🎯 Index setup complete');
+    console.log('🎯 Seeding complete');
     prisma.$disconnect();
   })
   .catch((e) => {

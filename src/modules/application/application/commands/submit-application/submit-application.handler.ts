@@ -39,7 +39,10 @@ class SubmitApplicationHandler implements ICommandHandler<SubmitApplicationComma
     );
 
     if (application) {
-      throw new DuplicateApplicationError(errandId.value, providerPartyId.value);
+      throw new DuplicateApplicationError(
+        errandId.value,
+        providerPartyId.value,
+      );
     }
 
     const newApplication = Application.create(

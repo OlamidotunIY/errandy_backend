@@ -11,7 +11,8 @@ export class OnPaymentSucceededHandler implements IEventHandler<ChargeSucceededE
   ) {}
 
   async handle(event: ChargeSucceededEvent): Promise<void> {
-    const { purposeId, amountMinorUnits, currency, gatewayReference } = event.payload;
+    const { purposeId, amountMinorUnits, currency, gatewayReference } =
+      event.payload;
 
     await this.queue.add('payment-succeeded', {
       purposeId,

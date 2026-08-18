@@ -8,7 +8,7 @@ import {
   IErrandRepository,
 } from '@module/errands/domain';
 import { ILogger } from '@src/common';
-import { AutoAcceptErrandPayload } from '../../jobs/auto-accept-errand.payload';
+import { AutoAcceptErrandPayload } from '../../';
 
 @CommandHandler(CompleteErrandCommand)
 export class CompleteErrandHandler implements ICommandHandler<CompleteErrandCommand> {

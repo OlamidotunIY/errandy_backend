@@ -34,10 +34,22 @@ model Errand {
   clientId    String   @db.ObjectId   // plain scalar — Party aggregate, no @relation, per the aggregate-boundary rule
   addressId   String   @db.ObjectId
   location    Json     // denormalized copy of Address.location, set once at creation
+  state       String   // also denormalized from Address.state — see the hard state filter below
   categoryId  String   @db.ObjectId
   // ...remaining fields as in the main architecture doc
 }
 ```
+
+## The query and its hard filters
+
+`BrowseOpenErrandsQuery { requesterPartyId, categoryId?, radiusKm?, limit, cursor }`
+
+Preconditions, enforced **in this order**, before any ranking logic runs:
+1. `status = PUBLISHED`
+2. `marketId = requester.marketId` — country-level isolation (Ghana never sees Nigeria)
+3. **`errand.state = requester's active address's state`** — a second, more granular hard boundary, exact string match rather than distance-based. State borders are irregular; a radius circle can't reliably respect them, which is exactly why `state` is denormalized onto `Errand` rather than derived from coordinates at query time. An errand just across a state line is never returned, no matter how close it is in raw distance.
+4. if `requiredTier` is set, `requester.tier >= requiredTier`
+5. **km limit, applied *within* the state boundary**: `radiusKm` if explicitly supplied on this call, else `requester.defaultSearchRadiusKm` if set as a standing preference, else no additional cap (state boundary alone is the limit). The state filter always applies regardless — a worker's radius can never extend past their own state.
 
 ```typescript
 // bootstrap/ensure-mongo-indexes.ts — run on every deploy, not a one-time migration
@@ -66,10 +78,10 @@ Two things need combining: **geographic proximity** and **recency** (`createdAt`
 
 ## Sequence
 
-1. Worker opens the discovery screen → `BrowseOpenErrandsQuery { requesterPartyId, categoryId?, limit, cursor }`
-2. Handler resolves worker's current location (either their default `Address`, or a live GPS coordinate if the client sends one)
-3. Market + tier filters applied (hard preconditions, cheap to check, applied before any geo work)
-4. Geospatial index query narrows to candidates within a radius (configurable — this is a tunable business parameter, not fixed forever)
+1. Worker opens the discovery screen → `BrowseOpenErrandsQuery { requesterPartyId, categoryId?, radiusKm?, limit, cursor }`
+2. Handler resolves worker's current location and active address's `state` (either their default `Address`, or a live GPS coordinate if the client sends one — `state` still comes from their registered address even if using live GPS, since GPS alone doesn't reliably give administrative-region boundaries)
+3. Market, state, and tier filters applied (hard preconditions, cheap to check, applied before any geo work) — state filter is non-negotiable, never widened by `radiusKm`
+4. Geospatial index query narrows to candidates within the resolved radius (explicit param → stored preference → state-boundary-only, per the precedence above)
 5. Candidates scored (proximity + recency blend), top-K selected via the heap approach
 6. Paginated result returned (`cursor` for the next page — since scores can shift as new errands are posted between page loads, cursor-based pagination here is "best effort," not perfectly stable; flagging as a known limitation rather than solving it now)
 
@@ -77,9 +89,9 @@ Two things need combining: **geographic proximity** and **recency** (`createdAt`
 
 - **Nearest-neighbor / geospatial filtering**: MongoDB's native `2dsphere` index (created outside Prisma's schema, per the gotcha above) — not a CLRS topic; practical answer is "use the database," not "implement it."
 - **Composite ranking + top-K selection**: min-heap of size K — CLRS Ch. 6 (Heaps), Ch. 9 (Medians and Order Statistics).
+- **State-boundary filtering**: plain exact-match query, no algorithm involved — deliberately not distance-based, see above.
 
 ## Open items
 
 - Exact weighting (`w1`/`w2`) between proximity and recency — product decision, not yet made; should be config, not hardcoded.
-- Default/max search radius — also a product decision.
 - Whether an organization's discovery view aggregates by the org's registered base location, or by wherever its currently-active members happen to be — not yet decided.

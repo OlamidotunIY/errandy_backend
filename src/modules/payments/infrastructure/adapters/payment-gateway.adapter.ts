@@ -32,12 +32,8 @@ export class PaymentGatewayAdapter implements IPaymentGatewayAdapter {
       providerRef: (auth?.authorization_code as string) ?? '',
       cardBrand: auth?.card_type as string | undefined,
       last4: auth?.last4 as string | undefined,
-      expMonth: auth?.exp_month
-        ? Number(auth.exp_month)
-        : undefined,
-      expYear: auth?.exp_year
-        ? Number(auth.exp_year)
-        : undefined,
+      expMonth: auth?.exp_month ? Number(auth.exp_month) : undefined,
+      expYear: auth?.exp_year ? Number(auth.exp_year) : undefined,
     };
   }
 

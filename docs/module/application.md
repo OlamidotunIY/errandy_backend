@@ -18,7 +18,8 @@ src/modules/application/
 │   ├── events/
 │   │   ├── application-submitted.event.ts
 │   │   ├── application-accepted.event.ts
-│   │   └── application-rejected.event.ts
+│   │   ├── application-rejected.event.ts
+│   │   └── application-cancelled.event.ts
 │   └── errors/
 │       ├── application-invariant.error.ts
 │       ├── application-not-found.error.ts
@@ -30,7 +31,8 @@ src/modules/application/
 │   │   ├── accept-application/                 (resume step — only ever dispatched by the processor, never a controller)
 │   │   ├── mark-application-acceptance-failed/
 │   │   ├── reject-application/
-│   │   └── reject-other-applications/          (internal, saga-issued only)
+│   │   ├── reject-other-applications/          (internal, saga-issued only)
+│   │   └── cancel-application/                 (client, applicant, or system/no-show — see Cancel design below)
 │   ├── event-handlers/
 │   │   ├── on-payment-succeeded.handler.ts     (thin bridge — no business logic, just enqueues)
 │   │   └── on-payment-failed.handler.ts
@@ -61,17 +63,20 @@ src/modules/application/
 
 ```prisma
 model Application {
-  id             String    @id @default(auto()) @map("_id") @db.ObjectId
-  errandId       String    @db.ObjectId
-  applicantId    String    @db.ObjectId   // Party — plain scalar, cross-module reference
-  originType     String    // BID | DIRECT_OFFER
-  status         String    @default("PENDING")   // PENDING | ACCEPTED | REJECTED
-  proposal       String
-  proposedAmount Money
-  acceptedAt     DateTime?
-  rejectedAt     DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                 String    @id @default(auto()) @map("_id") @db.ObjectId
+  errandId           String    @db.ObjectId
+  applicantId        String    @db.ObjectId   // Party — plain scalar, cross-module reference
+  originType         String    // BID | DIRECT_OFFER
+  status             String    @default("PENDING")   // PENDING | ACCEPTED | REJECTED | CANCELLED
+  proposal           String
+  proposedAmount     Money
+  acceptedAt         DateTime?
+  rejectedAt         DateTime?
+  cancelledAt        DateTime?
+  cancellationReason String?   // CLIENT_CANCELLED | WORKER_CANCELLED | WORKER_NO_SHOW | SYSTEM_CANCELLED
+  cancelledByPartyId String?   @db.ObjectId   // null for SYSTEM_CANCELLED
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   acceptProgress AcceptApplicationProgress?
 
@@ -97,6 +102,7 @@ model AcceptApplicationProgress {
 - `create(errandId, applicantId, originType, proposal, proposedAmount)` — starts `PENDING`
 - `accept(correlationId)` — `PENDING → ACCEPTED`
 - `reject(correlationId?)` — `PENDING → REJECTED`; optional `correlationId` param since this is called both directly (fresh id) and by `RejectOtherApplicationsSaga` (inherited id — see main doc's correlation convention)
+- `cancel(reason, cancelledByPartyId?)` — `ACCEPTED → CANCELLED` only. Throws `ApplicationInvariantError` if not `ACCEPTED`, or if `Errand.status != ASSIGNED` (checked by the command handler, a cross-aggregate read — the entity itself only enforces its own status transition). `cancelledByPartyId` is `null` for `SYSTEM_CANCELLED`.
 
 **`AcceptApplicationProgress`**
 - `create(applicationId, errandId, correlationId)` — starts `CHARGE_INITIATED`
@@ -110,6 +116,7 @@ model AcceptApplicationProgress {
 | `ApplicationSubmitted` | `Application.create()` | `{ applicationId, errandId, applicantId, correlationId }` |
 | `ApplicationAccepted` | `Application.accept()` | `{ applicationId, errandId, applicantId, correlationId }` |
 | `ApplicationRejected` | `Application.reject()` | `{ applicationId, errandId, correlationId }` |
+| `ApplicationCancelled` | `Application.cancel()` | `{ applicationId, errandId, reason, cancelledByPartyId, correlationId }` |
 
 ## Commands
 
@@ -121,6 +128,7 @@ model AcceptApplicationProgress {
 | `MarkApplicationAcceptanceFailedCommand` | Same — processor-only. Marks `progress.status: CHARGE_FAILED`, nothing else touched. |
 | `RejectApplicationCommand` | Client-initiated, direct rejection (not via the accept flow). |
 | `RejectOtherApplicationsCommand` | **Internal — saga-issued only**, never a public route. Always receives a pre-existing `correlationId` rather than generating one. |
+| `CancelApplicationCommand` | Callable by the errand's client (`reason: CLIENT_CANCELLED`), the applicant (`reason: WORKER_CANCELLED`), or internally by `NoShowDetectionJob` (`reason: WORKER_NO_SHOW`, `cancelledByPartyId: null`). Guards `Errand.status = ASSIGNED` (cross-module read into `errands`) before allowing the transition — once `IN_PROGRESS`, this command is no longer valid. Dispatches `CancelErrandCommand` into `errands` as a direct consequence, same `correlationId`. |
 
 ## Event Handlers
 
@@ -196,6 +204,16 @@ interface RejectApplicationRequestDto {
   requesterPartyId: string;
 }
 
+// commands/cancel-application/cancel-application.request.dto.ts
+interface CancelApplicationRequestDto {
+  applicationId: string;
+  cancelledByPartyId: string;   // resolver always supplies the authenticated party — WORKER_NO_SHOW/SYSTEM_CANCELLED only ever come from the internal job, never this field
+}
+interface CancelApplicationResponseDto {
+  applicationId: string;
+  status: 'CANCELLED';
+}
+
 // queries/get-application/get-application.request.dto.ts
 interface GetApplicationRequestDto {
   applicationId: string;
@@ -258,6 +276,7 @@ type Mutation {
   submitApplication(input: SubmitApplicationInput!): Application! @auth
   requestApplicationAcceptance(input: RequestApplicationAcceptanceInput!): Boolean! @auth
   rejectApplication(applicationId: ID!): Application! @auth
+  cancelApplication(applicationId: ID!): Application! @auth
 }
 type Query {
   application(id: ID!): Application @auth

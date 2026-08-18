@@ -1,7 +1,5 @@
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
-import {
-  MarkApplicationAcceptanceFailedCommand,
-} from './';
+import { MarkApplicationAcceptanceFailedCommand } from './';
 import { IAcceptApplicationProgressRepository } from '@src/modules';
 
 @CommandHandler(MarkApplicationAcceptanceFailedCommand)

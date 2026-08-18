@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Resend } from 'resend';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -28,7 +27,6 @@ async function getAllResendTemplates() {
 
   while (hasMore) {
     try {
-      // @ts-ignore
       const response = await resend.templates.list({
         limit: 100, // Max limit
         after,
@@ -94,7 +92,7 @@ async function syncTemplates() {
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     // Common logic to prepare content and variables
-    let content = fs.readFileSync(path.join(TEMPLATES_DIR, file), 'utf-8');
+    const content = fs.readFileSync(path.join(TEMPLATES_DIR, file), 'utf-8');
     const variableSet = new Set<string>();
     const tripleBraceRegex = /\{\{\{(\s*[\w\.]+\s*)\}\}\}/g;
 
@@ -105,7 +103,7 @@ async function syncTemplates() {
 
     const variables = Array.from(variableSet).map((key) => ({
       key,
-      type: 'string',
+      type: 'string' as const,
       fallbackValue: '',
     }));
 
@@ -127,7 +125,6 @@ async function syncTemplates() {
         continue;
       }
 
-      // @ts-ignore
       const { data, error } = await resend.templates.update(
         existingTemplate.id,
         {
@@ -148,7 +145,6 @@ async function syncTemplates() {
     } else {
       console.log(`  ✨ Creating template "${slug}"...`);
 
-      // @ts-ignore
       const { data, error } = await resend.templates.create({
         name: slug,
         html: content,

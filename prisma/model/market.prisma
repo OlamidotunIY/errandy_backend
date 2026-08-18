@@ -1,0 +1,20 @@
+model Market {
+    id                                 String   @id @default(uuid()) @map("_id")
+    countryCode                        CountryCode   @unique
+    currency                           Currency
+    verificationChargeAmountMinorUnits Int      @default(0)
+    createdAt                          DateTime @default(now())
+    updatedAt                          DateTime @updatedAt
+}
+
+enum CountryCode {
+    NG@map("ng")
+    GH@map("gh")
+    ZA@map("za")
+}
+
+enum Currency {
+    NGN@map("ngn")
+    GHS@map("ghs")
+    ZAR@map("zar")
+}

@@ -22,4 +22,3 @@ void main().catch((error) => {
   console.error('[barrel-watcher] Fatal error:', error);
   process.exitCode = 1;
 });
-

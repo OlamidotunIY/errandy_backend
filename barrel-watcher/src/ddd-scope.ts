@@ -51,7 +51,11 @@ export class DddScope {
 
   findOwningModule(filePath: string): DddModuleScope | null {
     const relative = path.relative(SRC_ROOT, filePath);
-    if (relative.startsWith('..') || path.isAbsolute(relative) || relative === '') {
+    if (
+      relative.startsWith('..') ||
+      path.isAbsolute(relative) ||
+      relative === ''
+    ) {
       return null;
     }
     const segments = relative.split(path.sep);

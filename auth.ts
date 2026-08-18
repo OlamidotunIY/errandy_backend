@@ -9,12 +9,15 @@ import {
 import { betterAuth, BetterAuthOptions } from 'better-auth';
 import { expo } from '@better-auth/expo';
 import 'dotenv/config';
+import { BetterAuthIntegration } from '@module/user';
+import { APIError } from 'better-auth/api';
+import {
+  IpCountryResolver,
+  MarketRepository,
+  PhoneCountryResolver,
+} from '@module';
 
 const client = new PrismaClient();
-
-import { EmailService } from '@src/email/email.service';
-
-const emailService = new EmailService();
 
 export const auth = betterAuth({
   database: prismaAdapter(client, {
@@ -23,53 +26,32 @@ export const auth = betterAuth({
   appName: 'errandy_backend',
   plugins: [
     expo(),
+
     emailOTP({
       overrideDefaultEmailVerification: true,
       sendVerificationOnSignUp: true,
       async sendVerificationOTP({ email, otp, type }) {
-        if (type === 'email-verification') {
-          console.log(`Sending OTP to ${email}`);
-          await emailService.sendEmail(
-            {
-              to: email,
-              subject: 'Verify your email',
-              template: 'verification-otp',
-              context: { otp },
-            },
-            'transactional',
-          );
+        if (BetterAuthIntegration.instance) {
+          await BetterAuthIntegration.instance.sendVerificationEmail({
+            user: { email },
+            type,
+            token: otp,
+          });
         } else {
           console.log(`Sending OTP to ${email}`);
-          await emailService.sendEmail(
-            {
-              to: email,
-              subject: 'Reset your password',
-              template: 'reset-password-otp',
-              context: { otp },
-            },
-            'transactional',
-          );
         }
       },
     }),
     phoneNumber({
       async sendOTP({ phoneNumber: phone, code }, request) {
-        console.log('Sending OTP to phone:', phone);
-
-        // Format phone number (remove any non-digit characters except +)
-        let formattedPhone = phone.replace(/[^\d+]/g, '');
-
-        // Ensure +234 prefix if missing
-        if (!formattedPhone.startsWith('+')) {
-          // Remove leading 0 if present (e.g., 081... -> 81...)
-          if (formattedPhone.startsWith('0')) {
-            formattedPhone = formattedPhone.substring(1);
-          }
-          formattedPhone = '+234' + formattedPhone;
+        if (BetterAuthIntegration.instance) {
+          await BetterAuthIntegration.instance.sendVerificationOTP({
+            phoneNumber: phone,
+            code,
+          });
+        } else {
+          console.log('Sending OTP to phone:', phone);
         }
-
-        // Twilio generates its own OTP code
-        // await sendOTP(formattedPhone, code);
       },
     }),
     username({
@@ -103,38 +85,53 @@ export const auth = betterAuth({
   hooks: {},
   databaseHooks: {
     user: {
-      // create: {
-      //   after: async (user) => {
-      //     // This fires ONLY when a new user is created (email, Google, Apple, etc.)
-      //     // NOT when an existing user signs in
-      //     await globalEventEmitter.emit('user.created', {
-      //       userId: user.id,
-      //       email: user.email,
-      //       firstName: user.name?.split(' ')[0],
-      //       lastName: user.name?.split(' ').slice(1).join(' '),
-      //       phone: user.phoneNumber,
-      //     });
-      //   },
-      // },
-      // update: {
-      //   after: async (user) => {
-      //     console.log('User update database hook triggered');
-      //     console.log('User ID:', user.id);
-      //     console.log('Phone:', user.phoneNumber);
-      //     console.log('Phone Verified:', user.phoneNumberVerified);
-      //
-      //     // Emit user.updated event when phone is set/verified
-      //     if (user.phoneNumber && user.phoneNumberVerified) {
-      //       console.log('Emitting user.updated from database hook');
-      //       globalEventEmitter.emit('user.updated', {
-      //         userId: user.id,
-      //         firstName: user.name?.split(' ')[0],
-      //         lastName: user.name?.split(' ').slice(1).join(' '),
-      //         phone: user.phoneNumber,
-      //       });
-      //     }
-      //   },
-      // },
+      create: {
+        before: async (user, context) => {
+          let countryCode = 'UNKNOWN';
+          if (user.phoneNumber) {
+            countryCode = PhoneCountryResolver.resolve(
+              user.phoneNumber as string,
+            );
+          } else {
+            countryCode = IpCountryResolver.resolve(context);
+          }
+
+          const marketRepo = new MarketRepository();
+          const market = await marketRepo.findByCountryCode(countryCode);
+          if (!market) {
+            // eslint-disable-next-line @typescript-eslint/only-throw-error
+            throw new APIError('BAD_REQUEST', {
+              message: `Market for country code ${countryCode} is not supported.`,
+            });
+          }
+          return { data: { ...user, marketId: market.id.value } };
+        },
+        after: async (user) => {
+          if (BetterAuthIntegration.instance) {
+            await BetterAuthIntegration.instance.handleUserCreated(user);
+          }
+        },
+      },
+    },
+  },
+  user: {
+    additionalFields: {
+      role: {
+        type: ['user', 'admin'],
+        required: false,
+        defaultValue: 'user',
+        input: false,
+      },
+      marketId: {
+        type: 'string',
+        required: false,
+        input: false,
+      },
+      activeAddressId: {
+        type: 'string',
+        required: false,
+        input: false,
+      },
     },
   },
 } satisfies BetterAuthOptions);
