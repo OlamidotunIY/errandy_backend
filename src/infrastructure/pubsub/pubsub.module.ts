@@ -20,11 +20,24 @@ import { PUB_SUB } from './pubsub.constants';
     {
       provide: PUB_SUB,
       useFactory: (config: ConfigService) => {
-        const redisUrl = config.getOrThrow<string>('REDIS_URL');
+        const redisUrl = config.get<string>('REDIS_URL');
+        const host = config.get<string>('REDIS_HOST') ?? 'localhost';
+        const port = Number(config.get<string>('REDIS_PORT') ?? 6379);
+        const password = config.get<string>('REDIS_PASSWORD');
+
+        const redisOptions = redisUrl
+          ? redisUrl
+          : { host, port, password, lazyConnect: true };
 
         return new RedisPubSub({
-          publisher: new Redis(redisUrl, { lazyConnect: false }),
-          subscriber: new Redis(redisUrl, { lazyConnect: false }),
+          publisher:
+            typeof redisOptions === 'string'
+              ? new Redis(redisOptions, { lazyConnect: true })
+              : new Redis(redisOptions),
+          subscriber:
+            typeof redisOptions === 'string'
+              ? new Redis(redisOptions, { lazyConnect: true })
+              : new Redis(redisOptions),
         });
       },
       inject: [ConfigService],

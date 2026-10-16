@@ -5,6 +5,9 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { GqlConfig } from '@src/config/graphql-ws';
 import { GraphqlExceptionFilter } from '@src/common/filters/graphql-exception.filter';
 import { PrismaModule } from './prisma/prisma.module';
+import { CommonModule } from '@src/common/common.module';
+import { RedisModule } from '@src/infrastructure/redis/redis.module';
+import { PubSubModule } from '@src/infrastructure/pubsub/pubsub.module';
 import { NotificationModule } from '@module/notification/notification.module';
 import { PartyModule } from '@module/party/party.module';
 import { AddressModule } from '@module/address/address.module';
@@ -21,6 +24,9 @@ import { PaymentProviderModule } from '@src/infrastructure/payment-provider';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    CommonModule,
+    RedisModule,
+    PubSubModule,
     PaymentProviderModule,
     GqlConfig,
     EventEmitterModule.forRoot(),
