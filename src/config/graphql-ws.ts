@@ -57,8 +57,25 @@ export const GqlConfig = GraphQLModule.forRootAsync<ApolloDriverConfig>({
         ? true
         : join(process.cwd(), 'src/schema.gql'),
       sortSchema: true,
-      context: (ctx) => {
+      context: async (ctx) => {
         if ('req' in ctx && ctx.req) {
+          try {
+            const headers = new Headers();
+            for (const [key, value] of Object.entries(ctx.req.headers)) {
+              if (Array.isArray(value)) {
+                value.forEach((v) => headers.append(key, v));
+              } else if (typeof value === 'string') {
+                headers.set(key, value);
+              }
+            }
+            const session = await auth.api.getSession({ headers });
+            if (session) {
+              (ctx.req as any).user = session.user;
+              (ctx.req as any).session = session.session;
+            }
+          } catch {
+            // Unauthenticated request, req.user remains undefined
+          }
           return ctx;
         }
 

@@ -4,7 +4,9 @@ import { AppModule } from './app.module';
 import { graphqlUploadExpress } from 'graphql-upload-ts';
 import { ConfigService } from '@nestjs/config';
 import * as dns from 'node:dns';
-import { json, urlencoded } from 'express';
+import { json, urlencoded, Request, Response, NextFunction } from 'express';
+import { toNodeHandler } from 'better-auth/node';
+import { auth } from 'auth';
 dns.setDefaultResultOrder('ipv4first');
 
 async function bootstrap() {
@@ -60,6 +62,18 @@ async function bootstrap() {
   app.use(graphqlUploadExpress({ maxFileSize: 10000000, maxFiles: 10 }));
   app.use(json({ limit: '50mb' }));
   app.use(urlencoded({ extended: true, limit: '50mb' }));
+
+  // Mount Better-Auth HTTP handler
+  const authHandler = toNodeHandler(auth);
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (
+      req.originalUrl?.startsWith('/api/auth') ||
+      req.url?.startsWith('/api/auth')
+    ) {
+      return authHandler(req, res);
+    }
+    next();
+  });
 
   const port = Number(process.env.PORT) || 8080;
   await app.listen(port, '0.0.0.0');
