@@ -93,18 +93,30 @@ export class InitiateChargeHandler implements ICommandHandler<InitiateChargeComm
     );
 
     // 6. Handle charge result and publish events
+    const correlationId = crypto.randomUUID();
     if (chargeResult.success) {
-      const correlationId = crypto.randomUUID();
       transaction.markSucceeded(chargeResult.gatewayReference, correlationId);
       await this.transactionRepository.save(transaction);
+
+      for (const event of transaction.pullDomainEvents()) {
+        this.eventBus.publish(event);
+      }
 
       return {
         gatewayReference: chargeResult.gatewayReference,
       };
     } else {
       const reason = chargeResult.failureReason || 'Charge failed';
-      transaction.markFailed(reason, chargeResult.gatewayReference);
+      transaction.markFailed(
+        reason,
+        correlationId,
+        chargeResult.gatewayReference,
+      );
       await this.transactionRepository.save(transaction);
+
+      for (const event of transaction.pullDomainEvents()) {
+        this.eventBus.publish(event);
+      }
 
       throw new ChargeFailedError(reason);
     }

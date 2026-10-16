@@ -19,6 +19,7 @@ import { ChatModule } from '@module/chat/chat.module';
 import { UserModule } from '@module/user/user.module';
 import { ErrandsModule } from '@module/errands/errands.module';
 import { ApplicationModule } from '@module/application/application.module';
+import { PaymentsModule } from '@module/payments/payments.module';
 import { PaymentProviderModule } from '@src/infrastructure/payment-provider';
 
 @Module({
@@ -44,6 +45,7 @@ import { PaymentProviderModule } from '@src/infrastructure/payment-provider';
     UserModule,
     ErrandsModule,
     ApplicationModule,
+    PaymentsModule,
   ],
   controllers: [],
   providers: [
