@@ -20,6 +20,10 @@ import { UserModule } from '@module/user/user.module';
 import { ErrandsModule } from '@module/errands/errands.module';
 import { ApplicationModule } from '@module/application/application.module';
 import { PaymentsModule } from '@module/payments/payments.module';
+import { VerificationModule } from '@module/verification/verification.module';
+import { TrustedCircleModule } from '@module/trusted-circle/trusted-circle.module';
+import { RatingModule } from '@module/rating/rating.module';
+import { DisputeModule } from '@module/dispute/dispute.module';
 import { PaymentProviderModule } from '@src/infrastructure/payment-provider';
 
 @Module({
@@ -46,6 +50,10 @@ import { PaymentProviderModule } from '@src/infrastructure/payment-provider';
     ErrandsModule,
     ApplicationModule,
     PaymentsModule,
+    VerificationModule,
+    TrustedCircleModule,
+    RatingModule,
+    DisputeModule,
   ],
   controllers: [],
   providers: [
