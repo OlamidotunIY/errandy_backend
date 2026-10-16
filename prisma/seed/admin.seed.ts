@@ -1,11 +1,11 @@
 import { PrismaClient, Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { v4 as uuidv4 } from 'uuid';
+import * as crypto from 'node:crypto';
 
 export async function seedAdmins(prisma: PrismaClient) {
   console.log('Seeding initial Admin accounts...');
-  const adminEmails = ['dotuniyanda@errandy.name.ng'];
-  const defaultPassword = 'adminpassword123'; // Securely change this later
+  const adminEmails = ['dotuniyanda@errandy.name.ng', 'admin@errandy.com'];
+  const defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD || 'adminpassword123';
   const hashedPassword = await bcrypt.hash(defaultPassword, 10);
 
   for (const email of adminEmails) {
@@ -14,7 +14,7 @@ export async function seedAdmins(prisma: PrismaClient) {
     });
 
     if (!existingAdmin) {
-      const userId = uuidv4();
+      const userId = crypto.randomUUID();
       await prisma.user.create({
         data: {
           id: userId,
