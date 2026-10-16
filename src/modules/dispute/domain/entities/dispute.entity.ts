@@ -1,4 +1,3 @@
-import { AggregateRoot } from '@nestjs/cqrs';
 import { DisputeOpenedEvent } from '../events';
 
 export type DisputeStatus = 'OPEN' | 'UNDER_REVIEW' | 'RESOLVED' | 'REJECTED';
@@ -18,7 +17,7 @@ export interface DisputeProps {
   updatedAt: Date;
 }
 
-export class Dispute extends AggregateRoot {
+export class Dispute {
   private _id: string;
   private _errandId: string;
   private _raisedById: string;
@@ -31,9 +30,9 @@ export class Dispute extends AggregateRoot {
   private _resolvedAt?: Date | null;
   private _createdAt: Date;
   private _updatedAt: Date;
+  private _domainEvents: any[] = [];
 
   constructor(props: DisputeProps) {
-    super();
     this._id = props.id;
     this._errandId = props.errandId;
     this._raisedById = props.raisedById;
@@ -70,7 +69,7 @@ export class Dispute extends AggregateRoot {
       updatedAt: new Date(),
     });
 
-    dispute.apply(
+    dispute.addDomainEvent(
       new DisputeOpenedEvent({
         partyId: providerPartyId,
         correlationId,
@@ -126,6 +125,16 @@ export class Dispute extends AggregateRoot {
 
   get updatedAt(): Date {
     return this._updatedAt;
+  }
+
+  addDomainEvent(event: any): void {
+    this._domainEvents.push(event);
+  }
+
+  pullDomainEvents(): any[] {
+    const events = this._domainEvents;
+    this._domainEvents = [];
+    return events;
   }
 
   underReview(): void {

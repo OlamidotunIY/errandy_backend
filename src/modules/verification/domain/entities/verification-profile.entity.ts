@@ -1,4 +1,3 @@
-import { AggregateRoot } from '@nestjs/cqrs';
 import { VerificationCompletedEvent } from '../events';
 import { ProviderTier } from '@module/party';
 
@@ -21,16 +20,16 @@ export interface VerificationProfileProps {
   updatedAt: Date;
 }
 
-export class VerificationProfile extends AggregateRoot {
+export class VerificationProfile {
   private _id: string;
   private _partyId: string;
   private _steps: VerificationStepProps[];
   private _overallStatus: string;
   private _createdAt: Date;
   private _updatedAt: Date;
+  private _domainEvents: any[] = [];
 
   constructor(props: VerificationProfileProps) {
-    super();
     this._id = props.id;
     this._partyId = props.partyId;
     this._steps = props.steps || [];
@@ -72,6 +71,16 @@ export class VerificationProfile extends AggregateRoot {
 
   get updatedAt(): Date {
     return this._updatedAt;
+  }
+
+  addDomainEvent(event: any): void {
+    this._domainEvents.push(event);
+  }
+
+  pullDomainEvents(): any[] {
+    const events = this._domainEvents;
+    this._domainEvents = [];
+    return events;
   }
 
   submitStep(stepType: string, documentUrls: string[]): void {
@@ -116,7 +125,7 @@ export class VerificationProfile extends AggregateRoot {
       const ninStep = this._steps.find((s) => s.stepType === 'NIN_VERIFIED');
       if (ninStep && ninStep.status === 'APPROVED') {
         this._overallStatus = 'COMPLETE';
-        this.apply(
+        this.addDomainEvent(
           new VerificationCompletedEvent({
             partyId: this._partyId,
             tier: ProviderTier.VERIFIED,

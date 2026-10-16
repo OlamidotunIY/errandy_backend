@@ -1,4 +1,3 @@
-import { AggregateRoot } from '@nestjs/cqrs';
 import { RatingSubmittedEvent } from '../events';
 
 export interface RatingProps {
@@ -28,7 +27,7 @@ export interface RatingReplyProps {
   createdAt: Date;
 }
 
-export class Rating extends AggregateRoot {
+export class Rating {
   private _id: string;
   private _errandId: string;
   private _raterId: string;
@@ -37,9 +36,9 @@ export class Rating extends AggregateRoot {
   private _score: number;
   private _comment?: string | null;
   private _createdAt: Date;
+  private _domainEvents: any[] = [];
 
   constructor(props: RatingProps) {
-    super();
     this._id = props.id;
     this._errandId = props.errandId;
     this._raterId = props.raterId;
@@ -75,7 +74,7 @@ export class Rating extends AggregateRoot {
       createdAt: new Date(),
     });
 
-    rating.apply(
+    rating.addDomainEvent(
       new RatingSubmittedEvent({
         partyId: rateeId,
         rating: score,
@@ -117,6 +116,16 @@ export class Rating extends AggregateRoot {
 
   get createdAt(): Date {
     return this._createdAt;
+  }
+
+  addDomainEvent(event: any): void {
+    this._domainEvents.push(event);
+  }
+
+  pullDomainEvents(): any[] {
+    const events = this._domainEvents;
+    this._domainEvents = [];
+    return events;
   }
 
   toPrimitives(): RatingProps {

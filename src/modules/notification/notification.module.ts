@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
 import { ConfigModule } from '@nestjs/config';
 import { FirebaseModule } from '@src/firebase/firebase.module';
+import { PartyModule } from '@module/party';
 import {
   EmailAdapter,
   INotificationLogRepository,
@@ -22,10 +23,14 @@ import {
   UpdateMarketTemplateHandler,
   SendAdminBroadcastHandler,
   NotificationTemplateResolver,
+  OnApplicationEventsHandler,
+  OnPaymentEventsHandler,
+  OnDisputeEventsHandler,
+  OnErrandEventsHandler,
 } from '@module/notification';
 
 @Module({
-  imports: [CqrsModule, ConfigModule, FirebaseModule],
+  imports: [CqrsModule, ConfigModule, FirebaseModule, PartyModule],
   providers: [
     NotificationLogMapper,
     NotificationPreferenceMapper,
@@ -52,6 +57,10 @@ import {
     UpdateMarketTemplateHandler,
     SendAdminBroadcastHandler,
     NotificationTemplateResolver,
+    OnApplicationEventsHandler,
+    OnPaymentEventsHandler,
+    OnDisputeEventsHandler,
+    OnErrandEventsHandler,
   ],
   exports: [
     INotificationLogRepository,

@@ -1,4 +1,3 @@
-import { AggregateRoot } from '@nestjs/cqrs';
 import {
   TrustedCircleMemberConfirmedEvent,
   TrustedCircleMemberRemovedEvent,
@@ -19,15 +18,15 @@ export interface TrustedCircleProps {
   updatedAt: Date;
 }
 
-export class TrustedCircle extends AggregateRoot {
+export class TrustedCircle {
   private _id: string;
   private _ownerPartyId: string;
   private _members: TrustedCircleMemberProps[];
   private _createdAt: Date;
   private _updatedAt: Date;
+  private _domainEvents: any[] = [];
 
   constructor(props: TrustedCircleProps) {
-    super();
     this._id = props.id;
     this._ownerPartyId = props.ownerPartyId;
     this._members = props.members || [];
@@ -65,6 +64,16 @@ export class TrustedCircle extends AggregateRoot {
     return this._updatedAt;
   }
 
+  addDomainEvent(event: any): void {
+    this._domainEvents.push(event);
+  }
+
+  pullDomainEvents(): any[] {
+    const events = this._domainEvents;
+    this._domainEvents = [];
+    return events;
+  }
+
   addMember(
     memberId: string,
     status: 'CONFIRMED' | 'SUGGESTED' = 'CONFIRMED',
@@ -77,7 +86,7 @@ export class TrustedCircle extends AggregateRoot {
         existing.status = 'CONFIRMED';
         existing.addedAt = new Date();
         this._updatedAt = new Date();
-        this.apply(
+        this.addDomainEvent(
           new TrustedCircleMemberConfirmedEvent({
             partyId: memberId,
             correlationId,
@@ -96,7 +105,7 @@ export class TrustedCircle extends AggregateRoot {
     this._updatedAt = new Date();
 
     if (status === 'CONFIRMED') {
-      this.apply(
+      this.addDomainEvent(
         new TrustedCircleMemberConfirmedEvent({
           partyId: memberId,
           correlationId,
@@ -113,7 +122,7 @@ export class TrustedCircle extends AggregateRoot {
     this._updatedAt = new Date();
 
     if (removed.status === 'CONFIRMED') {
-      this.apply(
+      this.addDomainEvent(
         new TrustedCircleMemberRemovedEvent({
           partyId: memberId,
           correlationId,
