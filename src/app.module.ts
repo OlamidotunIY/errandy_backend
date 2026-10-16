@@ -18,6 +18,7 @@ import { WalletModule } from '@module/wallet/wallet.module';
 import { ChatModule } from '@module/chat/chat.module';
 import { UserModule } from '@module/user/user.module';
 import { ErrandsModule } from '@module/errands/errands.module';
+import { ApplicationModule } from '@module/application/application.module';
 import { PaymentProviderModule } from '@src/infrastructure/payment-provider';
 
 @Module({
@@ -42,6 +43,7 @@ import { PaymentProviderModule } from '@src/infrastructure/payment-provider';
     ChatModule,
     UserModule,
     ErrandsModule,
+    ApplicationModule,
   ],
   controllers: [],
   providers: [

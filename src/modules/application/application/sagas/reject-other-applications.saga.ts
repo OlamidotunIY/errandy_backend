@@ -7,7 +7,7 @@ import {
 } from '@src/modules';
 
 @Injectable()
-class RejectOtherApplicationsSaga {
+export class RejectOtherApplicationsSaga {
   @Saga()
   applicationAccepted = (events$: Observable<any>): Observable<ICommand> => {
     return events$.pipe(

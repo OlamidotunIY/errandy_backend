@@ -10,7 +10,7 @@ import {
 import { ILogger } from '@src/common';
 
 @CommandHandler(SubmitApplicationCommand)
-class SubmitApplicationHandler implements ICommandHandler<SubmitApplicationCommand> {
+export class SubmitApplicationHandler implements ICommandHandler<SubmitApplicationCommand> {
   constructor(
     private readonly repository: IApplicationRepository,
     private readonly event: EventBus,

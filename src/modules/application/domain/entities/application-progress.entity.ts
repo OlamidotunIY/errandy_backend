@@ -40,6 +40,22 @@ export class AcceptApplicationProgress extends AggregateRoot<AcceptApplicationPr
     );
   }
 
+  get applicationId(): ApplicationId {
+    return this._applicationId;
+  }
+
+  get errandId(): ErrandId {
+    return this._errandId;
+  }
+
+  get correlationId(): string {
+    return this._correlationId;
+  }
+
+  get gatewayReference(): string | null {
+    return this._gatewayReference;
+  }
+
   status(): AcceptApplicationProgressStatus {
     return this._status;
   }

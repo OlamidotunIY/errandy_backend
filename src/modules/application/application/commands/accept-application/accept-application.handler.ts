@@ -1,4 +1,4 @@
-import { EventBus, ICommandHandler } from '@nestjs/cqrs';
+import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 import { AcceptApplicationCommand } from './';
 import {
   AcceptApplicationProgressStatus,
@@ -9,6 +9,7 @@ import {
 import { IErrandRepository } from '@module/errands/domain';
 import { ILogger } from '@src/common';
 
+@CommandHandler(AcceptApplicationCommand)
 export class AcceptApplicationHandler implements ICommandHandler<AcceptApplicationCommand> {
   constructor(
     private readonly repository: IApplicationRepository,
