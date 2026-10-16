@@ -19,6 +19,8 @@ export interface AddressDto {
   city: string;
   state: string;
   country: string;
+  isDefault: boolean;
+  coordinates: CoordinatesType;
   createdAt: Date;
   updatedAt: Date;
 }

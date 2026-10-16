@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
 import {
   CategoryMapper,
+  CategoryResolver,
   CategoryRepository,
   ICategoryRepository,
   ListCategoryTreeHandler,
@@ -11,6 +12,7 @@ import {
   imports: [CqrsModule],
   providers: [
     CategoryMapper,
+    CategoryResolver,
     {
       provide: ICategoryRepository,
       useClass: CategoryRepository,

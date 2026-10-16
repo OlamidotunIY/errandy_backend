@@ -55,6 +55,11 @@ export class CreateAddressHandler implements ICommandHandler<CreateAddressComman
       city: address.city,
       state: address.state,
       country: address.country,
+      isDefault: address.isDefault,
+      coordinates: {
+        latitude: address.coordinates.latitude,
+        longitude: address.coordinates.longitude,
+      },
       createdAt: address.createdAt,
       updatedAt: address.updatedAt,
     };

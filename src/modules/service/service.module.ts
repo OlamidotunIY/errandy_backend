@@ -7,6 +7,7 @@ import {
   ListServiceHandler,
   SearchServicesHandler,
   ServiceMapper,
+  ServiceResolver,
   ServiceRepository,
   UpdateServicePriceHandler,
 } from '@module/service';
@@ -15,6 +16,7 @@ import {
   imports: [CqrsModule],
   providers: [
     ServiceMapper,
+    ServiceResolver,
     {
       provide: IServiceRepository,
       useClass: ServiceRepository,
