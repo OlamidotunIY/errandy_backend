@@ -9,5 +9,5 @@ export interface CreateErrandRequestDto {
 
 export interface CreateErrandResponseDto {
   errandId: string;
-  status: 'DRAFT';
+  status: string;
 }
