@@ -1,17 +1,25 @@
 model Dispute {
-  id              String  @id @default(uuid()) @map("_id")
-  errandId        String
-  clientPartyId   String
-  providerPartyId String
-  status          DisputeStatus
-  reason          String
-  createdAt       DateTime @default(now())
+  id            String        @id @default(uuid()) @map("_id")
+  errandId      String        
+  raisedById    String        // Party — plain scalar
+  reason        String
+  description   String
+  evidenceUrls  String[]      @default([])
+  status        DisputeStatus @default(OPEN)
+  resolution    String?
+  resolvedById  String?       // better-auth admin user id, not a Party
+  resolvedAt    DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
+  @@index([status])
+  @@index([errandId])
   @@map("disputes")
 }
 
 enum DisputeStatus {
-  PENDING
-  ACCEPTED
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
   REJECTED
 }

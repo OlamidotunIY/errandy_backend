@@ -1,24 +1,41 @@
 model Application {
-    id       String  @id @default(uuid()) @map("_id")
-    errandId String
-    providerPartyId String
-    applicantType ApplicationType
+    id                       String          @id @default(uuid()) @map("_id")
+    errandId                 String          
+    providerPartyId          String          // Party — plain scalar
+    applicantType            ApplicationType @default(PROVIDER)
+    status                   AppStatus       @default(PENDING)
+    proposal                 String
+    proposedAmountMinorUnits Int
+    currency                 String
+    acceptedAt               DateTime?
+    rejectedAt               DateTime?
+    cancelledAt              DateTime?
+    cancellationReason       String?         // CLIENT_CANCELLED | WORKER_CANCELLED | WORKER_NO_SHOW | SYSTEM_CANCELLED
+    cancelledByPartyId       String?         // null for SYSTEM_CANCELLED
+    createdAt                DateTime        @default(now())
+    updatedAt                DateTime        @updatedAt
 
-    status     AppStatus @default(PENDING)
-    proposal String?
-    proposedAmountMinorUnits Int?
-    currency String?
-    acceptedAt DateTime?
-
-    rejectedAt DateTime?
-    cancelledAt DateTime?
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+    acceptProgress AcceptApplicationProgress?
 
     @@unique([errandId, providerPartyId])
     @@index([errandId, status])
     @@index([providerPartyId, status])
     @@map("applications")
+}
+
+model AcceptApplicationProgress {
+    id                   String      @id @default(uuid()) @map("_id")
+    applicationId        String      @unique
+    application          Application @relation(fields: [applicationId], references: [id])
+    errandId             String      
+    correlationId        String
+    paymentTransactionId String?     
+    gatewayReference     String?
+    status               String      @default("CHARGE_INITIATED") // CHARGE_INITIATED | CHARGE_FAILED | ACCEPTED | ERRAND_ASSIGNED | COMPLETED
+    createdAt            DateTime    @default(now())
+    updatedAt            DateTime    @updatedAt
+
+    @@map("accept_application_progress")
 }
 
 enum AppStatus {
