@@ -1,14 +1,12 @@
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import {
-  RequestTierUpgradeCommand,
-  RequestTierUpgradeResponseDto,
-} from '@module/party';
+import { RequestTierUpgradeCommand } from './request-tier-upgrade.command';
+import { RequestTierUpgradeResponseDto } from './request-tier-upgrade.request.dto';
 import {
   IPartyRepository,
   PartyInvariantError,
   PartyNotFoundError,
   ProviderRoleNotFoundError,
-} from '@module/party';
+} from '../../../domain';
 import { ILogger } from '@src/common';
 
 @CommandHandler(RequestTierUpgradeCommand)

@@ -1,5 +1,6 @@
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import { PublishErrandCommand, PublishErrandResponseDto } from '.';
+import { PublishErrandCommand } from './publish-errand.command';
+import { PublishErrandResponseDto } from './publish-errand.request.dto';
 import { ErrandNotFoundError, IErrandRepository } from '@module/errands/domain';
 import { ILogger } from '@src/common';
 

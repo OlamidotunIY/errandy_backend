@@ -1,6 +1,6 @@
 import { CommandBus, EventsHandler, IEventHandler } from '@nestjs/cqrs';
-import { CreatePersonPartyCommand } from '@module/party';
-import { AuthUserRegisteredEvent } from '@module/user';
+import { CreatePersonPartyCommand } from '../../commands/create-person-party/create-person-party.command';
+import { AuthUserRegisteredEvent } from '@module/user/domain';
 
 @EventsHandler(AuthUserRegisteredEvent)
 export class OnAuthUserRegisteredHandler implements IEventHandler<AuthUserRegisteredEvent> {

@@ -1,4 +1,4 @@
-import { ChargeSucceededEvent } from '@module/payments';
+import { ChargeSucceededEvent } from '@module/payments/domain';
 import { InjectQueue } from '@nestjs/bullmq';
 import { EventsHandler, IEventHandler } from '@nestjs/cqrs';
 import { Queue } from 'bullmq';

@@ -5,8 +5,8 @@ import {
   ErrandCompletedEvent,
   IErrandRepository,
 } from '@module/errands/domain';
-import { IPartyRepository } from '@module/party';
-import { SendNotificationCommand } from '@module/notification';
+import { IPartyRepository } from '@module/party/domain';
+import { SendNotificationCommand } from '@module/notification/application';
 import { ILogger } from '@src/common';
 import { PrismaService } from '@src/prisma/prisma.service';
 

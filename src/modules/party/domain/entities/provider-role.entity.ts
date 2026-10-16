@@ -1,4 +1,4 @@
-import { PartyId, ProviderTier } from '@module/party';
+import { PartyId, ProviderTier } from '../value-objects';
 
 export class ProviderRole {
   constructor(

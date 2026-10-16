@@ -1,8 +1,6 @@
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import {
-  ListNotificationsByUserQuery,
-  ListNotificationsByUserResponseDto,
-} from '.';
+import { ListNotificationsByUserQuery } from './list-notifications-by-user.query';
+import { ListNotificationsByUserResponseDto } from './list-notifications-by-user.request.dto';
 import { INotificationLogRepository } from '@module/notification/domain';
 
 @QueryHandler(ListNotificationsByUserQuery)

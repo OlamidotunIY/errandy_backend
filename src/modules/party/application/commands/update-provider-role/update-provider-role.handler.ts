@@ -1,14 +1,12 @@
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import {
-  UpdateProviderRoleCommand,
-  UpdateProviderRoleResponseDto,
-} from '@module/party';
+import { UpdateProviderRoleCommand } from './update-provider-role.command';
+import { UpdateProviderRoleResponseDto } from './update-provider-role.request.dto';
 import {
   IPartyRepository,
   PartyInvariantError,
   PartyNotFoundError,
   ProviderRoleNotFoundError,
-} from '@module/party';
+} from '../../../domain';
 import { ILogger } from '@src/common';
 
 @CommandHandler(UpdateProviderRoleCommand)

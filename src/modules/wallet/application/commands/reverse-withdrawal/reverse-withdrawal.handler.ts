@@ -2,8 +2,8 @@ import {
   LedgerEntryRepository,
   WalletBalanceRepository,
   WalletRepository,
-  WalletNotFoundError,
-} from '@module/wallet';
+} from '../../../domain/repositories';
+import { WalletNotFoundError } from '../../../domain/errors';
 import { ReverseWithdrawalCommand } from './reverse-withdrawal.command';
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 

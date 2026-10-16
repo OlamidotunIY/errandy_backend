@@ -1,6 +1,6 @@
 import { EventsHandler, IEventHandler, CommandBus } from '@nestjs/cqrs';
-import { ChargeSucceededEvent, ChargeFailedEvent } from '@module/payments';
-import { IPartyRepository } from '@module/party';
+import { ChargeSucceededEvent, ChargeFailedEvent } from '@module/payments/domain';
+import { IPartyRepository } from '@module/party/domain';
 import { SendNotificationCommand } from '../commands/send-notification';
 import { ILogger } from '@src/common';
 

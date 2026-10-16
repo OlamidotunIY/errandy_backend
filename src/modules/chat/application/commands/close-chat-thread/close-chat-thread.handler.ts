@@ -1,5 +1,6 @@
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import { CloseChatThreadCommand, CloseChatThreadResponseDto } from '.';
+import { CloseChatThreadCommand } from './close-chat-thread.command';
+import { CloseChatThreadResponseDto } from './close-chat-thread.request.dto';
 import {
   ChatThreadNotFoundError,
   IChatThreadRepository,

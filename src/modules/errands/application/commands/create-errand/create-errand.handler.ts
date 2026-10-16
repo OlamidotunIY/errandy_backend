@@ -1,12 +1,13 @@
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import { CreateErrandCommand, CreateErrandResponseDto } from '.';
+import { CreateErrandCommand } from './create-errand.command';
+import { CreateErrandResponseDto } from './create-errand.request.dto';
 import {
   Errand,
   ErrandInvariantError,
   IErrandRepository,
 } from '@module/errands/domain';
 import { Currency, Money } from '@module/escrow/domain';
-import { IPartyRepository, PartyNotFoundError } from '@module/party';
+import { IPartyRepository, PartyNotFoundError } from '@module/party/domain';
 import {
   CategoryNotFoundError,
   CategoryNotLeafError,

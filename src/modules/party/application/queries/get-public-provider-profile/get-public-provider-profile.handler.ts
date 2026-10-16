@@ -1,14 +1,12 @@
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import {
-  GetPublicProviderProfileQuery,
-  GetPublicProviderProfileResponseDto,
-} from '.';
+import { GetPublicProviderProfileQuery } from './get-public-provider-profile.query';
+import { GetPublicProviderProfileResponseDto } from './get-public-provider-profile.request.dto';
 import {
   IPartyRepository,
   PartyInvariantError,
   PartyNotFoundError,
   ProviderRoleNotFoundError,
-} from '@module/party';
+} from '../../../domain';
 
 @QueryHandler(GetPublicProviderProfileQuery)
 export class GetPublicProviderProfileHandler implements IQueryHandler<GetPublicProviderProfileQuery> {

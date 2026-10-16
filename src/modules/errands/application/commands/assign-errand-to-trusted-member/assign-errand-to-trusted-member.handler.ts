@@ -1,8 +1,6 @@
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import {
-  AssignErrandToTrustedMemberCommand,
-  AssignErrandToTrustedMemberResponseDto,
-} from '.';
+import { AssignErrandToTrustedMemberCommand } from './assign-errand-to-trusted-member.command';
+import { AssignErrandToTrustedMemberResponseDto } from './assign-errand-to-trusted-member.request.dto';
 import {
   Errand,
   ErrandAssignment,
@@ -11,7 +9,7 @@ import {
   SourceType,
 } from '@module/errands/domain';
 import { Currency, Money } from '@module/escrow/domain';
-import { IPartyRepository, PartyId, PartyNotFoundError } from '@module/party';
+import { IPartyRepository, PartyId, PartyNotFoundError } from '@module/party/domain';
 import {
   Application,
   ApplicationType,

@@ -10,7 +10,8 @@ import {
   PaymentTransactionId,
 } from '../';
 import { PartyId } from '@module/party';
-import { ErrandId, Money } from '@src/modules';
+import { ErrandId } from '@module/errands/domain';
+import { Money } from '@module/escrow/domain';
 
 export class PaymentTransaction extends AggregateRoot<PaymentTransactionId> {
   constructor(

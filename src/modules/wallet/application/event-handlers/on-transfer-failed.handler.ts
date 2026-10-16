@@ -1,10 +1,8 @@
 import { EventsHandler, IEventHandler, CommandBus } from '@nestjs/cqrs';
-import { TransferFailedEvent } from '@module/payments';
-import {
-  LedgerEntryRepository,
-  LedgerEntryType,
-  ReverseWithdrawalCommand,
-} from '@module/wallet';
+import { TransferFailedEvent } from '@module/payments/domain';
+import { LedgerEntryRepository } from '../../domain/repositories';
+import { LedgerEntryType } from '../../domain/value-objects';
+import { ReverseWithdrawalCommand } from '../commands/reverse-withdrawal/reverse-withdrawal.command';
 import { ILogger } from '@src/common';
 import * as crypto from 'node:crypto';
 

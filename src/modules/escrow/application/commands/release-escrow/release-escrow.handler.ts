@@ -1,5 +1,5 @@
 import { EscrowInvariantError, EscrowRepository } from '@module/escrow/domain';
-import { ReleaseEscrowCommand } from './';
+import { ReleaseEscrowCommand } from './release-escrow.command';
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 import { ILogger } from '@src/common';
 

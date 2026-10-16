@@ -1,9 +1,7 @@
 import { ErrorClassification, IErrorClassifier } from '@src/common';
-import {
-  ApplicationInvariantError,
-  ApplicationNotFoundError,
-  DuplicateApplicationError,
-} from '@src/modules';
+import { ApplicationInvariantError } from './application-invariant.error';
+import { ApplicationNotFoundError } from './application-not-found.error';
+import { DuplicateApplicationError } from './duplicate-application.error';
 
 export class AcceptApplicationErrorClassifier implements IErrorClassifier {
   private static readonly PERMANENT_ERROR_TYPES = [

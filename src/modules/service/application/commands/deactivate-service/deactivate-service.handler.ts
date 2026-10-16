@@ -1,5 +1,6 @@
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import { DeactivateServiceCommand, DeactivateServiceResponseDto } from '.';
+import { DeactivateServiceCommand } from './deactivate-service.command';
+import { DeactivateServiceResponseDto } from './deactivate-service.request.dto';
 import {
   IServiceRepository,
   ServiceNotFoundError,

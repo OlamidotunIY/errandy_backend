@@ -1,5 +1,5 @@
 import { EventsHandler, IEventHandler } from '@nestjs/cqrs';
-import { ErrandStartedEvent, ErrandCompletedEvent } from '@module/errands';
+import { ErrandStartedEvent, ErrandCompletedEvent } from '@module/errands/domain';
 import { ILogger } from '@src/common';
 
 @EventsHandler(ErrandStartedEvent, ErrandCompletedEvent)

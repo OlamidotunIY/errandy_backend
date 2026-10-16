@@ -1,6 +1,6 @@
 import { EventsHandler, IEventHandler, CommandBus } from '@nestjs/cqrs';
-import { DisputeOpenedEvent } from '@module/dispute';
-import { IPartyRepository } from '@module/party';
+import { DisputeOpenedEvent } from '@module/dispute/domain';
+import { IPartyRepository } from '@module/party/domain';
 import { SendNotificationCommand } from '../commands/send-notification';
 import { ILogger } from '@src/common';
 

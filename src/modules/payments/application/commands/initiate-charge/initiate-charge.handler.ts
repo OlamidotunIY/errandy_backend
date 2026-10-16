@@ -1,19 +1,19 @@
 import { CommandHandler, ICommandHandler, EventBus } from '@nestjs/cqrs';
 import * as crypto from 'node:crypto';
+import { InitiateChargeCommand } from './initiate-charge.command';
+import { InitiateChargeResponseDto } from './initiate-charge.dto';
 import {
-  InitiateChargeCommand,
   IPaymentGatewayAdapter,
   IPaymentMethodRepository,
   IPaymentTransactionRepository,
-  InitiateChargeResponseDto,
   PaymentTransaction,
   ChargeFailedError,
-} from '../../../';
-import { IPartyRepository, PartyId } from '@module/party';
-import { ErrandId } from '@module/errands';
-import { Money } from '@module/escrow';
+} from '../../../domain';
+import { IPartyRepository, PartyId } from '@module/party/domain';
+import { ErrandId } from '@module/errands/domain';
+import { Money } from '@module/escrow/domain';
 import { ILogger } from '@src/common';
-import { IUserRepository } from '@module/user';
+import { IUserRepository } from '@module/user/domain';
 
 @CommandHandler(InitiateChargeCommand)
 export class InitiateChargeHandler implements ICommandHandler<InitiateChargeCommand> {

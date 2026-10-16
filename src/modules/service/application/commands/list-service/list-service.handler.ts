@@ -1,12 +1,13 @@
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import { ListServiceCommand, ListServiceResponseDto } from '.';
+import { ListServiceCommand } from './list-service.command';
+import { ListServiceResponseDto } from './list-service.request.dto';
 import { IServiceRepository, Service } from '@module/service/domain';
 import { Currency, Money } from '@module/escrow/domain';
 import {
   IPartyRepository,
   PartyNotFoundError,
   ProviderRoleNotFoundError,
-} from '@module/party';
+} from '@module/party/domain';
 import {
   CategoryNotFoundError,
   CategoryNotLeafError,

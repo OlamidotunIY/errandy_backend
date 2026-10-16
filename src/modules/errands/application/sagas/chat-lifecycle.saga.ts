@@ -7,12 +7,12 @@ import {
   ErrandArchivedEvent,
   IErrandRepository,
 } from '@module/errands/domain';
-import { IPartyRepository } from '@module/party';
+import { IPartyRepository } from '@module/party/domain';
 import {
   CloseChatThreadCommand,
-  IChatThreadRepository,
   OpenChatThreadCommand,
-} from '@module/chat';
+} from '@module/chat/application';
+import { IChatThreadRepository } from '@module/chat/domain';
 import { ILogger } from '@src/common';
 
 @Injectable()

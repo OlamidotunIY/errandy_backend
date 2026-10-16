@@ -2,8 +2,8 @@ import {
   WalletBalanceRepository,
   WalletRepository,
   WalletNotFoundError,
-} from '@module/wallet';
-import { GetWalletBalancesQuery, WalletBalancesDTO } from './';
+} from '../../../domain';
+import { GetWalletBalancesQuery, WalletBalancesDTO } from './get-wallet-balances.query';
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 
 @QueryHandler(GetWalletBalancesQuery)

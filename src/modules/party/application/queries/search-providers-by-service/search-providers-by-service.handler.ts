@@ -1,9 +1,7 @@
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import {
-  SearchProvidersByServiceQuery,
-  SearchProvidersByServiceResponseDto,
-} from '.';
-import { IPartyRepository, PartyInvariantError } from '@module/party';
+import { SearchProvidersByServiceQuery } from './search-providers-by-service.query';
+import { SearchProvidersByServiceResponseDto } from './search-providers-by-service.request.dto';
+import { IPartyRepository, PartyInvariantError } from '../../../domain';
 
 @QueryHandler(SearchProvidersByServiceQuery)
 export class SearchProvidersByServiceHandler implements IQueryHandler<SearchProvidersByServiceQuery> {

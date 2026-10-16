@@ -1,13 +1,11 @@
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import {
-  DeactivatePartyCommand,
-  DeactivatePartyResponseDto,
-} from '@module/party';
+import { DeactivatePartyCommand } from './deactivate-party.command';
+import { DeactivatePartyResponseDto } from './deactivate-party.request.dto';
 import {
   IPartyRepository,
   PartyInvariantError,
   PartyNotFoundError,
-} from '@module/party';
+} from '../../../domain';
 import { ILogger } from '@src/common';
 
 @CommandHandler(DeactivatePartyCommand)

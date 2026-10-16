@@ -1,4 +1,4 @@
-import { ApplicationStatus, ApplicationType } from '@src/modules';
+import { ApplicationStatus, ApplicationType } from '../../../domain';
 
 export interface GetApplicationQueryDTO {
   applications: ApplicationDto[];

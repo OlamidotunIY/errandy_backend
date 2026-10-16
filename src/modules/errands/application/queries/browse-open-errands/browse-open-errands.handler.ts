@@ -1,11 +1,12 @@
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { BrowseOpenErrandsQuery, BrowseOpenErrandsResponseDto } from '.';
+import { BrowseOpenErrandsQuery } from './browse-open-errands.query';
+import { BrowseOpenErrandsResponseDto } from './browse-open-errands.request.dto';
 import { IErrandRepository } from '@module/errands/domain';
 import {
   IPartyRepository,
   PartyNotFoundError,
   ProviderTier,
-} from '@module/party';
+} from '@module/party/domain';
 
 @QueryHandler(BrowseOpenErrandsQuery)
 export class BrowseOpenErrandsHandler implements IQueryHandler<BrowseOpenErrandsQuery> {

@@ -1,5 +1,6 @@
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import { BookServiceCommand, BookServiceResponseDto } from '.';
+import { BookServiceCommand } from './book-service.command';
+import { BookServiceResponseDto } from './book-service.request.dto';
 import {
   Errand,
   ErrandAssignment,
@@ -11,7 +12,7 @@ import {
   IPartyRepository,
   PartyNotFoundError,
   ProviderRoleNotFoundError,
-} from '@module/party';
+} from '@module/party/domain';
 import {
   ICategoryRepository,
   CategoryNotFoundError,

@@ -4,14 +4,14 @@ import {
   EventBus,
   ICommandHandler,
 } from '@nestjs/cqrs';
+import { RequestApplicationAcceptanceCommand } from './request-application-acceptance.command';
 import {
   AcceptApplicationProgress,
   ApplicationInvariantError,
   IAcceptApplicationProgressRepository,
   IApplicationRepository,
-  InitiateChargeCommand,
-  RequestApplicationAcceptanceCommand,
-} from '@src/modules';
+} from '../../../domain';
+import { InitiateChargeCommand } from '@module/payments/application';
 import { IErrandRepository, ErrandNotFoundError } from '@module/errands/domain';
 import { ILogger } from '@src/common';
 

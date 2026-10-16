@@ -1,5 +1,5 @@
 import { DomainError, DomainErrorStatus } from '@src/common';
-import { BucketType } from 'src/modules/wallet/domain';
+import { BucketType } from '../repositories/ledger-entry.repository.interface';
 
 class InsufficientBalanceError extends DomainError {
   constructor(

@@ -1,8 +1,6 @@
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
-import {
-  NotificationPreferenceResponseDto,
-  UpdateNotificationPreferenceCommand,
-} from '.';
+import { UpdateNotificationPreferenceCommand } from './update-notification-preference.command';
+import { NotificationPreferenceResponseDto } from './update-notification-preference.request.dto';
 import {
   INotificationPreferenceRepository,
   NotificationPreference,

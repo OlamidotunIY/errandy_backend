@@ -1,5 +1,6 @@
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import { OpenChatThreadCommand, OpenChatThreadResponseDto } from '.';
+import { OpenChatThreadCommand } from './open-chat-thread.command';
+import { OpenChatThreadResponseDto } from './open-chat-thread.request.dto';
 import { ChatThread, IChatThreadRepository } from '@module/chat/domain';
 import { ILogger } from '@src/common';
 

@@ -1,6 +1,6 @@
-import { ErrandCompletedEvent } from '@module/errands';
+import { ErrandCompletedEvent } from '@module/errands/domain';
 import { EventBus, EventsHandler, IEventHandler } from '@nestjs/cqrs';
-import { IPartyRepository } from '@module/party';
+import { IPartyRepository } from '../../../domain';
 import { ILogger } from '@src/common';
 import { PrismaService } from '@src/prisma/prisma.service';
 

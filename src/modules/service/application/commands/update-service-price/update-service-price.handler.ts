@@ -1,5 +1,6 @@
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import { UpdateServicePriceCommand, UpdateServicePriceResponseDto } from '.';
+import { UpdateServicePriceCommand } from './update-service-price.command';
+import { UpdateServicePriceResponseDto } from './update-service-price.request.dto';
 import {
   IServiceRepository,
   ServiceNotFoundError,

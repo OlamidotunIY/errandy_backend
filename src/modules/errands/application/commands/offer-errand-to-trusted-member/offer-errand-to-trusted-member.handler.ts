@@ -1,10 +1,8 @@
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import {
-  OfferErrandToTrustedMemberCommand,
-  OfferErrandToTrustedMemberResponseDto,
-} from '.';
+import { OfferErrandToTrustedMemberCommand } from './offer-errand-to-trusted-member.command';
+import { OfferErrandToTrustedMemberResponseDto } from './offer-errand-to-trusted-member.request.dto';
 import { ErrandNotFoundError, IErrandRepository } from '@module/errands/domain';
-import { PartyId } from '@module/party';
+import { PartyId } from '@module/party/domain';
 import {
   Application,
   ApplicationType,

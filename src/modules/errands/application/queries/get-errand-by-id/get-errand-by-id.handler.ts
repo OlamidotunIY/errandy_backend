@@ -1,5 +1,6 @@
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { ErrandDetailResponseDto, GetErrandByIdQuery } from '.';
+import { GetErrandByIdQuery } from './get-errand-by-id.query';
+import { ErrandDetailResponseDto } from './get-errand-by-id.request.dto';
 import { ErrandNotFoundError, IErrandRepository } from '@module/errands/domain';
 
 @QueryHandler(GetErrandByIdQuery)

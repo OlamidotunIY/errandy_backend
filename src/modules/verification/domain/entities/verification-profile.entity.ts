@@ -1,5 +1,5 @@
 import { VerificationCompletedEvent } from '../events';
-import { ProviderTier } from '@module/party';
+import { ProviderTier } from '@module/party/domain';
 
 export interface VerificationStepProps {
   stepType: string;

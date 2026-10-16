@@ -1,5 +1,5 @@
 import { AcceptApplicationProgress } from '../entities';
-import { ApplicationId } from '@src/modules';
+import { ApplicationId } from '../value-objects';
 
 export abstract class IAcceptApplicationProgressRepository {
   abstract save(progress: AcceptApplicationProgress): Promise<void>;

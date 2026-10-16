@@ -1,10 +1,10 @@
-import { DisputeOpenedEvent } from '@module/dispute';
+import { DisputeOpenedEvent } from '@module/dispute/domain';
 import { EventBus, EventsHandler, IEventHandler } from '@nestjs/cqrs';
 import {
   IPartyRepository,
   PartyNotFoundError,
   ProviderRoleNotFoundError,
-} from '@module/party';
+} from '../../../domain';
 import { ILogger } from '@src/common';
 
 @EventsHandler(DisputeOpenedEvent)

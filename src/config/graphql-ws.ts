@@ -16,7 +16,7 @@ import { join } from 'path';
 // import { PresencePublisher } from 'src/presence/presence.publicher';
 // import { PresenceService } from 'src/presence/presence.service';
 import type { Context } from 'graphql-ws';
-import { v4 as uuid } from 'uuid';
+import { randomUUID as uuid } from 'node:crypto';
 
 type WsExtra = {
   userId?: string;

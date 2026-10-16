@@ -1,7 +1,8 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 import { Queue } from 'bullmq';
-import { CompleteErrandCommand, CompleteErrandResponseDto } from '.';
+import { CompleteErrandCommand } from './complete-errand.command';
+import { CompleteErrandResponseDto } from './complete-errand.request.dto';
 import {
   CompletedBy,
   ErrandNotFoundError,

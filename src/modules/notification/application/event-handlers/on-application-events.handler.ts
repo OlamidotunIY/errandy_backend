@@ -2,8 +2,8 @@ import { EventsHandler, IEventHandler, CommandBus } from '@nestjs/cqrs';
 import {
   ApplicationSubmittedEvent,
   ApplicationAcceptedEvent,
-} from '@module/application';
-import { IPartyRepository } from '@module/party';
+} from '@module/application/domain';
+import { IPartyRepository } from '@module/party/domain';
 import { SendNotificationCommand } from '../commands/send-notification';
 import { ILogger } from '@src/common';
 

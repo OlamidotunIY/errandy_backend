@@ -1,10 +1,8 @@
-import { WalletBalancesDTO } from 'src/modules/wallet/application';
-import {
-  LedgerEntry,
-  WalletBalanceSnapshot,
-  WalletId,
-} from 'src/modules/wallet';
-import { Currency } from 'src/modules/escrow';
+import { WalletBalancesDTO } from '../../application/queries/get-wallet-balances/get-wallet-balances.query';
+import { LedgerEntry } from '../entities/ledger-entry.entity';
+import { WalletBalanceSnapshot } from '../entities/wallet-balance-snapshot.entity';
+import { WalletId } from '../value-objects';
+import { Currency } from '@module/escrow/domain';
 
 export abstract class WalletBalanceRepository {
   abstract getSnapshotForDisplay(

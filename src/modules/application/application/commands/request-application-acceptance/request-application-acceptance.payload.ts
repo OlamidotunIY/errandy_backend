@@ -1,5 +1,5 @@
 import { PartyId } from '@module/party';
-import { ApplicationId } from '@src/modules';
+import { ApplicationId } from '../../../domain';
 
 export interface RequestApplicationAcceptancePayload {
   clientPartyId: PartyId;

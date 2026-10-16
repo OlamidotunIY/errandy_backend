@@ -1,13 +1,11 @@
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import {
-  RemoveOrganizationMemberCommand,
-  RemoveOrganizationMemberResponseDto,
-} from '@module/party';
+import { RemoveOrganizationMemberCommand } from './remove-organization-member.command';
+import { RemoveOrganizationMemberResponseDto } from './remove-organization-member.request.dto';
 import {
   IPartyRepository,
   PartyInvariantError,
   PartyNotFoundError,
-} from '@module/party';
+} from '../../../domain';
 import { UserId } from '@module/user';
 import { ILogger } from '@src/common';
 

@@ -1,6 +1,6 @@
 import { FundEscrowResult } from './fund-escrow.result';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { FundEscrowCommand } from './';
+import { FundEscrowCommand } from './fund-escrow.command';
 import {
   Escrow,
   EscrowInvariantError,

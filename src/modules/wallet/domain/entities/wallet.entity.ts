@@ -1,5 +1,5 @@
-import { LedgerEntryType, WalletId } from '..';
-import { Currency, EscrowId, Money } from '@module/escrow';
+import { LedgerEntryType, WalletId } from '../value-objects';
+import { Currency, EscrowId, Money } from '@module/escrow/domain';
 import { LedgerEntry } from './ledger-entry.entity';
 import {
   InsufficientActiveBalanceError,
@@ -16,7 +16,7 @@ import {
   WithdrawalReversed,
 } from '../events';
 import { AggregateRoot } from '@src/common';
-import { UserId } from '@module/user';
+import { UserId } from '@module/user/domain';
 
 class Wallet extends AggregateRoot<WalletId> {
   private constructor(

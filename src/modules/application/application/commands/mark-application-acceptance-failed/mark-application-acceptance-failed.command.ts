@@ -1,6 +1,6 @@
-import { ApplicationId } from '@src/modules';
+import { ApplicationId } from '../../../domain';
 import { Command } from '@nestjs/cqrs';
-import { MarkApplicationAcceptanceFailedPayload } from './';
+import { MarkApplicationAcceptanceFailedPayload } from './mark-application-acceptance-failed.payload';
 
 export class MarkApplicationAcceptanceFailedCommand extends Command<void> {
   constructor(public readonly payload: MarkApplicationAcceptanceFailedPayload) {

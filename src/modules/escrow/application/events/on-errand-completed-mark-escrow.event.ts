@@ -1,5 +1,5 @@
-import { ErrandCompletedEvent } from '@module/errands';
-import { MarkEscrowCompletedCommand } from '@module/escrow';
+import { ErrandCompletedEvent, ErrandId } from '@module/errands/domain';
+import { MarkEscrowCompletedCommand } from '../commands/mark-escrow-completed/mark-escrow-completed.command';
 import {
   EscrowErrorClassifier,
   EscrowInvariantError,
@@ -12,7 +12,6 @@ import {
   IDeadLetterRepository,
   ILogger,
 } from '@src/common';
-import { ErrandId } from '@module/errands';
 
 @EventsHandler(ErrandCompletedEvent)
 export class OnErrandCompletedMarkEscrow implements IEventHandler<ErrandCompletedEvent> {

@@ -1,10 +1,8 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 import { Queue } from 'bullmq';
-import {
-  ConfirmAssignmentCompletionCommand,
-  ConfirmAssignmentCompletionResponseDto,
-} from '.';
+import { ConfirmAssignmentCompletionCommand } from './confirm-assignment-completion.command';
+import { ConfirmAssignmentCompletionResponseDto } from './confirm-assignment-completion.request.dto';
 import {
   ErrandInvariantError,
   ErrandNotFoundError,

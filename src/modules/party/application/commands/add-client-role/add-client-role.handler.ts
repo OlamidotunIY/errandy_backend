@@ -1,10 +1,11 @@
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import { AddClientRoleCommand, AddClientRoleResponseDto } from '@module/party';
+import { AddClientRoleCommand } from './add-client-role.command';
+import { AddClientRoleResponseDto } from './add-client-role.request.dto';
 import {
   IPartyRepository,
   PartyInvariantError,
   PartyNotFoundError,
-} from '@module/party';
+} from '../../../domain';
 import { ILogger } from '@src/common';
 
 @CommandHandler(AddClientRoleCommand)

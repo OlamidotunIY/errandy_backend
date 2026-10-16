@@ -1,5 +1,6 @@
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import { StartErrandCommand, StartErrandResponseDto } from '.';
+import { StartErrandCommand } from './start-errand.command';
+import { StartErrandResponseDto } from './start-errand.request.dto';
 import {
   ErrandInvariantError,
   ErrandNotFoundError,

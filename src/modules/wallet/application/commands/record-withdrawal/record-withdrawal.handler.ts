@@ -5,9 +5,9 @@ import {
   WalletRepository,
   LedgerEntry,
   WalletNotFoundError,
-} from '@module/wallet';
-import { Money } from '@module/escrow';
-import { RecordWithdrawalCommand } from './';
+} from '../../../domain';
+import { Money } from '@module/escrow/domain';
+import { RecordWithdrawalCommand } from './record-withdrawal.command';
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 import { isTransientTransactionError } from '@src/prisma/prisma.service';
 

@@ -1,7 +1,8 @@
-import { EscrowId } from 'src/modules/escrow';
-import { Wallet, WalletId } from '@module/wallet';
+import { EscrowId } from '@module/escrow/domain';
+import { WalletId } from '../value-objects';
+import { Wallet } from '../entities';
 import { BaseDomainEvent } from '@src/common';
-import { UserId } from '@module/user';
+import { UserId } from '@module/user/domain';
 
 interface ActiveErrandCreditedPayload {
   walletId: WalletId;

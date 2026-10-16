@@ -3,8 +3,8 @@ import {
   IPartyRepository,
   PartyNotFoundError,
   ProviderRoleNotFoundError,
-} from '@module/party';
-import { VerificationCompletedEvent } from '@module/verification';
+} from '../../../domain';
+import { VerificationCompletedEvent } from '@module/verification/domain';
 import { ILogger } from '@src/common';
 
 @EventsHandler(VerificationCompletedEvent)

@@ -12,9 +12,9 @@ import { PAYMENT_PROVIDER } from '@src/infrastructure/payment-provider';
 import { QUEUE_NAMES } from '@src/infrastructure/queue/queue.constants';
 import { IBankAccountRepository } from '../../domain/repositories';
 import { PayoutDistributionPayload } from './payout-distribution.payload';
-import { ReverseWithdrawalCommand } from '../commands/reverse-withdrawal';
-import { UserId } from '@module/user';
-import { Currency, Money } from '@module/escrow';
+import { ReverseWithdrawalCommand } from '../commands/reverse-withdrawal/reverse-withdrawal.command';
+import { UserId } from '@module/user/domain';
+import { Currency, Money } from '@module/escrow/domain';
 
 @Processor(QUEUE_NAMES.PAYOUT_DISTRIBUTION)
 @Injectable()

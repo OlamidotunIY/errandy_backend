@@ -1,11 +1,11 @@
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import { AcceptApplicationCommand } from './';
+import { AcceptApplicationCommand } from './accept-application.command';
 import {
   AcceptApplicationProgressStatus,
   ApplicationInvariantError,
   IAcceptApplicationProgressRepository,
   IApplicationRepository,
-} from '@module/application';
+} from '../../../domain';
 import { IErrandRepository } from '@module/errands/domain';
 import { ILogger } from '@src/common';
 

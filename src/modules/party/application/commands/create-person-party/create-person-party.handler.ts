@@ -1,14 +1,12 @@
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import {
-  CreatePersonPartyCommand,
-  CreatePersonPartyResponseDto,
-} from '@module/party';
+import { CreatePersonPartyCommand } from './create-person-party.command';
+import { CreatePersonPartyResponseDto } from './create-person-party.request.dto';
 import {
   IPartyRepository,
   Party,
   PartyInvariantError,
   PersonPartyAlreadyExistsError,
-} from '@module/party';
+} from '../../../domain';
 import { UserId } from '@module/user';
 import { ILogger } from '@src/common';
 

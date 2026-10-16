@@ -1,5 +1,6 @@
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { GetServiceByIdQuery, ServiceResponseDto } from '.';
+import { GetServiceByIdQuery } from './get-service-by-id.query';
+import { ServiceResponseDto } from './get-service-by-id.request.dto';
 import {
   IServiceRepository,
   ServiceNotFoundError,
