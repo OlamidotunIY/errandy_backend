@@ -13,6 +13,7 @@ import {
   MovedToPending,
   ReleasedToAvailable,
   WithdrawalRecorded,
+  WithdrawalReversed,
 } from '../events';
 import { AggregateRoot } from '@src/common';
 import { UserId } from '@module/user';
@@ -239,6 +240,33 @@ class Wallet extends AggregateRoot<WalletId> {
         this,
         escrowId,
         gatewayReference,
+        correlationId,
+      ),
+    );
+    return entry;
+  }
+
+  recordWithdrawalReversal(
+    amount: Money,
+    gatewayReference: string,
+    reason: string,
+    correlationId: string,
+  ): LedgerEntry {
+    const creditIdempotencyKey = `${LedgerEntryType.AVAILABLE_CREDIT}_reversal_${gatewayReference}`;
+    const entry = LedgerEntry.create({
+      walletId: this.id,
+      userId: this.userId,
+      type: LedgerEntryType.AVAILABLE_CREDIT,
+      amount,
+      escrowId: null,
+      gatewayReference,
+      idempotencyKey: creditIdempotencyKey,
+    });
+    this.addDomainEvent(
+      WithdrawalReversed.fromAggregate(
+        this,
+        gatewayReference,
+        reason,
         correlationId,
       ),
     );

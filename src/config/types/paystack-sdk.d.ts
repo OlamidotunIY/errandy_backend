@@ -46,10 +46,36 @@ declare module '@paystack/paystack-sdk' {
     }): Promise<PaystackApiResponse>;
   }
 
+  interface PaystackTransferRecipientApi {
+    create(params: {
+      type: string;
+      name: string;
+      account_number: string;
+      bank_code: string;
+      currency?: string;
+      description?: string;
+      authorization_code?: string;
+      metadata?: Record<string, unknown>;
+    }): Promise<PaystackApiResponse>;
+  }
+
+  interface PaystackTransferApi {
+    initiate(params: {
+      source: string;
+      amount: number;
+      recipient: string;
+      reason?: string;
+      currency?: string;
+      reference?: string;
+    }): Promise<PaystackApiResponse>;
+  }
+
   export class Paystack {
     constructor(secretKey: string);
 
     transaction: PaystackTransactionApi;
     refund: PaystackRefundApi;
+    transferrecipient: PaystackTransferRecipientApi;
+    transfer: PaystackTransferApi;
   }
 }

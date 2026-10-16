@@ -10,11 +10,15 @@ import {
   ReleaseToAvailableCommandHandler,
   ReverseActiveErrandCommandHandler,
   RecordWithdrawalCommandHandler,
+  ReverseWithdrawalCommandHandler,
   // Query Handlers
   GetLedgerHistoryQueryHandler,
   GetWalletBalancesHandler,
   // Processors & Jobs
   ReconcileLedgerProcessor,
+  PayoutDistributionProcessor,
+  // Event Handlers
+  OnTransferFailedHandler,
   // Services & Mappers & Adapters
   LedgerBalanceCalculator,
   LedgerEntryMapper,
@@ -39,9 +43,14 @@ import {
 @Module({
   imports: [
     CqrsModule,
-    BullModule.registerQueue({
-      name: QUEUE_NAMES.WALLET_RECONCILE_LEDGER,
-    }),
+    BullModule.registerQueue(
+      {
+        name: QUEUE_NAMES.WALLET_RECONCILE_LEDGER,
+      },
+      {
+        name: QUEUE_NAMES.PAYOUT_DISTRIBUTION,
+      },
+    ),
   ],
   providers: [
     // Resolvers
@@ -53,6 +62,7 @@ import {
     ReleaseToAvailableCommandHandler,
     ReverseActiveErrandCommandHandler,
     RecordWithdrawalCommandHandler,
+    ReverseWithdrawalCommandHandler,
 
     // Query Handlers
     GetLedgerHistoryQueryHandler,
@@ -60,6 +70,10 @@ import {
 
     // Processors
     ReconcileLedgerProcessor,
+    PayoutDistributionProcessor,
+
+    // Event Handlers
+    OnTransferFailedHandler,
 
     // Adapters & Classifiers
     PaystackLedgerAuditAdapter,

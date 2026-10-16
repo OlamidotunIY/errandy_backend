@@ -7,6 +7,7 @@ export const QUEUE_NAMES = {
   PAYMENT_METHOD_VERIFICATION: 'payment-method-verification',
   WITHDRAWAL_REVERSAL: 'withdrawal-reversal',
   BANK_ACCOUNT_RESOLUTION: 'bank-account-resolution',
+  PAYOUT_DISTRIBUTION: 'payout-distribution',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];

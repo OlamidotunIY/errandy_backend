@@ -16,10 +16,14 @@ import { UserId } from '@module/user';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { NotFoundException, UseGuards } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import { QUEUE_NAMES } from '@src/infrastructure/queue/queue.constants';
 import { GqlAuthGuard } from '@src/common/guards';
 import { CurrentUser } from '@src/common/decorators';
 import { User } from 'better-auth';
 import { randomUUID } from 'crypto';
+import { PayoutDistributionPayload } from '../../application/jobs';
 
 @Resolver()
 @UseGuards(GqlAuthGuard)
@@ -28,6 +32,8 @@ export class WalletResolver {
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
     private readonly bankAccountRepository: IBankAccountRepository,
+    @InjectQueue(QUEUE_NAMES.PAYOUT_DISTRIBUTION)
+    private readonly payoutQueue: Queue<PayoutDistributionPayload>,
   ) {}
 
   @Query(() => WalletBalancesType, {
@@ -167,19 +173,30 @@ export class WalletResolver {
     const gatewayReference = `wd_${Date.now()}_${randomUUID().slice(0, 8)}`;
     const currency = (input.currency ?? 'NGN').toUpperCase() as Currency;
 
+    const correlationId = randomUUID();
+
     await this.commandBus.execute(
       new RecordWithdrawalCommand(
         UserId.fromString(user.id),
         Money.fromMinorUnits(input.amountMinorUnits, currency),
         currency,
         gatewayReference,
-        randomUUID(),
+        correlationId,
       ),
     );
 
+    await this.payoutQueue.add('payout-distribution', {
+      userId: user.id,
+      bankAccountId: input.bankAccountId,
+      amountMinorUnits: input.amountMinorUnits,
+      currency,
+      gatewayReference,
+      correlationId,
+    });
+
     return {
       success: true,
-      message: 'Withdrawal recorded successfully',
+      message: 'Withdrawal recorded and payout queued successfully',
       gatewayReference,
     };
   }

@@ -35,6 +35,7 @@ import { QUEUE_NAMES } from './queue.constants';
       { name: QUEUE_NAMES.PAYMENT_METHOD_VERIFICATION },
       { name: QUEUE_NAMES.WITHDRAWAL_REVERSAL },
       { name: QUEUE_NAMES.BANK_ACCOUNT_RESOLUTION },
+      { name: QUEUE_NAMES.PAYOUT_DISTRIBUTION },
     ),
   ],
   exports: [BullModule],

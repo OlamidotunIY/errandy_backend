@@ -18,6 +18,8 @@ import {
   PaymentTransaction,
   ChargeSucceededEvent,
   ChargeFailedEvent,
+  TransferSucceededEvent,
+  TransferFailedEvent,
 } from '../../domain';
 
 @Controller('webhooks/payment-gateway')
@@ -91,16 +93,31 @@ export class PaymentWebhookController {
       }
 
       case 'transfer.success': {
-        this.logger.info(`Transfer succeeded: ${event.data?.reference}`);
+        const reference = event.data?.reference;
+        this.logger.info(`Transfer succeeded: ${reference}`);
+        if (reference) {
+          this.eventBus.publish(
+            new TransferSucceededEvent(reference, correlationId, event.data),
+          );
+        }
         break;
       }
 
       case 'transfer.failed':
       case 'transfer.reversed': {
+        const reference = event.data?.reference;
+        const reason =
+          event.data?.reason ||
+          `Paystack transfer ${event?.event ?? 'failed'}`;
         this.logger.warn(
-          `Transfer failed/reversed: ${event.data?.reference}`,
-          { reason: event.data?.reason },
+          `Transfer failed/reversed: ${reference}`,
+          { reason },
         );
+        if (reference) {
+          this.eventBus.publish(
+            new TransferFailedEvent(reference, reason, correlationId, event.data),
+          );
+        }
         break;
       }
 

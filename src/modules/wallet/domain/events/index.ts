@@ -5,3 +5,4 @@ export * from './ledger-discrepancy-detected.event';
 export * from './moved-to-pending.event';
 export * from './released-to-available.event';
 export * from './withdrawal-recorded.event';
+export * from './withdrawal-reversed.event';
