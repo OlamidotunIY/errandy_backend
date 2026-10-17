@@ -1,0 +1,85 @@
+# errandy — Local Development Stack
+# Usage: docker compose -f infrastructure/docker/docker-compose.yml up -d
+# Services: Redis, Errandy API, Errandy Worker
+
+name: errandy
+
+services:
+  # ── Redis ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7.2-alpine
+    container_name: errandy-redis
+    restart: unless-stopped
+    networks:
+      - errandy-net
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --save 60 1 --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Errandy API (Commented out for local `pnpm run start:dev`) ─────────────
+  # api:
+  #   build:
+  #     context: ../..
+  #     dockerfile: Dockerfile
+  #   container_name: errandy-api
+  #   restart: unless-stopped
+  #   networks:
+  #     - errandy-net
+  #   depends_on:
+  #     redis:
+  #       condition: service_healthy
+  #   ports:
+  #     - "8080:8080"
+  #   env_file:
+  #     - path: ../../.env
+  #       required: false
+  #   environment:
+  #     NODE_ENV: production
+  #     PORT: 8080
+  #     REDIS_HOST: redis
+  #     REDIS_PORT: 6379
+  #     REDIS_URL: redis://redis:6379/1
+  #   command: ["node", "dist/src/main.js"]
+  #   healthcheck:
+  #     test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 15s
+
+  # ── Errandy BullMQ Worker ──────────────────────────────────────────────────
+  # worker:
+  #   build:
+  #     context: ../..
+  #     dockerfile: Dockerfile
+  #   container_name: errandy-worker
+  #   restart: unless-stopped
+  #   networks:
+  #     - errandy-net
+  #   depends_on:
+  #     redis:
+  #       condition: service_healthy
+  #   env_file:
+  #     - path: ../../.env
+  #       required: false
+  #   environment:
+  #     NODE_ENV: production
+  #     REDIS_HOST: redis
+  #     REDIS_PORT: 6379
+  #     REDIS_URL: redis://redis:6379/1
+  #   command: ["node", "dist/src/worker.js"]
+
+networks:
+  errandy-net:
+    name: errandy-net
+    driver: bridge
+
+volumes:
+  redis_data:

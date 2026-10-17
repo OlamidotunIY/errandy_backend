@@ -1,0 +1,114 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: errandy-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: errandy-api
+  template:
+    metadata:
+      labels:
+        app: errandy-api
+    spec:
+      containers:
+      - name: errandy-api
+        image: errandy/app:latest
+        imagePullPolicy: IfNotPresent
+        command: ["node", "dist/src/main.js"]
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - secretRef:
+            name: errandy-secrets
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "8080"
+        - name: REDIS_HOST
+          value: "redis"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: REDIS_URL
+          value: "redis://redis:6379/1"
+        - name: REDIS_PASSWORD
+          value: ""
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 20
+          periodSeconds: 30
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 15
+          timeoutSeconds: 5
+        volumeMounts:
+        - name: errandy-firebase-secrets
+          mountPath: /app/infrastructure/Firebase
+          readOnly: true
+      volumes:
+      - name: errandy-firebase-secrets
+        secret:
+          secretName: errandy-firebase-secrets
+          optional: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: errandy-api
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: errandy-api
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: errandy-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: errandy-worker
+  template:
+    metadata:
+      labels:
+        app: errandy-worker
+    spec:
+      containers:
+      - name: errandy-worker
+        image: errandy/app:latest
+        imagePullPolicy: IfNotPresent
+        command: ["node", "dist/src/worker.js"]
+        envFrom:
+        - secretRef:
+            name: errandy-secrets
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: REDIS_HOST
+          value: "redis"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: REDIS_URL
+          value: "redis://redis:6379/1"
+        - name: REDIS_PASSWORD
+          value: ""
+        volumeMounts:
+        - name: errandy-firebase-secrets
+          mountPath: /app/infrastructure/Firebase
+          readOnly: true
+      volumes:
+      - name: errandy-firebase-secrets
+        secret:
+          secretName: errandy-firebase-secrets
+          optional: true

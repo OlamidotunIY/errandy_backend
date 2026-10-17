@@ -63,6 +63,18 @@ async function bootstrap() {
   app.use(json({ limit: '50mb' }));
   app.use(urlencoded({ extended: true, limit: '50mb' }));
 
+  // Healthcheck endpoint for Docker & Kubernetes probes
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (
+      req.method === 'GET' &&
+      (req.originalUrl === '/health' || req.url === '/health')
+    ) {
+      res.status(200).json({ status: 'ok', service: 'errandy-backend' });
+      return;
+    }
+    next();
+  });
+
   // Mount Better-Auth HTTP handler
   const authHandler = toNodeHandler(auth);
   app.use((req: Request, res: Response, next: NextFunction) => {
