@@ -2,6 +2,10 @@ import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { UseGuards } from '@nestjs/common';
 import { GqlAuthGuard } from '@src/common/guards';
+import { CurrentUser } from '@src/common/decorators';
+import { User } from 'better-auth';
+import { IPartyReadPort } from '@src/common';
+import { IErrandRepository } from '../../domain';
 import {
   BrowseOpenErrandsQuery,
   GetErrandByIdQuery,
@@ -29,6 +33,8 @@ export class ErrandsResolver {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
+    private readonly errandRepository: IErrandRepository,
+    private readonly partyReadPort: IPartyReadPort,
   ) {}
 
   @Query(() => ErrandDetailType, {
@@ -40,6 +46,55 @@ export class ErrandsResolver {
     @Args('id') id: string,
   ): Promise<ErrandDetailResponseDto | null> {
     return this.queryBus.execute(new GetErrandByIdQuery({ errandId: id }));
+  }
+
+  @Query(() => [ErrandDetailType], {
+    name: 'myErrands',
+    description: 'Get errands where the authenticated user is client or assigned provider',
+  })
+  @UseGuards(GqlAuthGuard)
+  async myErrands(
+    @CurrentUser() user: User,
+    @Args('role', { type: () => String, nullable: true, defaultValue: 'CLIENT' })
+    role: 'CLIENT' | 'PROVIDER' = 'CLIENT',
+    @Args('status', { type: () => String, nullable: true })
+    status?: string,
+  ): Promise<ErrandDetailResponseDto[]> {
+    const partyId = await this.partyReadPort.findPartyIdByUserId(user.id);
+    if (!partyId) {
+      return [];
+    }
+
+    const errands =
+      role === 'PROVIDER'
+        ? await this.errandRepository.findByProviderId(partyId)
+        : await this.errandRepository.findByClientId(partyId);
+
+    const filtered = status
+      ? errands.filter((e) => e.status.toString() === status)
+      : errands;
+
+    return filtered.map((errand) => ({
+      id: errand.id.value,
+      clientPartyId: errand.clientPartyId,
+      categoryId: errand.categoryId,
+      title: errand.title,
+      description: errand.description,
+      addressId: errand.addressId,
+      budget: {
+        amountMinorUnits: errand.budget.amountMinorUnits,
+        currency: errand.budget.currency,
+      },
+      status: errand.status,
+      sourceType: errand.sourceType,
+      requiredTier: errand.requiredTier,
+      marketId: errand.marketId,
+      startedAt: errand.startedAt ? errand.startedAt.toISOString() : undefined,
+      completedAt: errand.completedAt
+        ? errand.completedAt.toISOString()
+        : undefined,
+      createdAt: errand.createdAt.toISOString(),
+    }));
   }
 
   @Query(() => BrowseOpenErrandsResponseType, {

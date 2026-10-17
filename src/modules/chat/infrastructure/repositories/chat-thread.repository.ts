@@ -35,4 +35,17 @@ export class PrismaChatThreadRepository implements IChatThreadRepository {
 
     return record ? this.mapper.toDomain(record) : null;
   }
+
+  async findByParticipantId(userId: string): Promise<ChatThread[]> {
+    const records = await this.prisma.chatThread.findMany({
+      where: {
+        participantIds: {
+          has: userId,
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return records.map((r) => this.mapper.toDomain(r));
+  }
 }

@@ -9,15 +9,20 @@ import {
   SearchProvidersByServiceQuery,
   UpdateProviderRoleCommand,
 } from '../../application';
-import { ProviderTier } from '../../domain';
+import { IPartyRepository, ProviderTier } from '../../domain';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
+import { UseGuards } from '@nestjs/common';
+import { GqlAuthGuard } from '@src/common/guards';
+import { CurrentUser } from '@src/common/decorators';
+import { User } from 'better-auth';
 import {
   AddOrganizationMemberInput,
   AddOrganizationMemberType,
   AddProviderRoleType,
   AwardBadgeInput,
   AwardBadgeType,
+  MyPartyProfileType,
   OrgFacingProviderProfileType,
   PublicProviderProfileType,
   RemoveOrganizationMemberType,
@@ -32,7 +37,34 @@ export class PartyResolver {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
+    private readonly partyRepository: IPartyRepository,
   ) {}
+
+  @Query(() => MyPartyProfileType, {
+    nullable: true,
+    description: 'Get party profile for the authenticated user',
+  })
+  @UseGuards(GqlAuthGuard)
+  async myPartyProfile(
+    @CurrentUser() user: User,
+  ): Promise<MyPartyProfileType | null> {
+    const party = await this.partyRepository.findByUserId(user.id);
+    if (!party) {
+      return null;
+    }
+
+    return {
+      partyId: party.id.value,
+      userId: user.id,
+      marketId: party.marketId,
+      kind: party.person ? 'PERSON' : 'ORGANIZATION',
+      hasClientRole: !!party.clientRole,
+      hasProviderRole: !!party.providerRole,
+      providerTier: party.providerRole?.tier,
+      skills: party.providerRole?.skills ?? [],
+      bio: party.providerRole?.bio ?? undefined,
+    };
+  }
 
   @Mutation(() => AddProviderRoleType)
   async addProviderRole(

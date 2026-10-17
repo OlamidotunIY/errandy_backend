@@ -12,6 +12,11 @@ import {
   Resolver,
   Subscription,
 } from '@nestjs/graphql';
+import { UseGuards } from '@nestjs/common';
+import { GqlAuthGuard } from '@src/common/guards';
+import { CurrentUser } from '@src/common/decorators';
+import { User } from 'better-auth';
+import { IChatThreadRepository } from '../../domain';
 import {
   ChatMessageType,
   ChatThreadType,
@@ -30,6 +35,7 @@ export class ChatResolver {
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
     private readonly realtimeMessagingAdapter: RealtimeMessagingAdapter,
+    private readonly chatThreadRepository: IChatThreadRepository,
   ) {}
 
   @Mutation(() => SendMessageType, {
@@ -51,6 +57,30 @@ export class ChatResolver {
     return this.queryBus.execute(
       new GetChatThreadByErrandIdQuery({ errandId }),
     );
+  }
+
+  @Query(() => [ChatThreadType], {
+    name: 'myChatThreads',
+    description:
+      'Get all chat threads where the authenticated user is a participant',
+  })
+  @UseGuards(GqlAuthGuard)
+  async myChatThreads(
+    @CurrentUser() user: User,
+  ): Promise<ChatThreadType[]> {
+    const threads =
+      await this.chatThreadRepository.findByParticipantId(user.id);
+
+    return threads.map((t) => ({
+      id: t.id.value,
+      errandId: t.errandId,
+      participantIds: t.participantIds,
+      createdAt: t.createdAt.toISOString(),
+      closedAt: t.closedAt ? t.closedAt.toISOString() : undefined,
+      firstResponseAt: t.firstResponseAt
+        ? t.firstResponseAt.toISOString()
+        : undefined,
+    }));
   }
 
   @Query(() => ListMessagesType, {

@@ -402,7 +402,7 @@ type Mutation {
   """Mark an assigned errand as started/in progress"""
   startErrand(errandId: String!, providerPartyId: String!): ErrandOperationResultType!
 
-  """Worker submits an application / bid for an errand"""
+  """Submit an application to perform an errand"""
   submitApplication(input: SubmitApplicationInput!): ApplicationOperationResultType!
 
   """Submit a rating for an errand participant"""
@@ -415,6 +415,18 @@ type Mutation {
 
   """Update the price of an existing service"""
   updateServicePrice(input: UpdateServicePriceInput!): ServiceOperationResultType!
+}
+
+type MyPartyProfileType {
+  bio: String
+  hasClientRole: Boolean!
+  hasProviderRole: Boolean!
+  kind: String!
+  marketId: String!
+  partyId: ID!
+  providerTier: ProviderTier
+  skills: [String!]
+  userId: String!
 }
 
 type OfferErrandResultType {
@@ -521,11 +533,25 @@ type Query {
   """Get all saved addresses for the authenticated user"""
   myAddresses: [AddressGraphQLType!]!
 
+  """Get all applications submitted by the authenticated provider"""
+  myApplications: [ApplicationGraphQLType!]!
+
   """Get all saved bank accounts for the authenticated user"""
   myBankAccounts: [BankAccountType!]!
 
+  """Get all chat threads where the authenticated user is a participant"""
+  myChatThreads: [ChatThreadType!]!
+
   """Get disputes raised by current user"""
   myDisputes: [DisputeType!]!
+
+  """
+  Get errands where the authenticated user is client or assigned provider
+  """
+  myErrands(role: String = "CLIENT", status: String): [ErrandDetailType!]!
+
+  """Get party profile for the authenticated user"""
+  myPartyProfile: MyPartyProfileType
 
   """Get trusted circle of providers for the authenticated user"""
   myTrustedCircle: TrustedCircleType

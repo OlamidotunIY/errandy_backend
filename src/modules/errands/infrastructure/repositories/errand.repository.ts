@@ -48,6 +48,23 @@ export class PrismaErrandRepository implements IErrandRepository {
     return records.map((r) => this.mapper.toDomain(r));
   }
 
+  async findByProviderId(providerPartyId: string): Promise<Errand[]> {
+    const assignments = await this.prisma.errandAssignment.findMany({
+      where: { profileId: providerPartyId },
+      select: { errandId: true },
+    });
+    const errandIds = assignments.map((a) => a.errandId);
+    if (errandIds.length === 0) {
+      return [];
+    }
+    const records = await this.prisma.errand.findMany({
+      where: { id: { in: errandIds } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return records.map((r) => this.mapper.toDomain(r));
+  }
+
   async findOpenErrands(filters: {
     marketId: string;
     categoryId?: string;

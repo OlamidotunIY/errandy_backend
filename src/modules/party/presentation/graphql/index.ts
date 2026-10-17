@@ -8,3 +8,4 @@ export * from './remove-organization-member.type';
 export * from './request-tier-upgrade.type';
 export * from './search-providers-by-service.type';
 export * from './update-provider-role.type';
+export * from './my-party-profile.type';

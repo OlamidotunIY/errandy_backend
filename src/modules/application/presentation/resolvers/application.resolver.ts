@@ -2,6 +2,9 @@ import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { UseGuards } from '@nestjs/common';
 import { GqlAuthGuard } from '@src/common/guards';
+import { CurrentUser } from '@src/common/decorators';
+import { User } from 'better-auth';
+import { IPartyReadPort } from '@src/common';
 import { PartyId } from '@module/party';
 import { ErrandId } from '@module/errands';
 import {
@@ -28,6 +31,7 @@ export class ApplicationResolver {
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
     private readonly applicationRepository: IApplicationRepository,
+    private readonly partyReadPort: IPartyReadPort,
   ) {}
 
   @Query(() => [ApplicationGraphQLType], {
@@ -58,11 +62,44 @@ export class ApplicationResolver {
       id: app.id.value,
       errandId: app.errandId.value,
       providerPartyId: app.providerPartyId.value,
-      status: app.status(),
-      type: app.type(),
       proposal: app.proposal(),
       proposedAmountMinorUnits: app.proposedAmountMinorUnits(),
       currency: app.currency(),
+      status: app.status(),
+      type: app.type(),
+      acceptedAt: app.acceptedAt(),
+      rejectedAt: app.rejectedAt(),
+      createdAt: app.createdAt,
+      updatedAt: app.updatedAt,
+    }));
+  }
+
+  @Query(() => [ApplicationGraphQLType], {
+    name: 'myApplications',
+    description: 'Get all applications submitted by the authenticated provider',
+  })
+  @UseGuards(GqlAuthGuard)
+  async myApplications(
+    @CurrentUser() user: User,
+  ): Promise<ApplicationGraphQLType[]> {
+    const partyId = await this.partyReadPort.findPartyIdByUserId(user.id);
+    if (!partyId) {
+      return [];
+    }
+
+    const applications = await this.applicationRepository.findByWorkerId(
+      PartyId.fromString(partyId),
+    );
+
+    return applications.map((app) => ({
+      id: app.id.value,
+      errandId: app.errandId.value,
+      providerPartyId: app.providerPartyId.value,
+      proposal: app.proposal(),
+      proposedAmountMinorUnits: app.proposedAmountMinorUnits(),
+      currency: app.currency(),
+      status: app.status(),
+      type: app.type(),
       acceptedAt: app.acceptedAt(),
       rejectedAt: app.rejectedAt(),
       createdAt: app.createdAt,
@@ -72,24 +109,24 @@ export class ApplicationResolver {
 
   @Mutation(() => ApplicationOperationResultType, {
     name: 'submitApplication',
-    description: 'Worker submits an application / bid for an errand',
+    description: 'Submit an application to perform an errand',
   })
   @UseGuards(GqlAuthGuard)
   async submitApplication(
     @Args('input') input: SubmitApplicationInput,
   ): Promise<ApplicationOperationResultType> {
-    const appId: ApplicationId = await this.commandBus.execute(
+    const result: ApplicationId = await this.commandBus.execute(
       new SubmitApplicationCommand({
         errandId: ErrandId.fromString(input.errandId),
         providerPartyId: PartyId.fromString(input.providerPartyId),
         proposal: input.proposal,
         proposedAmountMinorUnits: input.proposedAmountMinorUnits,
         currency: input.currency,
-        applicantType: input.applicantType,
+        applicantType: input.applicantType as any,
       }),
     );
     return {
-      id: appId.value,
+      id: result.value,
       success: true,
     };
   }
