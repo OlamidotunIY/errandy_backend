@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { UserAddress as PrismaUserAddress } from '@prisma/client';
 import { InputJsonValue } from '@prisma/client/runtime/edge';
-import { Address, Coordinates } from '@module/address';
-import { AddressId } from '@module/address';
+import { Address, AddressId, Coordinates } from '../../domain';
 import { UserId } from '@module/user';
 
 interface GeoJsonPoint {

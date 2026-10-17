@@ -56,7 +56,7 @@ export class RatingType {
   @Field(() => Int)
   score!: number;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   comment?: string | null;
 
   @Field(() => Date)

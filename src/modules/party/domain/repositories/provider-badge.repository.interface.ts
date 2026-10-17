@@ -1,4 +1,4 @@
-import { ProviderBadge } from '@module/party';
+import { ProviderBadge } from '../entities';
 
 export abstract class IProviderBadgeRepository {
   abstract save(badge: ProviderBadge): Promise<void>;

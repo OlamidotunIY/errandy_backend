@@ -1,4 +1,4 @@
-import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
+import { Args, Int, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { UseGuards } from '@nestjs/common';
 import { GqlAuthGuard } from '@src/common/guards';
@@ -41,9 +41,9 @@ export class ServiceResolver {
   })
   async searchServices(
     @Args('marketId') marketId: string,
-    @Args('categoryId', { nullable: true }) categoryId?: string,
-    @Args('limit', { defaultValue: 20 }) limit = 20,
-    @Args('cursor', { nullable: true }) cursor?: string,
+    @Args('categoryId', { type: () => String, nullable: true }) categoryId?: string,
+    @Args('limit', { type: () => Int, defaultValue: 20 }) limit: number = 20,
+    @Args('cursor', { type: () => String, nullable: true }) cursor?: string,
   ): Promise<ServiceResponseDto[]> {
     return this.queryBus.execute(
       new SearchServicesQuery({

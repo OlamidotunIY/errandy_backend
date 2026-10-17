@@ -9,12 +9,12 @@ import {
 import {
   EscrowErrorClassifier,
   EscrowInvariantError,
-} from '@module/escrow/domain';
+} from '../../domain';
 import {
   ReleaseEscrowCommand,
   ReleaseEscrowPayload,
-  ReleaseMaturedEscrowsPayload,
-} from '@module/escrow';
+} from '../commands/release-escrow';
+import { ReleaseMaturedEscrowsPayload } from './release-matured-escrows.payload';
 
 @Processor('release-matured-escrows')
 export class ReleaseMaturedEscrowsProcessor extends WorkerHost {

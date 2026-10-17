@@ -1,4 +1,4 @@
-import { PartyId } from '@module/party';
+import { PartyId } from '../value-objects';
 import { UserId } from '@module/user';
 
 export class Person {

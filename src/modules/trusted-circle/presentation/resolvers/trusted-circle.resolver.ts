@@ -4,7 +4,7 @@ import { NotFoundException, UseGuards } from '@nestjs/common';
 import { GqlAuthGuard } from '@src/common/guards';
 import { CurrentUser } from '@src/common/decorators';
 import { User } from 'better-auth';
-import { IPartyRepository } from '@module/party';
+import { IPartyReadPort } from '@src/common';
 import {
   AddTrustedMemberCommand,
   GetTrustedCircleQuery,
@@ -18,7 +18,7 @@ export class TrustedCircleResolver {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
-    private readonly partyRepository: IPartyRepository,
+    private readonly partyReadPort: IPartyReadPort,
   ) {}
 
   @Query(() => TrustedCircleType, {
@@ -28,12 +28,12 @@ export class TrustedCircleResolver {
   async myTrustedCircle(
     @CurrentUser() user: User,
   ): Promise<TrustedCircleType | null> {
-    const party = await this.partyRepository.findByUserId(user.id);
-    if (!party) {
+    const partyId = await this.partyReadPort.findPartyIdByUserId(user.id);
+    if (!partyId) {
       throw new NotFoundException('Party profile not found for user');
     }
 
-    return this.queryBus.execute(new GetTrustedCircleQuery(party.id.value));
+    return this.queryBus.execute(new GetTrustedCircleQuery(partyId));
   }
 
   @Mutation(() => Boolean, {
@@ -43,14 +43,14 @@ export class TrustedCircleResolver {
     @CurrentUser() user: User,
     @Args('input') input: AddTrustedMemberInput,
   ): Promise<boolean> {
-    const party = await this.partyRepository.findByUserId(user.id);
-    if (!party) {
+    const partyId = await this.partyReadPort.findPartyIdByUserId(user.id);
+    if (!partyId) {
       throw new NotFoundException('Party profile not found for user');
     }
 
     await this.commandBus.execute(
       new AddTrustedMemberCommand({
-        ownerPartyId: party.id.value,
+        ownerPartyId: partyId,
         memberPartyId: input.memberPartyId,
         status: input.status,
         sharedFromPartyId: input.sharedFromPartyId,
@@ -67,14 +67,14 @@ export class TrustedCircleResolver {
     @CurrentUser() user: User,
     @Args('memberPartyId') memberPartyId: string,
   ): Promise<boolean> {
-    const party = await this.partyRepository.findByUserId(user.id);
-    if (!party) {
+    const partyId = await this.partyReadPort.findPartyIdByUserId(user.id);
+    if (!partyId) {
       throw new NotFoundException('Party profile not found for user');
     }
 
     await this.commandBus.execute(
       new RemoveTrustedMemberCommand({
-        ownerPartyId: party.id.value,
+        ownerPartyId: partyId,
         memberPartyId,
       }),
     );

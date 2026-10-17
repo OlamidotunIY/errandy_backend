@@ -1,4 +1,4 @@
-import { CoordinatesType } from '@module/address';
+import { CoordinatesType } from '../value-object';
 import { ValueObject } from '@src/common';
 
 export class Coordinates extends ValueObject<CoordinatesType> {

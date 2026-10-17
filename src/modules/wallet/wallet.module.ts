@@ -4,41 +4,37 @@ import { BullModule } from '@nestjs/bullmq';
 import { QUEUE_NAMES } from '@src/infrastructure/queue/queue.constants';
 import { PaymentGatewayErrorClassifier } from '@module/payments';
 import {
-  // Command Handlers
   CreditActiveErrandCommandHandler,
   MoveActiveToPendingCommandHandler,
   ReleaseToAvailableCommandHandler,
   ReverseActiveErrandCommandHandler,
   RecordWithdrawalCommandHandler,
   ReverseWithdrawalCommandHandler,
-  // Query Handlers
   GetLedgerHistoryQueryHandler,
   GetWalletBalancesHandler,
-  // Processors & Jobs
   ReconcileLedgerProcessor,
   PayoutDistributionProcessor,
-  // Event Handlers
   OnTransferFailedHandler,
-  // Services & Mappers & Adapters
+} from './application';
+import {
   LedgerBalanceCalculator,
+  WalletErrorClassifier,
+  LedgerEntryRepository,
+  WalletBalanceRepository,
+  WalletRepository,
+  IBankAccountRepository,
+} from './domain';
+import {
   LedgerEntryMapper,
   WalletBalanceSnapshotMapper,
   WalletMapper,
   PaystackLedgerAuditAdapter,
-  // Errors & Classifiers
-  WalletErrorClassifier,
-  // Repositories
-  LedgerEntryRepository,
   PrismaLedgerEntryRepository,
   PrismaWalletBalanceSnapshotRepository,
   PrismaWalletRepository,
-  WalletBalanceRepository,
-  WalletRepository,
-  IBankAccountRepository,
   PrismaBankAccountRepository,
-  // Presentation
-  WalletResolver,
-} from './';
+} from './infrastructure';
+import { WalletResolver } from './presentation';
 
 @Module({
   imports: [

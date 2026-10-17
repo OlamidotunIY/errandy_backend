@@ -2,19 +2,12 @@ import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 import { OfferErrandToTrustedMemberCommand } from './offer-errand-to-trusted-member.command';
 import { OfferErrandToTrustedMemberResponseDto } from './offer-errand-to-trusted-member.request.dto';
 import { ErrandNotFoundError, IErrandRepository } from '@module/errands/domain';
-import { PartyId } from '@module/party/domain';
-import {
-  Application,
-  ApplicationType,
-  IApplicationRepository,
-} from '@module/application/domain';
-import { ILogger } from '@src/common';
+import { ErrandOfferedToTrustedMemberIntegrationEvent, ILogger } from '@src/common';
 
 @CommandHandler(OfferErrandToTrustedMemberCommand)
 export class OfferErrandToTrustedMemberHandler implements ICommandHandler<OfferErrandToTrustedMemberCommand> {
   constructor(
     private readonly errandRepository: IErrandRepository,
-    private readonly applicationRepository: IApplicationRepository,
     private readonly eventBus: EventBus,
     private readonly logger: ILogger,
   ) {}
@@ -29,26 +22,24 @@ export class OfferErrandToTrustedMemberHandler implements ICommandHandler<OfferE
       throw new ErrandNotFoundError(payload.errandId);
     }
 
-    const application = Application.create(
-      errand.id,
-      PartyId.fromString(payload.offeredToPartyId),
-      'Direct trusted offer',
-      payload.proposedAmountMinorUnits,
-      payload.currency,
-      ApplicationType.DIRECT_OFFER,
+    const applicationId = crypto.randomUUID();
+
+    this.eventBus.publish(
+      new ErrandOfferedToTrustedMemberIntegrationEvent({
+        applicationId,
+        errandId: payload.errandId,
+        offeredToPartyId: payload.offeredToPartyId,
+        proposedAmountMinorUnits: payload.proposedAmountMinorUnits,
+        currency: payload.currency,
+        originType: 'DIRECT_OFFER',
+      }),
     );
 
-    await this.applicationRepository.save(application);
-
-    for (const event of application.pullDomainEvents()) {
-      this.eventBus.publish(event);
-    }
-
-    this.logger.info('Direct offer created for existing errand', {
+    this.logger.info('Direct offer published via integration event', {
       errandId: payload.errandId,
-      applicationId: application.id.value,
+      applicationId,
     });
 
-    return { applicationId: application.id.value };
+    return { applicationId };
   }
 }

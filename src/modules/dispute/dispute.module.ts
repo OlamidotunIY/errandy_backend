@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
-import { PartyModule } from '@module/party';
 import {
   OpenDisputeHandler,
   ResolveDisputeHandler,
@@ -13,7 +12,7 @@ import { PrismaDisputeRepository } from './infrastructure';
 import { DisputeResolver } from './presentation';
 
 @Module({
-  imports: [CqrsModule, PartyModule],
+  imports: [CqrsModule],
   providers: [
     OpenDisputeHandler,
     ResolveDisputeHandler,

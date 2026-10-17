@@ -1,22 +1,20 @@
 import { AggregateRoot } from '@src/common';
+import { ClientRole } from './client-role.entity';
+import { Organization } from './organization.entity';
+import { Person } from './person.entity';
+import { ProviderRole } from './provider-role.entity';
+import { OrgMemberRole, PartyId, PartyKind } from '../value-objects';
 import {
-  ClientRole,
   ClientRoleAddedEvent,
-  Organization,
-  OrgMemberRole,
   OrganizationMemberAddedEvent,
   OrganizationMemberRemovedEvent,
-  OrganizationNotFoundError,
-  PartyId,
-  PartyKind,
   PartyCreatedEvent,
   PartyDeactivatedEvent,
-  Person,
   ProviderRoleAddedEvent,
-  ProviderRole,
-} from '@module/party';
+} from '../events';
 import {
   ClientRoleAlreadyExistsError,
+  OrganizationNotFoundError,
   ProviderRoleAlreadyExistsError,
 } from '../errors';
 import { UserId } from '@module/user';

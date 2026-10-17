@@ -8,7 +8,7 @@ import {
   LedgerEntryPage,
   LedgerEntryRepository,
   WalletId,
-} from '@module/wallet';
+} from '../../domain';
 import {
   isTransientTransactionError,
   isUniqueConstraintViolation,

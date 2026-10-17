@@ -1,4 +1,4 @@
-import { PartyId } from '@module/party';
+import { PartyId } from '../value-objects';
 
 export class ClientRole {
   constructor(

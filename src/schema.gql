@@ -2,154 +2,185 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
-input AddBundleItemInput {
-  bundleId: ID!
-  templateId: ID!
+input AddBankAccountInput {
+  accountName: String
+  accountNumber: String!
+  bankCode: String!
+  currency: String! = "NGN"
+  isDefault: Boolean! = false
 }
 
-input AddRatingReactionInput {
-  emoji: String!
-  ratingId: ID!
+input AddOrganizationMemberInput {
+  organizationPartyId: String!
+  role: OrgMemberRole!
+  userId: String!
 }
 
-input AddRatingReplyInput {
-  content: String!
-  ratingId: ID!
+type AddOrganizationMemberType {
+  organizationPartyId: String!
+  role: OrgMemberRole!
+  userId: String!
 }
 
-input AddToCircleInput {
-  circleName: String
-  providerId: ID!
+type AddProviderRoleType {
+  partyId: String!
+  tier: ProviderTier!
 }
 
-input AddWorkerServicesInput {
-  serviceIds: [ID!]!
+input AddTrustedMemberInput {
+  memberPartyId: String!
+  sharedFromPartyId: String
+  status: String = "CONFIRMED"
 }
 
-type AddressDetails {
-  formattedAddress: String!
+type AddressCoordinatesGraphQLType {
   latitude: Float!
   longitude: Float!
 }
 
-type AddressSuggestion {
-  description: String!
-  placeId: String!
-}
-
-enum AssignmentRole {
-  LEAD
-  MEMBER
-}
-
-enum AssignmentStatus {
-  ACCEPTED
-  ASSIGNED
-  COMPLETED
-  REJECTED
-}
-
-type BundleItem {
-  bundleId: String!
-  id: ID!
-  template: ErrandTemplate
-  templateId: String!
-}
-
-type ChatRoom {
+type AddressGraphQLType {
+  city: String!
+  coordinates: AddressCoordinatesGraphQLType
+  country: String!
   createdAt: DateTime!
   id: ID!
-  lastMessage: Message
-  lastMessageId: String
-  messages: [Message]
-  name: String
-  participantIds: [String!]!
-  participants: [User!]!
-  unreadCount: Int!
+  isDefault: Boolean!
+  label: String!
+  state: String!
+  street: String!
+  updatedAt: DateTime!
+  userId: String!
+}
+
+type ApplicationGraphQLType {
+  acceptedAt: DateTime
+  createdAt: DateTime!
+  currency: String!
+  errandId: String!
+  id: ID!
+  proposal: String!
+  proposedAmountMinorUnits: Int!
+  providerPartyId: String!
+  rejectedAt: DateTime
+  status: ApplicationStatus!
+  type: ApplicationType!
   updatedAt: DateTime!
 }
 
-enum CircleSource {
-  COMPLETED_TASK
-  INVITED
-  MANUAL_ADD
+type ApplicationOperationResultType {
+  id: String!
+  success: Boolean!
 }
 
-type Client {
-  errands: [Errand]
+enum ApplicationStatus {
+  ACCEPTED
+  CANCELLED
+  PENDING
+  REJECTED
+}
+
+enum ApplicationType {
+  DIRECT_OFFER
+  ORGANIZATION
+  PROVIDER
+}
+
+input AwardBadgeInput {
+  awardedByOrganizationId: String!
+  badgeType: BadgeType!
+  partyId: String!
+  period: String!
+}
+
+type AwardBadgeType {
+  badgeId: String!
+  badgeType: BadgeType!
+  partyId: String!
+}
+
+enum BadgeType {
+  WORKER_OF_THE_MONTH
+  WORKER_OF_THE_YEAR
+}
+
+type BankAccountType {
+  accountName: String
+  accountNumber: String!
+  bankCode: String!
+  createdAt: DateTime!
+  currency: String!
   id: ID!
-  paymentMethods: [PaymentMethod]
-  ratings: [Rating]
-  recurringContracts: [RecurringContract]
-  user: User!
-  userId: ID!
+  isDefault: Boolean!
+  isVerified: Boolean!
+  ownerId: String!
+  updatedAt: DateTime!
 }
 
-input CreateAddressInput {
-  address: String!
-  label: String!
+input BrowseOpenErrandsInput {
+  categoryId: String
+  cursor: String
+  latitude: Float!
+  limit: Int! = 20
+  longitude: Float!
+  radiusMeters: Float
+  requesterPartyId: String!
+}
+
+type BrowseOpenErrandsResponseType {
+  items: [ErrandSummaryType!]!
+}
+
+type CategoryTreeNodeType {
+  children: [CategoryTreeNodeType!]!
+  id: ID!
+  name: String!
+  requiredTier: ProviderTier
+}
+
+type ChatMessageType {
+  content: String!
+  id: String!
+  senderId: String!
+  sentAt: String!
+  threadId: String!
+}
+
+type ChatThreadType {
+  closedAt: String
+  createdAt: String!
+  errandId: String!
+  firstResponseAt: String
+  id: String!
+  participantIds: [String!]!
+}
+
+type ConfirmAssignmentCompletionType {
+  errandAssignmentId: String!
+  errandReadyForCompletion: Boolean!
+  status: String!
+}
+
+input CoordinatesInput {
   latitude: Float!
   longitude: Float!
 }
 
-input CreateChatInput {
-  receiverId: String!
-  roomId: String
-}
-
-input CreateErrandBundleInput {
-  basePrice: Float!
-  description: String!
-  name: String!
-  templateIds: [ID!]
-}
-
-input CreateErrandFromTemplateInput {
-  description: String
-  serviceAddress: String
-  templateId: ID!
-  title: String
+input CreateAddressInput {
+  city: String!
+  coordinates: CoordinatesInput!
+  country: String!
+  label: String!
+  state: String!
+  street: String!
 }
 
 input CreateErrandInput {
-  """Errand title"""
+  addressId: String!
+  budget: ErrandBudgetInput!
+  categoryId: String!
+  clientPartyId: String!
+  description: String!
   title: String!
-}
-
-input CreateErrandTemplateInput {
-  description: String
-  hourlyRate: Float
-  location: JSON
-  price: Float
-  pricingType: PricingType!
-  providerType: ProviderType
-  serviceAddress: String
-  serviceId: ID
-  title: String!
-}
-
-input CreateErrandsFromBundleInput {
-  bundleId: ID!
-  serviceAddress: String
-}
-
-input CreateListingInput {
-  description: String
-  hourlyRate: Float
-  listingTags: [String!]
-  price: Float
-  pricingType: PricingType!
-  providerOrgId: String!
-  providerType: ProviderType
-  serviceAddress: String
-  serviceId: String
-  title: String!
-}
-
-input CreateRecurringErrandInput {
-  frequency: RecurrenceFrequency!
-  startDate: DateTime
-  templateId: ID!
 }
 
 """
@@ -157,168 +188,77 @@ A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date
 """
 scalar DateTime
 
-input DeleteRatingReplyInput {
-  replyId: ID!
-}
-
-input DispatchErrandInput {
-  errandId: String!
-  providerOrgId: String!
-  role: AssignmentRole = MEMBER
-  workerId: String
-}
-
-type Errand {
-  assignedAt: DateTime
-  assignedTo: String
-  client: Client!
-  clientId: String!
-  completionDeadline: DateTime
-  completionDurationDays: Int
+type DisputeType {
   createdAt: DateTime!
-  description: String
-  hourlyRate: Float
+  description: String!
+  errandId: String!
+  evidenceUrls: [String!]!
   id: ID!
-  isRecurring: Boolean!
-  location: JSON
-  materialsBudget: Float
-  price: Float
-  pricingType: PricingType!
-  providerOrgId: String
-  providerType: ProviderType
-  ratings: [Rating]
-  service: Service
-  serviceAddress: String
-  serviceId: String
-  sourceType: String!
-  status: ErrandStatus
-  templateId: String
-  title: String!
-  transportAllowance: Float
+  raisedById: String!
+  reason: String!
+  resolution: String
+  resolvedAt: DateTime
+  resolvedById: String
+  status: String!
   updatedAt: DateTime!
 }
 
-type ErrandAssignment {
-  assignedAt: DateTime!
-  errand: Errand!
-  errandId: String!
-  id: ID!
-  providerOrgId: String!
-  role: AssignmentRole!
-  status: AssignmentStatus!
-  workerId: String
+input ErrandBudgetInput {
+  amountMinorUnits: Int!
+  currency: String!
 }
 
-type ErrandBundle {
-  active: Boolean!
-  basePrice: Float!
+type ErrandBudgetType {
+  amountMinorUnits: Int!
+  currency: String!
+}
+
+type ErrandDetailType {
+  addressId: String!
+  budget: ErrandBudgetType!
+  categoryId: String!
+  clientPartyId: String!
+  completedAt: String
+  createdAt: String!
   description: String!
   id: ID!
-  items: [BundleItem]
-  name: String!
-}
-
-input ErrandQueryInput {
-  """Maximum distance in kilometers for location filtering"""
-  maxDistanceKm: Float = 20
-
-  """Pagination parameters"""
-  pagination: PaginationInput
-
-  """Search keyword for title, description, or category filtering"""
-  search: String
-
-  """Type of errand feed to retrieve"""
-  type: ErrandType = FEED
-}
-
-enum ErrandStatus {
-  CANCELLED
-  COMPLETED
-  DRAFT
-  IN_PROGRESS
-  OPEN
-  OVERDUE
-}
-
-type ErrandTemplate {
-  createdAt: DateTime!
-  description: String
-  hourlyRate: Float
-  id: ID!
-  isListing: Boolean!
-  listingTags: [String!]
-  location: JSON
-  price: Float
-  pricingType: PricingType!
-  providerOrgId: String
-  providerType: ProviderType
-  publishState: ListingPublishState!
-  publishedAt: DateTime
-  service: Service
-  serviceAddress: String
-  serviceId: String
-  title: String!
-}
-
-"""Type of errand feed to retrieve"""
-enum ErrandType {
-  BEST_MATCH
-  FEED
-  MOST_RECENT
-  SAVED
-  SEARCH
-}
-
-type ErrandWithClient {
-  assignedAt: DateTime
-  assignedTo: String
-  client: Client!
-  clientId: String!
-  clientName: String
-  clientRating: Float
-  completionDeadline: DateTime
-  completionDurationDays: Int
-  createdAt: DateTime!
-  description: String
-  distance: Float
-  hourlyRate: Float
-  id: ID!
-  isRecurring: Boolean!
-  isSaved: Boolean
-  location: JSON
-  materialsBudget: Float
-  price: Float
-  pricingType: PricingType!
-  providerOrgId: String
-  providerType: ProviderType
-  ratings: [Rating]
-  service: Service
-  serviceAddress: String
-  serviceId: String
+  marketId: String!
+  requiredTier: String!
   sourceType: String!
-  status: ErrandStatus
-  templateId: String
+  startedAt: String
+  status: String!
   title: String!
-  transportAllowance: Float
-  updatedAt: DateTime!
+}
+
+type ErrandOperationResultType {
+  errandId: String!
+  status: String!
+}
+
+type ErrandSummaryType {
+  budget: ErrandBudgetType!
+  categoryId: String!
+  createdAt: String!
+  distanceMeters: Float!
+  id: ID!
+  title: String!
 }
 
 type EscrowGraphQLType {
   amountGross: Float!
   amountNetWorker: Float!
-  clientId: String!
+  clientPartyId: String!
   completedAt: DateTime
   createdAt: DateTime!
   errandId: String!
   holdUntil: DateTime
   id: String!
   platformFee: Float!
+  providerPartyId: String!
   refundedAt: DateTime
   releasedAt: DateTime
   status: EscrowStatus!
   updatedAt: DateTime!
-  workerId: String!
 }
 
 enum EscrowStatus {
@@ -331,37 +271,6 @@ enum EscrowStatus {
   RELEASED
   RELEASING
 }
-
-type GeoPoint {
-  coordinates: [Float!]!
-  type: String!
-}
-
-input GetAllErrandInput {
-  maxDistanceKm: Float = 5
-  status: String
-}
-
-input GetErrandInput {
-  id: ID!
-}
-
-input GetMyErrandsInput {
-  """Pagination parameters"""
-  pagination: PaginationInput
-
-  """Type of my errands to retrieve"""
-  type: MyErrandsType!
-}
-
-input GetServiceCategoriesInput {
-  type: ServiceCategoryType
-}
-
-"""
-The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
-"""
-scalar JSON
 
 type LedgerEntryGraphQLType {
   amountMinorUnits: Int!
@@ -388,280 +297,270 @@ type LedgerHistoryPageType {
   nextCursor: String
 }
 
-enum ListingPublishState {
-  ARCHIVED
-  DRAFT
-  PUBLISHED
+type ListMessagesType {
+  items: [ChatMessageType!]!
+  nextCursor: String
 }
 
-type Message {
-  content: String
-  contentUrl: String
-  createdAt: DateTime!
-  delivered: Boolean!
-  durationMs: Int
-  fileName: String
-  fileSize: Int
-  height: Int
-  id: ID!
-  mimeType: String
-  reactions: [Reaction]
-  roomId: String!
-  seen: Boolean!
-  senderId: String!
-  sent: Boolean!
-  type: MessageType!
-  waveform: JSON
-  width: Int
+input ListServiceInput {
+  categoryId: String!
+  description: String!
+  listedById: String!
+  price: ServicePriceInput!
+  title: String!
 }
 
-enum MessageType {
-  FILE
-  IMAGE
-  TEXT
-  VIDEO
-  VOICE
+type MarketTemplateDto {
+  html: String
+  id: String!
+  marketId: String!
+  name: String!
+  subject: String
+  text: String
+  type: String!
 }
 
 type Mutation {
-  acceptSharedProvider(providerId: ID!): TrustedCircle!
-  addAddress(dto: CreateAddressInput!): User!
-  addBundleItem(input: AddBundleItemInput!): BundleItem!
-  addRatingReply(input: AddRatingReplyInput!): RatingReply!
-  addToCircle(input: AddToCircleInput!): TrustedCircle!
-  addWorkerServices(dto: AddWorkerServicesInput!): User!
-  cancelRecurringErrand(id: ID!): RecurringContract!
+  """Add a new bank account for payout / withdrawal"""
+  addBankAccount(input: AddBankAccountInput!): BankAccountType!
+  addOrganizationMember(input: AddOrganizationMemberInput!): AddOrganizationMemberType!
+  addProviderRole(partyId: String!): AddProviderRoleType!
 
-  """Clear user search history"""
-  clearSearchHistory: Boolean!
-  createErrand(createErrandInput: CreateErrandInput!): Errand!
-  createErrandBundle(input: CreateErrandBundleInput!): ErrandBundle!
-  createErrandFromTemplate(input: CreateErrandFromTemplateInput!): Errand!
-  createErrandTemplate(input: CreateErrandTemplateInput!): ErrandTemplate!
-  createErrandsFromBundle(input: CreateErrandsFromBundleInput!): [Errand!]!
-  createListing(input: CreateListingInput!): ErrandTemplate!
-  createRecurringContractFromListing(frequency: String!, templateId: ID!): RecurringContract!
-  createRecurringErrand(input: CreateRecurringErrandInput!): RecurringContract!
-  createUserRole(role: UserRole!): User!
+  """Add a provider to user trusted circle"""
+  addTrustedMember(input: AddTrustedMemberInput!): Boolean!
+  awardBadge(input: AwardBadgeInput!): AwardBadgeType!
 
-  """Delete a user address"""
+  """Confirm completion of all errand assignments and complete the errand"""
+  completeErrand(completedBy: String! = "CLIENT", errandId: String!): ErrandOperationResultType!
+
+  """Worker marks their assignment as completed done"""
+  confirmAssignmentCompletion(errandAssignmentId: String!, proofUrl: String, providerPartyId: String!): ConfirmAssignmentCompletionType!
+
+  """Create a new saved address for the authenticated user"""
+  createAddress(input: CreateAddressInput!): AddressGraphQLType!
+
+  """Create a new errand in DRAFT status"""
+  createErrand(input: CreateErrandInput!): ErrandOperationResultType!
+
+  """Deactivate an active service listing"""
+  deactivateService(serviceId: String!): ServiceOperationResultType!
+
+  """Delete an address for the authenticated user"""
   deleteAddress(addressId: String!): Boolean!
-  deleteErrandBundle(id: ID!): ErrandBundle!
-  deleteErrandTemplate(id: ID!): ErrandTemplate!
-  deleteRatingReply(input: DeleteRatingReplyInput!): RatingReply!
-  deleteRecurringErrand(id: ID!): RecurringContract!
-  dispatchErrand(input: DispatchErrandInput!): ErrandAssignment!
-  getOrCreateChat(createChatInput: CreateChatInput!): ChatRoom!
-  hireFromListing(templateId: ID!): Errand!
-  markMessageAsDelivered(messageId: String!): Message!
-  markMessageAsSeen(messageId: String!): Message!
-  publishListing(id: ID!): ErrandTemplate!
-  rejectSharedProvider(providerId: ID!): TrustedCircle!
-  removeBundleItem(input: RemoveBundleItemInput!): BundleItem!
-  removeErrand(id: ID!): Errand!
-  removeFromCircle(providerId: ID!): TrustedCircle!
-  saveErrand(errandId: ID!): SavedErrand!
-  saveUserAddress(dto: SaveUserAddressInput!): User!
-  sendMessage(sendMessageInput: SendMessageInput!): Message!
-  shareTrustedCircle(input: ShareCircleInput!): Boolean!
-  toggleRatingReaction(input: AddRatingReactionInput!): RatingReaction
-  updateErrand(updateErrandInput: UpdateErrandInput!): Errand!
-  updateErrandBundle(input: UpdateErrandBundleInput!): ErrandBundle!
-  updateErrandTemplate(input: UpdateErrandTemplateInput!): ErrandTemplate!
-  updateListing(input: UpdateListingInput!): ErrandTemplate!
-  updateRecurringErrand(input: UpdateRecurringErrandInput!): RecurringContract!
-  updateUser(updateUserInput: UpdateUserInput!): User!
-  useCurrentAddress(input: ReverseGeocodeInput!): User!
+
+  """Delete a saved bank account"""
+  deleteBankAccount(id: String!): Boolean!
+
+  """List a new provider service in a category"""
+  listService(input: ListServiceInput!): ServiceOperationResultType!
+
+  """Directly offer an errand to a trusted circle member"""
+  offerErrandToTrustedMember(currency: String!, errandId: String!, offeredToPartyId: String!, proposedAmountMinorUnits: Float!): OfferErrandResultType!
+
+  """Open a formal dispute on an errand"""
+  openDispute(input: OpenDisputeInput!): String!
+
+  """Publish a draft errand to the marketplace"""
+  publishErrand(errandId: String!): ErrandOperationResultType!
+
+  """Add or update an emoji reaction on a rating"""
+  reactToRating(input: ReactToRatingInput!): RatingReactionType!
+
+  """Reject an application for an errand"""
+  rejectApplication(applicationId: String!, errandId: String!): ApplicationOperationResultType!
+  removeOrganizationMember(organizationPartyId: String!, userId: String!): RemoveOrganizationMemberType!
+
+  """Remove a provider from user trusted circle"""
+  removeTrustedMember(memberPartyId: String!): Boolean!
+
+  """Add a reply comment to a rating"""
+  replyToRating(input: ReplyToRatingInput!): RatingReplyType!
+
+  """Client accepts a worker application, initiating escrow charge flow"""
+  requestApplicationAcceptance(input: RequestApplicationAcceptanceInput!): ApplicationOperationResultType!
+  requestTierUpgrade(partyId: String!, targetTier: ProviderTier!): RequestTierUpgradeType!
+
+  """Request a withdrawal from available wallet balance"""
+  requestWithdrawal(input: RequestWithdrawalInput!): WithdrawalResultType!
+
+  """Resolve or reject a dispute (Admin only)"""
+  resolveDispute(input: ResolveDisputeInput!): Boolean!
+
+  """Review and approve/reject a verification step (Admin only)"""
+  reviewVerificationStep(input: ReviewVerificationStepInput!): Boolean!
+  sendAdminBroadcast(input: SendAdminBroadcastInput!): Boolean!
+
+  """Send a message in a chat thread"""
+  sendMessage(input: SendMessageInput!): SendMessageType!
+
+  """Set an address as the default for the authenticated user"""
+  setDefaultAddress(addressId: String!): Boolean!
+
+  """Set a bank account as default"""
+  setDefaultBankAccount(id: String!): BankAccountType!
+
+  """Mark an assigned errand as started/in progress"""
+  startErrand(errandId: String!, providerPartyId: String!): ErrandOperationResultType!
+
+  """Worker submits an application / bid for an errand"""
+  submitApplication(input: SubmitApplicationInput!): ApplicationOperationResultType!
+
+  """Submit a rating for an errand participant"""
+  submitRating(input: SubmitRatingInput!): String!
+
+  """Submit documents for a verification step"""
+  submitVerificationStep(input: SubmitVerificationStepInput!): Boolean!
+  updateMarketTemplate(input: UpdateMarketTemplateInput!): Boolean!
+  updateProviderRole(input: UpdateProviderRoleInput!, partyId: String!): UpdateProviderRoleType!
+
+  """Update the price of an existing service"""
+  updateServicePrice(input: UpdateServicePriceInput!): ServiceOperationResultType!
 }
 
-"""Type of errands to retrieve for My Errands view"""
-enum MyErrandsType {
-  CLIENT_ACTIVE
-  CLIENT_DRAFT
-  CLIENT_PUBLISHED
-  PROVIDER_ACTIVE
-  PROVIDER_COMPLETED
-  PROVIDER_PENDING
-  PROVIDER_REJECTED
+type OfferErrandResultType {
+  applicationId: String!
 }
 
-enum OnboardingProgress {
-  ADDRESS_ADDED
-  COMPLETED
-  NONE
-  ROLE_SELECTED
-  SERVICES_SELECTED
+input OpenDisputeInput {
+  description: String!
+  errandId: String!
+  evidenceUrls: [String!] = []
+  providerPartyId: String!
+  reason: String!
 }
 
-type OrgMember {
-  active: Boolean!
-  id: ID!
-  orgId: String!
-  role: OrgRole!
-  user: User!
-  userId: String!
+type OrgFacingProviderProfileType {
+  avgRatingCached: Float
+  avgResponseTimeSeconds: Int
+  badges: [ProviderBadgeSummaryType!]!
+  bio: String
+  completedErrandsCount: Int!
+  disputedErrandsCount: Int!
+  partyId: String!
+  skills: [String!]!
+  tier: ProviderTier!
+  trustedByCount: Int!
 }
 
-enum OrgRole {
+enum OrgMemberRole {
   ADMIN
   MEMBER
   OWNER
 }
 
-type Organization {
-  description: String
-  id: ID!
-  logo: String
-  members: [OrgMember]
-  name: String!
-  owner: Provider
-  ownerId: String!
+type ProviderBadgeSummaryType {
+  awardedAt: DateTime!
+  awardedByOrganizationId: String!
+  badgeType: BadgeType!
+  period: String!
 }
 
-type PaginatedErrands {
-  data: [ErrandWithClient!]!
-  hasNextPage: Boolean!
-  hasPreviousPage: Boolean!
-  limit: Int!
-  page: Int!
-  total: Int!
-  totalPages: Int!
-}
-
-input PaginationInput {
-  """Number of items per page"""
-  limit: Int! = 20
-
-  """Page number (1-based)"""
-  page: Int! = 1
-}
-
-type PaymentMethod {
-  cardBrand: String
-  client: Client
-  createdAt: DateTime!
-  expMonth: Int
-  expYear: Int
-  id: ID!
-  isDefault: Boolean!
-  last4: String
-  provider: String!
-  providerRef: String!
-  type: String!
-  userId: String!
-  verified: Boolean!
-}
-
-input PlaceDetailsInput {
-  placeId: String!
-}
-
-enum PresenceStatus {
-  OFFLINE
-  ONLINE
-}
-
-enum PricingType {
-  FIXED
-  HOURLY
-}
-
-type Provider {
-  activeAddress: UserAddress
-  id: ID!
-  providerType: ProviderType
-  rating: RatingStats
-  services: [Service]!
+type ProviderSearchResultType {
+  avgRatingCached: Float
+  bio: String
+  completedErrandsCount: Int!
+  partyId: String!
+  skills: [String!]!
   tier: ProviderTier!
-  tierUpdatedAt: DateTime
-  user: User!
-  userId: String!
-}
-
-type ProviderDiscoveryResponse {
-  new: [Provider!]!
-  popular: [Provider!]!
-  suggested: [Provider!]!
-  trusted: [Provider!]!
+  trustedByCount: Int!
 }
 
 enum ProviderTier {
   CERTIFIED
   COMMUNITY
-  COMPANY_PARTNER
   VERIFIED
 }
 
-enum ProviderType {
-  ARTISAN
-  GENERAL
-  PROFESSIONAL
+type PublicProviderProfileType {
+  avgRatingCached: Float
+  bio: String
+  completedErrandsCount: Int!
+  partyId: String!
+  skills: [String!]!
+  tier: ProviderTier!
+  trustedByCount: Int!
 }
 
 type Query {
-  clientRatings(clientId: ID!): [Rating!]!
-  dispatchQueue(providerOrgId: ID!): [Errand!]!
-  errand(input: GetErrandInput!): Errand!
-  errandBundle(id: ID!): ErrandBundle
-  errandBundles: [ErrandBundle!]!
-  errandRatings(errandId: ID!): [Rating!]!
-  errandTemplate(id: ID!): ErrandTemplate
-  errands(dto: GetAllErrandInput!): [Errand!]!
+  """List disputes with optional status filter (Admin only)"""
+  allDisputes(limit: Int! = 50, status: String): [DisputeType!]!
+
+  """Get an application by ID"""
+  applicationById(id: String!): [ApplicationGraphQLType!]!
+
+  """Get all applications submitted for an errand"""
+  applicationsByErrand(errandId: String!): [ApplicationGraphQLType!]!
+
+  """Get hierarchical category tree"""
+  categoryTree(rootId: String): [CategoryTreeNodeType!]!
+
+  """List paginated messages in a chat thread"""
+  chatMessages(cursor: String, limit: Int! = 50, threadId: String!): ListMessagesType!
+
+  """Get chat thread by errand ID"""
+  chatThreadByErrandId(errandId: String!): ChatThreadType
+
+  """Get default bank account for the authenticated user"""
+  defaultBankAccount: BankAccountType
+
+  """Get dispute details by dispute ID"""
+  disputeById(id: String!): DisputeType
+
+  """Get disputes for an errand"""
+  disputesByErrand(errandId: String!): [DisputeType!]!
+
+  """Retrieve errand details by ID"""
+  errandById(id: String!): ErrandDetailType
   escrowById(errandId: String!): EscrowGraphQLType!
 
-  """
-  Advanced errand query with personalized feeds and location-based filtering
-  """
-  getErrands(input: ErrandQueryInput!): PaginatedErrands!
-
-  """
-  Get user errands - Clients see their created errands, Providers see errands they applied for
-  """
-  getMyErrands(input: GetMyErrandsInput!): PaginatedErrands!
-  getPendingTrustedCircleMembers: [TrustedCircleMember!]!
-  getProviders: ProviderDiscoveryResponse!
-  getTrustedCircle: TrustedCircle
-  getUserAddresses: [UserAddress!]!
-  getUserChats: [ChatRoom!]!
+  """Get paginated audit ledger history for user wallet"""
   ledgerHistory(cursor: String, limit: Float! = 20): LedgerHistoryPageType!
-  listing(id: ID!): ErrandTemplate
-  listings(providerOrgId: ID): [ErrandTemplate!]!
-  myErrandTemplates: [ErrandTemplate!]!
-  myOrganization: Organization
-  myRecurringErrands: [RecurringContract!]!
-  placeDetails(input: PlaceDetailsInput!): AddressDetails!
-  presence(userId: ID!): UserPresence!
-  searchProviders(input: SearchProvidersInput!): [Provider!]!
-  service(id: ID!): Service!
-  serviceCategories(input: GetServiceCategoriesInput): [ServiceCategory!]!
-  services(categoryType: ServiceCategoryType): [Service!]!
-  suggestAddresses(input: SuggestAddressInput!): [AddressSuggestion!]!
-  user: User!
+  marketTemplate(marketId: String!, type: String!): MarketTemplateDto!
+  marketTemplates(marketId: String): [MarketTemplateDto!]!
 
-  """Get user search history for workers"""
-  userSearchHistory: [Search!]!
+  """Get all saved addresses for the authenticated user"""
+  myAddresses: [AddressGraphQLType!]!
+
+  """Get all saved bank accounts for the authenticated user"""
+  myBankAccounts: [BankAccountType!]!
+
+  """Get disputes raised by current user"""
+  myDisputes: [DisputeType!]!
+
+  """Get trusted circle of providers for the authenticated user"""
+  myTrustedCircle: TrustedCircleType
+
+  """Get verification profile for authenticated user"""
+  myVerificationProfile: VerificationProfileType
+
+  """Browse available open errands within a market radius"""
+  openErrands(input: BrowseOpenErrandsInput!): BrowseOpenErrandsResponseType!
+  orgFacingProviderProfile(partyId: String!, requestingOrganizationId: String!): OrgFacingProviderProfileType!
+  publicProviderProfile(partyId: String!): PublicProviderProfileType!
+
+  """Get ratings for a completed errand"""
+  ratingsByErrand(errandId: String!): [RatingType!]!
+
+  """Get public ratings and reviews for a provider"""
+  ratingsByProvider(limit: Int! = 20, providerPartyId: String!): [RatingType!]!
+  searchProvidersByService(limit: Float, service: String!): SearchProvidersByServiceType!
+
+  """Search active services by category and market"""
+  searchServices(categoryId: String, cursor: String, limit: Int! = 20, marketId: String!): [ServiceGraphQLType!]!
+
+  """Get a service listing by its unique identifier"""
+  serviceById(id: String!): ServiceGraphQLType
+
+  """Get verification profile by partyId (Admin only)"""
+  verificationProfileByPartyId(partyId: String!): VerificationProfileType
+
+  """
+  Get current wallet balances across active, pending, and available buckets
+  """
   walletBalances: WalletBalancesType!
 }
 
-enum RateeType {
-  CLIENT
-  PROVIDER
-}
-
-type Rating {
-  comment: String
-  createdAt: DateTime!
-  errandId: String
-  id: String!
-  rateeId: String!
-  rateeType: RateeType!
-  raterId: String!
-  rating: Int!
-  reactions: [RatingReaction]
-  replies: [RatingReply]
-}
-
-type RatingReaction {
+type RatingReactionType {
   createdAt: DateTime!
   emoji: String!
   id: ID!
@@ -669,7 +568,7 @@ type RatingReaction {
   userId: String!
 }
 
-type RatingReply {
+type RatingReplyType {
   content: String!
   createdAt: DateTime!
   id: ID!
@@ -677,273 +576,204 @@ type RatingReply {
   userId: String!
 }
 
-type RatingStats {
-  averageRating: Float!
-  totalReviews: Int!
+type RatingType {
+  comment: String
+  context: String!
+  createdAt: DateTime!
+  errandId: String!
+  id: ID!
+  rateeId: String!
+  raterId: String!
+  reactions: [RatingReactionType!]!
+  replies: [RatingReplyType!]!
+  score: Int!
 }
 
-type Reaction {
+input ReactToRatingInput {
   emoji: String!
-  id: ID!
-  messageId: String!
+  ratingId: String!
+}
+
+type RemoveOrganizationMemberType {
+  organizationPartyId: String!
   userId: String!
 }
 
-enum RecurrenceFrequency {
-  MONTHLY
-  WEEKLY
+input ReplyToRatingInput {
+  content: String!
+  ratingId: String!
 }
 
-type RecurringContract {
-  acceptedAt: DateTime
-  active: Boolean!
-  clientId: String!
-  frequency: RecurrenceFrequency!
-  id: ID!
-  nextRunAt: DateTime!
-  providerOrgId: String!
-  providerPreAccepted: Boolean!
-  template: ErrandTemplate!
+input RequestApplicationAcceptanceInput {
+  applicationId: String!
+  clientPartyId: String!
+  paymentMethodId: String!
+}
+
+type RequestTierUpgradeType {
+  partyId: String!
+  tier: ProviderTier!
+}
+
+input RequestWithdrawalInput {
+  amountMinorUnits: Int!
+  bankAccountId: String!
+  currency: String! = "NGN"
+}
+
+input ResolveDisputeInput {
+  disputeId: String!
+  resolution: String!
+
+  """RESOLVED | REJECTED"""
+  status: String!
+}
+
+input ReviewVerificationStepInput {
+  partyId: String!
+  rejectionReason: String
+
+  """APPROVED | REJECTED"""
+  status: String!
+  stepType: String!
+}
+
+type SearchProvidersByServiceType {
+  providers: [ProviderSearchResultType!]!
+}
+
+input SendAdminBroadcastInput {
+  adminEmail: String!
+  adminId: String!
+  subject: String!
+  targetUserIds: [String!]
   templateId: String!
 }
 
-input RemoveBundleItemInput {
-  bundleId: ID!
-  templateId: ID!
-}
-
-input ReverseGeocodeInput {
-  latitude: Float!
-  longitude: Float!
-}
-
-input SaveUserAddressInput {
-  address: String!
-  label: String!
-  latitude: Float!
-  longitude: Float!
-}
-
-type SavedErrand {
-  errand: Errand
-  errandId: String!
-  id: ID!
-  savedAt: DateTime!
-  userId: String!
-}
-
-type Search {
-  id: ID!
-  keyword: String!
-  providerId: ID
-}
-
-input SearchProvidersInput {
-  minRating: Float
-  pagination: PaginationInput
-  providerTypes: [ProviderType!]
-  query: String
-  serviceIds: [String!]
-  tiers: [ProviderTier!]
-}
-
 input SendMessageInput {
-  content: String
-  contentUrl: String
-  durationMs: Int
-  file: Upload
-  fileName: String
-  fileSize: Int
-  height: Int
-  mimeType: String
-  roomId: String!
-  senderId: String
-  type: String!
-  waveform: JSON
-  width: Int
+  content: String!
+  isProviderSender: Boolean
+  senderId: String!
+  threadId: String!
 }
 
-type Service {
-  category: ServiceCategory
+type SendMessageType {
+  messageId: String!
+  sentAt: String!
+}
+
+type ServiceGraphQLType {
   categoryId: String!
+  description: String!
   id: ID!
-  name: String!
-  type: ServiceCategoryType!
+  listedById: String!
+  price: ServicePriceType!
+  title: String!
 }
 
-type ServiceCategory {
-  id: ID!
-  name: String!
-  services: [Service!]
-  type: ServiceCategoryType!
+type ServiceOperationResultType {
+  serviceId: String!
 }
 
-enum ServiceCategoryType {
-  ARTISAN
-  CASUAL
-  PROFESSIONAL
+input ServicePriceInput {
+  amountMinorUnits: Float!
+  currency: String!
 }
 
-input ShareCircleInput {
-  recipientEmail: String
-  recipientUserId: String
+type ServicePriceType {
+  amountMinorUnits: Float!
+  currency: String!
+}
+
+input SubmitApplicationInput {
+  applicantType: ApplicationType! = PROVIDER
+  currency: String!
+  errandId: String!
+  proposal: String!
+  proposedAmountMinorUnits: Int!
+  providerPartyId: String!
+}
+
+input SubmitRatingInput {
+  comment: String
+  errandId: String!
+  rateePartyId: String!
+
+  """Score between 1 and 5"""
+  score: Int!
+}
+
+input SubmitVerificationStepInput {
+  documentUrls: [String!]!
+
+  """NIN_VERIFIED | LICENSE_VERIFIED | BUSINESS_REG_VERIFIED"""
+  stepType: String!
 }
 
 type Subscription {
-  messageDeliveredForUser: Message!
-  messageSeenForUser: Message!
-  messageSentForUser: Message!
-  presenceChanged(userIds: [ID!]): UserPresence!
+  """Real-time subscription for messages sent to a chat thread"""
+  messageSent(threadId: String!): ChatMessageType!
 }
 
-input SuggestAddressInput {
-  input: String!
+type TrustedCircleMemberType {
+  addedAt: DateTime
+  memberId: String!
+  sharedFromPartyId: String
+  status: String!
 }
 
-type TrustedCircle {
-  client: Client
-  clientId: String!
+type TrustedCircleType {
   createdAt: DateTime!
   id: ID!
-  members: [TrustedCircleMember]
-  name: String
-}
-
-type TrustedCircleMember {
-  addedAt: DateTime!
-  id: ID!
-  provider: Provider!
-  providerId: ID!
-  source: CircleSource!
-  status: TrustedCircleMemberStatus!
-  trustedCircleId: ID!
-}
-
-enum TrustedCircleMemberStatus {
-  ACTIVE
-  PENDING
-}
-
-input UpdateErrandBundleInput {
-  active: Boolean
-  basePrice: Float
-  description: String
-  id: ID!
-  name: String
-  templateIds: [ID!]
-}
-
-input UpdateErrandInput {
-  applicationDeadline: DateTime
-  assignedTo: String
-  completionDeadline: DateTime
-
-  """Errand description"""
-  description: String
-  hourlyRate: Float
-  id: String!
-  location: String
-  materialsBudget: Float
-  price: Float
-  pricingType: PricingType
-  providerType: ProviderType
-  serviceAddress: String
-  serviceId: String
-  status: ErrandStatus
-
-  """Errand title"""
-  title: String
-  transportAllowance: Float
-}
-
-input UpdateErrandTemplateInput {
-  description: String
-  hourlyRate: Float
-  id: ID!
-  location: JSON
-  price: Float
-  pricingType: PricingType
-  providerType: ProviderType
-  serviceAddress: String
-  serviceId: ID
-  title: String
-}
-
-input UpdateListingInput {
-  description: String
-  hourlyRate: Float
-  id: String!
-  listingTags: [String!]
-  price: Float
-  title: String
-}
-
-input UpdateRecurringErrandInput {
-  active: Boolean
-  frequency: RecurrenceFrequency
-  id: ID!
-  startDate: DateTime
-  templateId: ID
-}
-
-input UpdateUserInput {
-  displayUsername: String
-
-  """Example field (placeholder)"""
-  exampleField: Int
-  id: String!
-  image: String
-  imageFile: Upload
-  name: String
-  phoneNumber: String
-  role: UserRole
-  username: String
-}
-
-"""The `Upload` scalar type represents a file upload."""
-scalar Upload
-
-type User {
-  activeAddressId: ID
-  activeRole: UserRole
-  country: String
-  createdAt: DateTime!
-  displayUsername: String
-  email: String!
-  emailVerified: Boolean!
-  id: ID!
-  image: String
-  name: String!
-  onboardingProgress: OnboardingProgress!
-  phoneNumber: String
-  phoneNumberVerified: Boolean
-  twoFactorEnabled: Boolean
+  members: [TrustedCircleMemberType!]!
+  ownerPartyId: String!
   updatedAt: DateTime!
-  userAddress: [UserAddress]
-  username: String
 }
 
-type UserAddress {
-  activeFor: [User!]
-  address: String!
+input UpdateMarketTemplateInput {
+  html: String!
+  marketId: String!
+  name: String
+  subject: String!
+  type: String!
+}
+
+input UpdateProviderRoleInput {
+  addToSkills: Boolean
+  bio: String
+  skills: [String!]
+  tier: ProviderTier
+}
+
+type UpdateProviderRoleType {
+  bio: String
+  partyId: String!
+  skills: [String!]!
+  tier: ProviderTier!
+}
+
+input UpdateServicePriceInput {
+  price: ServicePriceInput!
+  serviceId: String!
+}
+
+type VerificationProfileType {
   createdAt: DateTime!
   id: ID!
-  label: String!
-  location: GeoPoint!
+  overallStatus: String!
+  partyId: String!
+  steps: [VerificationStepType!]!
   updatedAt: DateTime!
-  user: User
-  userId: String!
 }
 
-type UserPresence {
-  lastSeenAt: DateTime
-  status: PresenceStatus!
-  userId: ID!
-}
-
-enum UserRole {
-  CLIENT
-  PROVIDER
+type VerificationStepType {
+  documentUrls: [String!]!
+  rejectionReason: String
+  reviewedAt: DateTime
+  reviewerId: String
+  status: String!
+  stepType: String!
+  submittedAt: DateTime
 }
 
 type WalletBalancesType {
@@ -951,4 +781,10 @@ type WalletBalancesType {
   availableMinorUnits: Int!
   currency: String!
   pendingMinorUnits: Int!
+}
+
+type WithdrawalResultType {
+  gatewayReference: String
+  message: String
+  success: Boolean!
 }

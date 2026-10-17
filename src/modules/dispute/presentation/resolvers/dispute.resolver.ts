@@ -4,7 +4,7 @@ import { NotFoundException, UseGuards } from '@nestjs/common';
 import { GqlAdminGuard, GqlAuthGuard } from '@src/common/guards';
 import { CurrentUser } from '@src/common/decorators';
 import { User } from 'better-auth';
-import { IPartyRepository } from '@module/party';
+import { IPartyReadPort } from '@src/common';
 import {
   GetDisputeByIdQuery,
   GetDisputesByErrandQuery,
@@ -24,7 +24,7 @@ export class DisputeResolver {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
-    private readonly partyRepository: IPartyRepository,
+    private readonly partyReadPort: IPartyReadPort,
     private readonly disputeRepository: IDisputeRepository,
   ) {}
 
@@ -52,14 +52,12 @@ export class DisputeResolver {
   })
   @UseGuards(GqlAuthGuard)
   async myDisputes(@CurrentUser() user: User): Promise<DisputeType[]> {
-    const party = await this.partyRepository.findByUserId(user.id);
-    if (!party) {
+    const partyId = await this.partyReadPort.findPartyIdByUserId(user.id);
+    if (!partyId) {
       throw new NotFoundException('Party profile not found for user');
     }
 
-    const disputes = await this.disputeRepository.findByRaisedById(
-      party.id.value,
-    );
+    const disputes = await this.disputeRepository.findByRaisedById(partyId);
     return disputes.map((d) => d.toPrimitives());
   }
 
@@ -84,15 +82,15 @@ export class DisputeResolver {
     @CurrentUser() user: User,
     @Args('input') input: OpenDisputeInput,
   ): Promise<string> {
-    const party = await this.partyRepository.findByUserId(user.id);
-    if (!party) {
+    const partyId = await this.partyReadPort.findPartyIdByUserId(user.id);
+    if (!partyId) {
       throw new NotFoundException('Party profile not found for user');
     }
 
     return this.commandBus.execute(
       new OpenDisputeCommand({
         errandId: input.errandId,
-        raisedById: party.id.value,
+        raisedById: partyId,
         providerPartyId: input.providerPartyId,
         reason: input.reason,
         description: input.description,

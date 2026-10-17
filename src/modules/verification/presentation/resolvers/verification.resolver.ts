@@ -4,7 +4,7 @@ import { NotFoundException, UseGuards } from '@nestjs/common';
 import { GqlAdminGuard, GqlAuthGuard } from '@src/common/guards';
 import { CurrentUser } from '@src/common/decorators';
 import { User } from 'better-auth';
-import { IPartyRepository } from '@module/party';
+import { IPartyReadPort } from '@src/common';
 import {
   GetVerificationProfileQuery,
   ReviewVerificationStepCommand,
@@ -21,7 +21,7 @@ export class VerificationResolver {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
-    private readonly partyRepository: IPartyRepository,
+    private readonly partyReadPort: IPartyReadPort,
   ) {}
 
   @Query(() => VerificationProfileType, {
@@ -32,13 +32,13 @@ export class VerificationResolver {
   async myVerificationProfile(
     @CurrentUser() user: User,
   ): Promise<VerificationProfileType | null> {
-    const party = await this.partyRepository.findByUserId(user.id);
-    if (!party) {
+    const partyId = await this.partyReadPort.findPartyIdByUserId(user.id);
+    if (!partyId) {
       throw new NotFoundException('Party profile not found for user');
     }
 
     return this.queryBus.execute(
-      new GetVerificationProfileQuery(party.id.value),
+      new GetVerificationProfileQuery(partyId),
     );
   }
 
@@ -61,14 +61,14 @@ export class VerificationResolver {
     @CurrentUser() user: User,
     @Args('input') input: SubmitVerificationStepInput,
   ): Promise<boolean> {
-    const party = await this.partyRepository.findByUserId(user.id);
-    if (!party) {
+    const partyId = await this.partyReadPort.findPartyIdByUserId(user.id);
+    if (!partyId) {
       throw new NotFoundException('Party profile not found for user');
     }
 
     await this.commandBus.execute(
       new SubmitVerificationStepCommand({
-        partyId: party.id.value,
+        partyId,
         stepType: input.stepType,
         documentUrls: input.documentUrls,
       }),

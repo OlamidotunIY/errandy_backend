@@ -1,8 +1,7 @@
 import { EventsHandler, IEventHandler, CommandBus } from '@nestjs/cqrs';
 import { ChargeSucceededEvent, ChargeFailedEvent } from '@module/payments/domain';
-import { IPartyRepository } from '@module/party/domain';
+import { IPartyReadPort, ILogger } from '@src/common';
 import { SendNotificationCommand } from '../commands/send-notification';
-import { ILogger } from '@src/common';
 
 @EventsHandler(ChargeSucceededEvent, ChargeFailedEvent)
 export class OnPaymentEventsHandler
@@ -10,15 +9,15 @@ export class OnPaymentEventsHandler
 {
   constructor(
     private readonly commandBus: CommandBus,
-    private readonly partyRepository: IPartyRepository,
+    private readonly partyReadPort: IPartyReadPort,
     private readonly logger: ILogger,
   ) {}
 
   async handle(event: ChargeSucceededEvent | ChargeFailedEvent): Promise<void> {
     try {
       if (event instanceof ChargeSucceededEvent) {
-        const party = await this.partyRepository.findById(event.payload.partyId);
-        const userId = party?.person?.userId.value ?? event.payload.partyId;
+        const party = await this.partyReadPort.findById(event.payload.partyId);
+        const userId = party?.personUserId ?? event.payload.partyId;
 
         await this.commandBus.execute(
           new SendNotificationCommand({
@@ -34,8 +33,8 @@ export class OnPaymentEventsHandler
           }),
         );
       } else if (event instanceof ChargeFailedEvent) {
-        const party = await this.partyRepository.findById(event.payload.partyId);
-        const userId = party?.person?.userId.value ?? event.payload.partyId;
+        const party = await this.partyReadPort.findById(event.payload.partyId);
+        const userId = party?.personUserId ?? event.payload.partyId;
 
         await this.commandBus.execute(
           new SendNotificationCommand({

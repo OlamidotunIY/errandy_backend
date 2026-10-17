@@ -1,2 +1,4 @@
-export * from './chat-lifecycle.saga';
-export * from './rating-prompt.saga';
+// Sagas have been migrated to their respective domain modules:
+// - ChatLifecycleSaga -> ChatModule
+// - RatingPromptSaga -> RatingModule
+export {};

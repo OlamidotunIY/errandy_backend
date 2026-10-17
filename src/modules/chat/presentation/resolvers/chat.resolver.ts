@@ -2,7 +2,7 @@ import {
   GetChatThreadByErrandIdQuery,
   ListMessagesQuery,
   SendMessageCommand,
-} from '@module/chat';
+} from '../../application';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import {
   Args,

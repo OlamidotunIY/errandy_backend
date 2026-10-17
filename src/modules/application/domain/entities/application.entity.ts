@@ -34,6 +34,7 @@ export class Application extends AggregateRoot<ApplicationId> {
     proposedAmountMinorUnits: number,
     currency: string,
     applicationType: ApplicationType,
+    customId?: ApplicationId,
   ): Application {
     if (proposedAmountMinorUnits <= 0) {
       throw new ApplicationInvariantError(
@@ -44,7 +45,7 @@ export class Application extends AggregateRoot<ApplicationId> {
       throw new ApplicationInvariantError('Currency must be provided');
     }
 
-    const id = ApplicationId.create();
+    const id = customId ?? ApplicationId.create();
     const status = ApplicationStatus.PENDING;
     const acceptedAt = null;
     const rejectedAt = null;

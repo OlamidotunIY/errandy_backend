@@ -9,11 +9,15 @@ import {
   PaymentTransaction,
   ChargeFailedError,
 } from '../../../domain';
-import { IPartyRepository, PartyId } from '@module/party/domain';
+import { PartyId } from '@module/party/domain';
 import { ErrandId } from '@module/errands/domain';
 import { Money } from '@module/escrow/domain';
-import { ILogger } from '@src/common';
-import { IUserRepository } from '@module/user/domain';
+import {
+  ILogger,
+  IPartyReadPort,
+  IUserReadPort,
+  ReferenceNotFoundError,
+} from '@src/common';
 
 @CommandHandler(InitiateChargeCommand)
 export class InitiateChargeHandler implements ICommandHandler<InitiateChargeCommand> {
@@ -21,8 +25,8 @@ export class InitiateChargeHandler implements ICommandHandler<InitiateChargeComm
     private readonly gateway: IPaymentGatewayAdapter,
     private readonly paymentMethod: IPaymentMethodRepository,
     private readonly transactionRepository: IPaymentTransactionRepository,
-    private readonly userRepo: IUserRepository,
-    private readonly partyRepo: IPartyRepository,
+    private readonly userReadPort: IUserReadPort,
+    private readonly partyReadPort: IPartyReadPort,
     private readonly eventBus: EventBus,
     private readonly logger: ILogger,
   ) {}
@@ -41,22 +45,22 @@ export class InitiateChargeHandler implements ICommandHandler<InitiateChargeComm
     });
 
     // 1. Get the party details to find the userId
-    const partyRow = await this.partyRepo.findById(clientPartyId);
+    const partyRow = await this.partyReadPort.findById(clientPartyId);
 
     if (!partyRow) {
-      throw new Error(`Party not found: ${clientPartyId}`);
+      throw new ReferenceNotFoundError('Party', clientPartyId);
     }
 
-    const userId = partyRow.person?.userId || partyRow.organization?.ownerId;
+    const userId = partyRow.personUserId || partyRow.organizationOwnerUserId;
     if (!userId) {
       throw new Error(`User ID not found for party: ${clientPartyId}`);
     }
 
     // 2. Get the user email
-    const userRow = await this.userRepo.findById(userId.toString());
+    const userRow = await this.userReadPort.findById(userId);
 
     if (!userRow?.email) {
-      throw new Error(`Email not found for user: ${userId.toString()}`);
+      throw new ReferenceNotFoundError('User', userId);
     }
 
     const email = userRow.email;

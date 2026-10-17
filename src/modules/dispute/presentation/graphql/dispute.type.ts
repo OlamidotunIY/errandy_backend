@@ -23,10 +23,10 @@ export class DisputeType {
   @Field()
   status!: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   resolution?: string | null;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   resolvedById?: string | null;
 
   @Field(() => Date, { nullable: true })
@@ -62,7 +62,7 @@ export class ResolveDisputeInput {
   @Field()
   disputeId!: string;
 
-  @Field({ description: 'RESOLVED | REJECTED' })
+  @Field(() => String, { description: 'RESOLVED | REJECTED' })
   status!: 'RESOLVED' | 'REJECTED';
 
   @Field()

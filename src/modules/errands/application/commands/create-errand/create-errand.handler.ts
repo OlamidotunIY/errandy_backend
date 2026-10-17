@@ -7,26 +7,22 @@ import {
   IErrandRepository,
 } from '@module/errands/domain';
 import { Currency, Money } from '@module/escrow/domain';
-import { IPartyRepository, PartyNotFoundError } from '@module/party/domain';
 import {
-  CategoryNotFoundError,
   CategoryNotLeafError,
-  ICategoryRepository,
-} from '@module/category';
-import {
-  AddressId,
-  AddressNotFoundError,
-  IAddressRepository,
-} from '@module/address';
-import { ILogger } from '@src/common';
+  IAddressReadPort,
+  ICategoryReadPort,
+  ILogger,
+  IPartyReadPort,
+  ReferenceNotFoundError,
+} from '@src/common';
 
 @CommandHandler(CreateErrandCommand)
 export class CreateErrandHandler implements ICommandHandler<CreateErrandCommand> {
   constructor(
     private readonly errandRepository: IErrandRepository,
-    private readonly partyRepository: IPartyRepository,
-    private readonly categoryRepository: ICategoryRepository,
-    private readonly addressRepository: IAddressRepository,
+    private readonly partyReadPort: IPartyReadPort,
+    private readonly categoryReadPort: ICategoryReadPort,
+    private readonly addressReadPort: IAddressReadPort,
     private readonly eventBus: EventBus,
     private readonly logger: ILogger,
   ) {}
@@ -40,28 +36,27 @@ export class CreateErrandHandler implements ICommandHandler<CreateErrandCommand>
       throw new ErrandInvariantError('Missing required fields');
     }
 
-    const clientParty = await this.partyRepository.findById(
+    const clientParty = await this.partyReadPort.findById(
       payload.clientPartyId,
     );
     if (!clientParty) {
-      throw new PartyNotFoundError(payload.clientPartyId);
+      throw new ReferenceNotFoundError('Party', payload.clientPartyId);
     }
 
-    const category = await this.categoryRepository.findById(payload.categoryId);
+    const category = await this.categoryReadPort.findById(payload.categoryId);
     if (!category) {
-      throw new CategoryNotFoundError(payload.categoryId);
+      throw new ReferenceNotFoundError('Category', payload.categoryId);
     }
-    if (!category.isLeaf()) {
+    if (!category.isLeaf) {
       throw new CategoryNotLeafError(payload.categoryId);
     }
 
-    const address = await this.addressRepository.findById(
-      AddressId.fromString(payload.addressId),
+    const location = await this.addressReadPort.findLocationById(
+      payload.addressId,
     );
-    if (!address) {
-      throw new AddressNotFoundError(payload.addressId);
+    if (!location) {
+      throw new ReferenceNotFoundError('Address', payload.addressId);
     }
-    const location = address.toGeoJson();
 
     const budget = Money.fromMinorUnits(
       payload.budget.amountMinorUnits,

@@ -12,15 +12,18 @@ import {
   IApplicationRepository,
 } from '../../../domain';
 import { InitiateChargeCommand } from '@module/payments/application';
-import { IErrandRepository, ErrandNotFoundError } from '@module/errands/domain';
-import { ILogger } from '@src/common';
+import {
+  IErrandReadPort,
+  ILogger,
+  ReferenceNotFoundError,
+} from '@src/common';
 
 @CommandHandler(RequestApplicationAcceptanceCommand)
 export class RequestApplicationAcceptanceHandler implements ICommandHandler<RequestApplicationAcceptanceCommand> {
   constructor(
     private readonly progressRepo: IAcceptApplicationProgressRepository,
     private readonly applicationRepo: IApplicationRepository,
-    private readonly errandRepository: IErrandRepository,
+    private readonly errandReadPort: IErrandReadPort,
     private readonly commandBus: CommandBus,
     private readonly eventBus: EventBus,
     private readonly logger: ILogger,
@@ -36,12 +39,12 @@ export class RequestApplicationAcceptanceHandler implements ICommandHandler<Requ
     }
 
     // Verify the errand belongs to the requesting client
-    const errand = await this.errandRepository.findById(
+    const errand = await this.errandReadPort.findById(
       application.errandId.value,
     );
 
     if (!errand) {
-      throw new ErrandNotFoundError(application.errandId.value);
+      throw new ReferenceNotFoundError('Errand', application.errandId.value);
     }
 
     if (errand.clientPartyId !== clientPartyId.value) {

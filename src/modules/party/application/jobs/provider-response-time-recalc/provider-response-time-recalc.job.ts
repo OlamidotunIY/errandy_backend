@@ -1,8 +1,9 @@
+import { Injectable } from '@nestjs/common';
 import {
   IPartyRepository,
   PartyNotFoundError,
   ProviderRoleNotFoundError,
-} from '@module/party';
+} from '../../../domain';
 import { ILogger } from '@src/common';
 
 export interface ProviderResponseTimeRecalcPayload {
@@ -10,6 +11,7 @@ export interface ProviderResponseTimeRecalcPayload {
   avgResponseTimeSeconds: number;
 }
 
+@Injectable()
 export class ProviderResponseTimeRecalcJob {
   constructor(
     private readonly partyRepository: IPartyRepository,

@@ -2,15 +2,17 @@ import {
   GetLedgerHistoryQuery,
   GetWalletBalancesQuery,
   LedgerHistoryPageDTO,
+  RecordWithdrawalCommand,
+} from '../../application';
+import { IBankAccountRepository } from '../../domain';
+import {
   LedgerHistoryPageType,
   WalletBalancesType,
-  RecordWithdrawalCommand,
-  IBankAccountRepository,
   BankAccountType,
   AddBankAccountInput,
   RequestWithdrawalInput,
   WithdrawalResultType,
-} from '@module/wallet';
+} from '../graphql';
 import { Currency, Money } from '@module/escrow';
 import { UserId } from '@module/user';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';

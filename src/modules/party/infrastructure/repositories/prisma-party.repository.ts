@@ -4,7 +4,7 @@ import {
   OrganizationMember,
   Party,
   PartyInvariantError,
-} from '@module/party';
+} from '../../domain';
 import { PrismaService } from '@src/prisma/prisma.service';
 import { PartyMapper } from '../mappers';
 

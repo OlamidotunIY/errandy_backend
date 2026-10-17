@@ -1,4 +1,4 @@
-import { OrganizationMember, Party } from '@module/party';
+import { OrganizationMember, Party } from '../entities';
 
 export abstract class IPartyRepository {
   abstract save(party: Party): Promise<void>; // persists Party + whichever of Person/Organization/ProviderRole are attached, as one unit

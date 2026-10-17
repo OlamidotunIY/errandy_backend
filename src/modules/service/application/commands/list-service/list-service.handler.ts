@@ -4,24 +4,22 @@ import { ListServiceResponseDto } from './list-service.request.dto';
 import { IServiceRepository, Service } from '@module/service/domain';
 import { Currency, Money } from '@module/escrow/domain';
 import {
-  IPartyRepository,
-  PartyNotFoundError,
-  ProviderRoleNotFoundError,
-} from '@module/party/domain';
-import {
-  CategoryNotFoundError,
   CategoryNotLeafError,
   CategoryTierMismatchError,
-  ICategoryRepository,
-} from '@module/category';
-import { ILogger } from '@src/common';
+  ICategoryReadPort,
+  ILogger,
+  IPartyReadPort,
+  ProviderRoleNotFoundError,
+  ReferenceNotFoundError,
+  meetsRequiredTier,
+} from '@src/common';
 
 @CommandHandler(ListServiceCommand)
 export class ListServiceHandler implements ICommandHandler<ListServiceCommand> {
   constructor(
     private readonly serviceRepository: IServiceRepository,
-    private readonly partyRepository: IPartyRepository,
-    private readonly categoryRepository: ICategoryRepository,
+    private readonly partyReadPort: IPartyReadPort,
+    private readonly categoryReadPort: ICategoryReadPort,
     private readonly eventBus: EventBus,
     private readonly logger: ILogger,
   ) {}
@@ -29,22 +27,22 @@ export class ListServiceHandler implements ICommandHandler<ListServiceCommand> {
   async execute(command: ListServiceCommand): Promise<ListServiceResponseDto> {
     const { payload } = command;
 
-    const listerParty = await this.partyRepository.findById(payload.listedById);
+    const listerParty = await this.partyReadPort.findById(payload.listedById);
     if (!listerParty) {
-      throw new PartyNotFoundError(payload.listedById);
+      throw new ReferenceNotFoundError('Party', payload.listedById);
     }
-    if (!listerParty.providerRole) {
+    if (!listerParty.providerTier) {
       throw new ProviderRoleNotFoundError(payload.listedById);
     }
 
-    const category = await this.categoryRepository.findById(payload.categoryId);
+    const category = await this.categoryReadPort.findById(payload.categoryId);
     if (!category) {
-      throw new CategoryNotFoundError(payload.categoryId);
+      throw new ReferenceNotFoundError('Category', payload.categoryId);
     }
-    if (!category.isLeaf()) {
+    if (!category.isLeaf) {
       throw new CategoryNotLeafError(payload.categoryId);
     }
-    if (!category.meetsRequiredTier(listerParty.providerRole.tier)) {
+    if (!meetsRequiredTier(category.requiredTier, listerParty.providerTier)) {
       throw new CategoryTierMismatchError(
         payload.listedById,
         payload.categoryId,

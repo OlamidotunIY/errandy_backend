@@ -17,10 +17,10 @@ export class VerificationStepType {
   @Field(() => Date, { nullable: true })
   reviewedAt?: Date | null;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   reviewerId?: string | null;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   rejectionReason?: string | null;
 }
 
@@ -64,9 +64,9 @@ export class ReviewVerificationStepInput {
   @Field()
   stepType!: string;
 
-  @Field({ description: 'APPROVED | REJECTED' })
+  @Field(() => String, { description: 'APPROVED | REJECTED' })
   status!: 'APPROVED' | 'REJECTED';
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   rejectionReason?: string;
 }

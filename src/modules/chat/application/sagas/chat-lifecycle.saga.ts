@@ -5,21 +5,19 @@ import {
   ErrandAssignedEvent,
   ErrandCompletedEvent,
   ErrandArchivedEvent,
-  IErrandRepository,
 } from '@module/errands/domain';
-import { IPartyRepository } from '@module/party/domain';
 import {
   CloseChatThreadCommand,
   OpenChatThreadCommand,
-} from '@module/chat/application';
-import { IChatThreadRepository } from '@module/chat/domain';
-import { ILogger } from '@src/common';
+} from '../commands';
+import { IChatThreadRepository } from '../../domain';
+import { IErrandReadPort, ILogger, IPartyReadPort } from '@src/common';
 
 @Injectable()
 export class ChatLifecycleSaga {
   constructor(
-    private readonly errandRepository: IErrandRepository,
-    private readonly partyRepository: IPartyRepository,
+    private readonly errandReadPort: IErrandReadPort,
+    private readonly partyReadPort: IPartyReadPort,
     private readonly chatThreadRepository: IChatThreadRepository,
     private readonly commandBus: CommandBus,
     private readonly logger: ILogger,
@@ -34,7 +32,7 @@ export class ChatLifecycleSaga {
       mergeMap(async (event: ErrandAssignedEvent) => {
         const { errandId } = event.payload;
 
-        const errand = await this.errandRepository.findById(errandId);
+        const errand = await this.errandReadPort.findById(errandId);
         if (!errand) {
           this.logger.warn('ChatLifecycleSaga: errand not found', {
             errandId,
@@ -43,7 +41,7 @@ export class ChatLifecycleSaga {
         }
 
         const assignments =
-          await this.errandRepository.findAssignmentsByErrandId(errandId);
+          await this.errandReadPort.findAssignmentsByErrandId(errandId);
         if (assignments.length === 0) {
           this.logger.warn('ChatLifecycleSaga: no assignments found', {
             errandId,
@@ -51,10 +49,10 @@ export class ChatLifecycleSaga {
           return;
         }
 
-        const clientParty = await this.partyRepository.findById(
+        const clientParty = await this.partyReadPort.findById(
           errand.clientPartyId,
         );
-        if (!clientParty?.person) {
+        if (!clientParty?.personUserId) {
           this.logger.warn('ChatLifecycleSaga: client party/person not found', {
             errandId,
             clientPartyId: errand.clientPartyId,
@@ -63,15 +61,15 @@ export class ChatLifecycleSaga {
         }
 
         const participantIds = new Set<string>([
-          clientParty.person.userId.value,
+          clientParty.personUserId,
         ]);
 
         for (const assignment of assignments) {
-          const providerParty = await this.partyRepository.findById(
+          const providerParty = await this.partyReadPort.findById(
             assignment.providerPartyId,
           );
-          if (providerParty?.person) {
-            participantIds.add(providerParty.person.userId.value);
+          if (providerParty?.personUserId) {
+            participantIds.add(providerParty.personUserId);
           }
         }
 

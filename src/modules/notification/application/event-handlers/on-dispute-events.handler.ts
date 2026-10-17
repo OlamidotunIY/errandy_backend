@@ -1,8 +1,7 @@
 import { EventsHandler, IEventHandler, CommandBus } from '@nestjs/cqrs';
 import { DisputeOpenedEvent } from '@module/dispute/domain';
-import { IPartyRepository } from '@module/party/domain';
+import { IPartyReadPort, ILogger } from '@src/common';
 import { SendNotificationCommand } from '../commands/send-notification';
-import { ILogger } from '@src/common';
 
 @EventsHandler(DisputeOpenedEvent)
 export class OnDisputeEventsHandler
@@ -10,14 +9,14 @@ export class OnDisputeEventsHandler
 {
   constructor(
     private readonly commandBus: CommandBus,
-    private readonly partyRepository: IPartyRepository,
+    private readonly partyReadPort: IPartyReadPort,
     private readonly logger: ILogger,
   ) {}
 
   async handle(event: DisputeOpenedEvent): Promise<void> {
     try {
-      const party = await this.partyRepository.findById(event.payload.partyId);
-      const userId = party?.person?.userId.value ?? event.payload.partyId;
+      const party = await this.partyReadPort.findById(event.payload.partyId);
+      const userId = party?.personUserId ?? event.payload.partyId;
 
       await this.commandBus.execute(
         new SendNotificationCommand({

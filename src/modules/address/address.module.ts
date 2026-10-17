@@ -1,16 +1,17 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
+import { IAddressReadPort } from '@src/common';
 import {
-  AddressMapper,
-  AddressResolver,
   CreateAddressHandler,
   GetUserAddressesHandler,
   SetDefaultAddressHandler,
   DeleteAddressHandler,
-  IAddressRepository,
-  PrismaAddressRepository,
-} from '@module/address';
+} from './application';
+import { IAddressRepository } from './domain';
+import { AddressMapper, AddressReadAdapter, PrismaAddressRepository } from './infrastructure';
+import { AddressResolver } from './presentation';
 
+@Global()
 @Module({
   imports: [CqrsModule],
   providers: [
@@ -20,11 +21,16 @@ import {
       provide: IAddressRepository,
       useClass: PrismaAddressRepository,
     },
+    AddressReadAdapter,
+    {
+      provide: IAddressReadPort,
+      useClass: AddressReadAdapter,
+    },
     CreateAddressHandler,
     GetUserAddressesHandler,
     SetDefaultAddressHandler,
     DeleteAddressHandler,
   ],
-  exports: [IAddressRepository],
+  exports: [IAddressReadPort],
 })
 export class AddressModule {}

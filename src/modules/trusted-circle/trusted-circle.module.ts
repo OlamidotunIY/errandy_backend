@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
-import { PartyModule } from '@module/party';
 import {
   AddTrustedMemberHandler,
   RemoveTrustedMemberHandler,
@@ -11,7 +10,7 @@ import { PrismaTrustedCircleRepository } from './infrastructure';
 import { TrustedCircleResolver } from './presentation';
 
 @Module({
-  imports: [CqrsModule, PartyModule],
+  imports: [CqrsModule],
   providers: [
     AddTrustedMemberHandler,
     RemoveTrustedMemberHandler,

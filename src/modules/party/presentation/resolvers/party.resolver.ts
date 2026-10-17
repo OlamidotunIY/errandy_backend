@@ -4,12 +4,12 @@ import {
   AwardBadgeCommand,
   GetOrgFacingProviderProfileQuery,
   GetPublicProviderProfileQuery,
-  ProviderTier,
   RemoveOrganizationMemberCommand,
   RequestTierUpgradeCommand,
   SearchProvidersByServiceQuery,
   UpdateProviderRoleCommand,
-} from '@module/party';
+} from '../../application';
+import { ProviderTier } from '../../domain';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
 import {

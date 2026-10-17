@@ -1,19 +1,21 @@
 import { Module } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
 import {
-  ChatMessageMapper,
-  ChatThreadMapper,
+  ChatLifecycleSaga,
   CloseChatThreadHandler,
   GetChatThreadByErrandIdHandler,
-  IChatMessageRepository,
-  IChatThreadRepository,
   ListMessagesHandler,
   OpenChatThreadHandler,
+  SendMessageHandler,
+} from './application';
+import { IChatMessageRepository, IChatThreadRepository } from './domain';
+import {
+  ChatMessageMapper,
+  ChatThreadMapper,
   PrismaChatMessageRepository,
   PrismaChatThreadRepository,
   RealtimeMessagingAdapter,
-  SendMessageHandler,
-} from '@module/chat';
+} from './infrastructure';
 import { ChatResolver } from './presentation';
 
 @Module({
@@ -36,6 +38,7 @@ import { ChatResolver } from './presentation';
     SendMessageHandler,
     GetChatThreadByErrandIdHandler,
     ListMessagesHandler,
+    ChatLifecycleSaga,
   ],
   exports: [IChatThreadRepository, IChatMessageRepository],
 })

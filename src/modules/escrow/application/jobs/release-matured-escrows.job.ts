@@ -1,5 +1,5 @@
-import { ReleaseMaturedEscrowsPayload } from '@module/escrow';
-import { EscrowRepository } from '@module/escrow/domain';
+import { ReleaseMaturedEscrowsPayload } from './release-matured-escrows.payload';
+import { EscrowRepository } from '../../domain';
 import { ILogger } from '@src/common';
 import { Queue } from 'bullmq';
 

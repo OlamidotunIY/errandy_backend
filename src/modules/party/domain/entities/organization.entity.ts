@@ -1,9 +1,9 @@
+import { OrganizationMember } from './organization-member.entity';
 import {
-  OrganizationMember,
   OrganizationMemberId,
   OrgMemberRole,
   PartyId,
-} from '@module/party';
+} from '../value-objects';
 import {
   OrganizationMemberAlreadyExistsError,
   OrganizationMemberNotFoundError,

@@ -1,5 +1,6 @@
 import { ObjectType, Field, Int, registerEnumType } from '@nestjs/graphql';
-import { LedgerEntryDTO, LedgerEntryType } from '@module/wallet';
+import { LedgerEntryDTO } from '../../application';
+import { LedgerEntryType } from '../../domain';
 
 registerEnumType(LedgerEntryType, { name: 'LedgerEntryType' });
 

@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../../prisma/prisma.service';
-import { Address, IAddressRepository } from '@module/address';
-import { AddressId } from '@module/address';
+import { Address, AddressId, IAddressRepository } from '../../domain';
 import { UserId } from '@module/user';
 import { AddressMapper } from '../mappers';
 

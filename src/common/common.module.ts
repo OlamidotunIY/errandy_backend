@@ -1,18 +1,48 @@
-import { Global, Module } from '@nestjs/common';
+import { Global, Logger, Module } from '@nestjs/common';
 import { QueueModule } from '../infrastructure/queue/queue.module';
-import { CommandBus } from '@nestjs/cqrs';
+import { CqrsModule } from '@nestjs/cqrs';
 import {
   CommandRetryRegistry,
   EventRetryProcessor,
   EventRetryQueueService,
-  IDeadLetterRepository,
-  PrismaDeadLetterRepository,
-} from '.';
+  ILogger,
+} from './application';
+import { IDeadLetterRepository } from './domain';
+import { PrismaDeadLetterRepository } from './infrastructure';
+
+class NestLoggerAdapter extends ILogger {
+  private readonly logger = new Logger('App');
+
+  info(message: string, context?: Record<string, unknown>): void {
+    this.logger.log(context ? `${message} ${JSON.stringify(context)}` : message);
+  }
+
+  error(
+    message: string,
+    error?: Error,
+    context?: Record<string, unknown>,
+  ): void {
+    this.logger.error(
+      context ? `${message} ${JSON.stringify(context)}` : message,
+      error?.stack,
+    );
+  }
+
+  warn(message: string, context?: Record<string, unknown>): void {
+    this.logger.warn(
+      context ? `${message} ${JSON.stringify(context)}` : message,
+    );
+  }
+}
 
 @Global()
 @Module({
-  imports: [QueueModule],
+  imports: [QueueModule, CqrsModule],
   providers: [
+    {
+      provide: ILogger,
+      useClass: NestLoggerAdapter,
+    },
     {
       provide: IDeadLetterRepository,
       useClass: PrismaDeadLetterRepository,
@@ -20,10 +50,10 @@ import {
     CommandRetryRegistry,
     EventRetryQueueService,
     EventRetryProcessor,
-    CommandBus,
   ],
 
   exports: [
+    ILogger,
     IDeadLetterRepository,
     CommandRetryRegistry,
     EventRetryQueueService,

@@ -5,13 +5,15 @@
 TF_DIR = infrastructure/terraform
 VM_IP = $(shell terraform -chdir=$(TF_DIR) output -raw k3s_vm_public_ip)
 ENV_FILE = $(if $(wildcard .env.production),.env.production,.env)
-SSH_OPTIONS = -o BatchMode=yes -o ConnectTimeout=20 -o ConnectionAttempts=5 -o ServerAliveInterval=15 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=no
+SSH_COMMON_OPTIONS = -o BatchMode=yes -o ConnectTimeout=20 -o ConnectionAttempts=5 -o ServerAliveInterval=15 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=no
+SSH_OPTIONS = -n $(SSH_COMMON_OPTIONS)
+SCP_OPTIONS = $(SSH_COMMON_OPTIONS)
 
 ifeq ($(OS),Windows_NT)
     SSH = C:\Windows\sysnative\OpenSSH\ssh.exe
     SCP = C:\Windows\sysnative\OpenSSH\scp.exe
     SSH_KEY = $(USERPROFILE)\.ssh\id_rsa_azure
-    RM = del /f /q
+    RM = node -e "try { require('fs').unlinkSync('errandy.tar.gz'); } catch(e){}"
     MAKE_CMD = make
 else
     SSH = ssh
@@ -38,8 +40,8 @@ deploy-stack:
 	@echo "=> Syncing Secrets ($(ENV_FILE)) to VM..."
 	$(eval FIREBASE_JSON := $(wildcard infrastructure/Firebase/*.json))
 	$(eval FIREBASE_JSON_NAME := $(notdir $(FIREBASE_JSON)))
-	@$(SCP) -O $(SSH_OPTIONS) -i $(SSH_KEY) $(ENV_FILE) ubuntu@$(VM_IP):/tmp/.env
-	$(if $(FIREBASE_JSON),@$(SCP) -O $(SSH_OPTIONS) -i $(SSH_KEY) $(FIREBASE_JSON) ubuntu@$(VM_IP):/tmp/$(FIREBASE_JSON_NAME),)
+	@$(SCP) -O $(SCP_OPTIONS) -i $(SSH_KEY) $(ENV_FILE) ubuntu@$(VM_IP):/tmp/.env
+	$(if $(FIREBASE_JSON),@$(SCP) -O $(SCP_OPTIONS) -i $(SSH_KEY) $(FIREBASE_JSON) ubuntu@$(VM_IP):/tmp/$(FIREBASE_JSON_NAME),)
 	@echo "=> Ensuring Docker Image errandy/app:latest exists in K3s..."
 	@$(SSH) $(SSH_OPTIONS) -i $(SSH_KEY) ubuntu@$(VM_IP) "sudo k3s ctr images ls | grep -q errandy/app:latest" || $(MAKE_CMD) build-image
 	@echo "=> Applying Kubernetes Secrets..."
@@ -56,7 +58,7 @@ sync-source:
 	@echo "=> Packaging Errandy source files..."
 	tar --exclude=errandy.tar.gz --exclude=node_modules --exclude=dist --exclude=.git --exclude=coverage --exclude=infrastructure/terraform/.terraform -czf errandy.tar.gz .
 	@echo "=> Uploading errandy.tar.gz to ubuntu@$(VM_IP):/tmp/..."
-	@$(SCP) -O $(SSH_OPTIONS) -i $(SSH_KEY) errandy.tar.gz ubuntu@$(VM_IP):/tmp/errandy.tar.gz
+	@$(SCP) -O $(SCP_OPTIONS) -i $(SSH_KEY) errandy.tar.gz ubuntu@$(VM_IP):/tmp/errandy.tar.gz
 	@echo "=> Extracting on remote VM at /home/ubuntu/errandy..."
 	@$(SSH) $(SSH_OPTIONS) -i $(SSH_KEY) ubuntu@$(VM_IP) "mkdir -p /home/ubuntu/errandy && tar -xzf /tmp/errandy.tar.gz -C /home/ubuntu/errandy && rm -f /tmp/errandy.tar.gz"
 	-@$(RM) errandy.tar.gz

@@ -12,7 +12,7 @@ import { NotFoundException, UseGuards } from '@nestjs/common';
 import { GqlAuthGuard } from '@src/common/guards';
 import { CurrentUser } from '@src/common/decorators';
 import { User } from 'better-auth';
-import { IPartyRepository } from '@module/party';
+import { IPartyReadPort } from '@src/common';
 import {
   GetRatingsByErrandQuery,
   GetRatingsByRateeQuery,
@@ -35,7 +35,7 @@ export class RatingResolver {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
-    private readonly partyRepository: IPartyRepository,
+    private readonly partyReadPort: IPartyReadPort,
     private readonly ratingRepository: IRatingRepository,
   ) {}
 
@@ -68,15 +68,15 @@ export class RatingResolver {
     @CurrentUser() user: User,
     @Args('input') input: SubmitRatingInput,
   ): Promise<string> {
-    const party = await this.partyRepository.findByUserId(user.id);
-    if (!party) {
+    const partyId = await this.partyReadPort.findPartyIdByUserId(user.id);
+    if (!partyId) {
       throw new NotFoundException('Party profile not found for user');
     }
 
     return this.commandBus.execute(
       new SubmitRatingCommand({
         errandId: input.errandId,
-        raterPartyId: party.id.value,
+        raterPartyId: partyId,
         rateePartyId: input.rateePartyId,
         score: input.score,
         comment: input.comment,

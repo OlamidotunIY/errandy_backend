@@ -1,18 +1,19 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { EventBus } from '@nestjs/cqrs';
-import { EmailAdapter, SmsAdapter } from '@module/notification';
-import { AuthUserRegisteredEvent } from '@module/user/domain';
+import {
+  AuthUserRegisteredEvent,
+} from '@module/user/domain';
+import {
+  EmailDeliveryRequestedEvent,
+  SmsDeliveryRequestedEvent,
+} from '@src/common';
 import { randomUUID } from 'crypto';
 
 @Injectable()
 export class BetterAuthIntegration implements OnModuleInit {
   static instance: BetterAuthIntegration;
 
-  constructor(
-    private readonly eventBus: EventBus,
-    private readonly emailAdapter: EmailAdapter,
-    private readonly smsAdapter: SmsAdapter,
-  ) {}
+  constructor(private readonly eventBus: EventBus) {}
 
   onModuleInit() {
     BetterAuthIntegration.instance = this;
@@ -62,19 +63,23 @@ export class BetterAuthIntegration implements OnModuleInit {
         break;
     }
 
-    await this.emailAdapter.send({
-      to: user.email,
-      subject,
-      template,
-      context: { token },
-      emailType: 'SYSTEM',
-    });
+    this.eventBus.publish(
+      new EmailDeliveryRequestedEvent({
+        to: user.email,
+        subject,
+        template,
+        context: { token },
+        emailType: 'SYSTEM',
+      }),
+    );
   }
 
   async sendVerificationOTP({ phoneNumber, code }: any) {
-    await this.smsAdapter.send({
-      to: phoneNumber,
-      body: `Your Errandy verification code is: ${code}`,
-    });
+    this.eventBus.publish(
+      new SmsDeliveryRequestedEvent({
+        to: phoneNumber,
+        body: `Your Errandy verification code is: ${code}`,
+      }),
+    );
   }
 }

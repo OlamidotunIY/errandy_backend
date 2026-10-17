@@ -1,8 +1,9 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { QUEUE_NAMES } from './queue.constants';
 
+@Global()
 @Module({
   imports: [
     BullModule.forRootAsync({

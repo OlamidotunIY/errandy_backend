@@ -1,9 +1,5 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
-import { PartyModule } from '@module/party/party.module';
-import { CategoryModule } from '@module/category/category.module';
-import { AddressModule } from '@module/address/address.module';
-import { ChatModule } from '@module/chat/chat.module';
 import {
   CreateErrandHandler,
   PublishErrandHandler,
@@ -12,28 +8,31 @@ import {
   ConfirmAssignmentCompletionHandler,
   UpdateAssignmentConfirmationHandler,
   OfferErrandToTrustedMemberHandler,
+  AssignErrandToTrustedMemberHandler,
+  BookServiceHandler,
   GetErrandByIdHandler,
   BrowseOpenErrandsHandler,
+  OnApplicationAcceptedHandler,
 } from './application';
-import { ChatLifecycleSaga, RatingPromptSaga } from './application/sagas';
 import { AutoAcceptErrandProcessor } from './application/jobs';
 import { ErrandMapper, PrismaErrandRepository } from './infrastructure';
+import { ErrandReadAdapter } from './infrastructure/adapters';
 import { IErrandRepository } from './domain';
+import { IErrandReadPort } from '@src/common';
 import { ErrandsResolver } from './presentation';
 
+@Global()
 @Module({
-  imports: [
-    CqrsModule,
-    PartyModule,
-    CategoryModule,
-    AddressModule,
-    ChatModule,
-  ],
+  imports: [CqrsModule],
   providers: [
     ErrandMapper,
     {
       provide: IErrandRepository,
       useClass: PrismaErrandRepository,
+    },
+    {
+      provide: IErrandReadPort,
+      useClass: ErrandReadAdapter,
     },
     // Command Handlers
     CreateErrandHandler,
@@ -43,16 +42,18 @@ import { ErrandsResolver } from './presentation';
     ConfirmAssignmentCompletionHandler,
     UpdateAssignmentConfirmationHandler,
     OfferErrandToTrustedMemberHandler,
+    AssignErrandToTrustedMemberHandler,
+    BookServiceHandler,
+    // Event Handlers
+    OnApplicationAcceptedHandler,
     // Query Handlers
     GetErrandByIdHandler,
     BrowseOpenErrandsHandler,
-    // Sagas & Jobs
-    ChatLifecycleSaga,
-    RatingPromptSaga,
+    // Jobs
     AutoAcceptErrandProcessor,
     // Resolver
     ErrandsResolver,
   ],
-  exports: [IErrandRepository, ErrandMapper],
+  exports: [IErrandReadPort],
 })
 export class ErrandsModule {}

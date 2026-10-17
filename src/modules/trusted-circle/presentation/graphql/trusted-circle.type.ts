@@ -8,7 +8,7 @@ export class TrustedCircleMemberType {
   @Field()
   status!: string;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   sharedFromPartyId?: string | null;
 
   @Field(() => Date, { nullable: true })
@@ -38,9 +38,9 @@ export class AddTrustedMemberInput {
   @Field()
   memberPartyId!: string;
 
-  @Field({ nullable: true, defaultValue: 'CONFIRMED' })
+  @Field(() => String, { nullable: true, defaultValue: 'CONFIRMED' })
   status?: 'CONFIRMED' | 'SUGGESTED';
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   sharedFromPartyId?: string;
 }

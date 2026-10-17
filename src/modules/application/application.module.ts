@@ -1,7 +1,5 @@
 import { Module } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
-import { PartyModule } from '@module/party/party.module';
-import { ErrandsModule } from '@module/errands/errands.module';
 import {
   ApplicationMapper,
   PrismaApplicationRepository,
@@ -24,13 +22,14 @@ import {
 import { RejectOtherApplicationsSaga } from './application/sagas';
 import { AcceptApplicationProcessor } from './application/jobs';
 import {
+  OnErrandOfferedHandler,
   OnPaymentFailedHandler,
   OnPaymentSucceededHandler,
 } from './application/event-handlers';
 import { ApplicationResolver } from './presentation';
 
 @Module({
-  imports: [CqrsModule, PartyModule, ErrandsModule],
+  imports: [CqrsModule],
   providers: [
     ApplicationMapper,
     {
@@ -57,6 +56,7 @@ import { ApplicationResolver } from './presentation';
     // Event Handlers
     OnPaymentFailedHandler,
     OnPaymentSucceededHandler,
+    OnErrandOfferedHandler,
     // Resolver
     ApplicationResolver,
   ],

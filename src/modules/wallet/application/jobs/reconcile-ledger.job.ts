@@ -1,8 +1,6 @@
 import { Queue } from 'bullmq';
-import {
-  ISchedulerStateRepository,
-  ReconcileLedgerPayload,
-} from '@module/wallet';
+import { ISchedulerStateRepository } from '../../domain';
+import { ReconcileLedgerPayload } from './reconcile-ledger.payload';
 import { ILogger } from '@src/common';
 
 export class ReconcileLedgerJob {

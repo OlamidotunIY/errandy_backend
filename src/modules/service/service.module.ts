@@ -1,17 +1,18 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
+import { IServiceReadPort } from '@src/common';
 import {
   DeactivateServiceHandler,
   GetServiceByIdHandler,
-  IServiceRepository,
   ListServiceHandler,
   SearchServicesHandler,
-  ServiceMapper,
-  ServiceResolver,
-  ServiceRepository,
   UpdateServicePriceHandler,
-} from '@module/service';
+} from './application';
+import { IServiceRepository } from './domain';
+import { ServiceMapper, ServiceReadAdapter, ServiceRepository } from './infrastructure';
+import { ServiceResolver } from './presentation';
 
+@Global()
 @Module({
   imports: [CqrsModule],
   providers: [
@@ -21,12 +22,17 @@ import {
       provide: IServiceRepository,
       useClass: ServiceRepository,
     },
+    ServiceReadAdapter,
+    {
+      provide: IServiceReadPort,
+      useClass: ServiceReadAdapter,
+    },
     ListServiceHandler,
     UpdateServicePriceHandler,
     DeactivateServiceHandler,
     GetServiceByIdHandler,
     SearchServicesHandler,
   ],
-  exports: [IServiceRepository],
+  exports: [IServiceReadPort],
 })
 export class ServiceModule {}

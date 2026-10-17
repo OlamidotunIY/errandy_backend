@@ -1,6 +1,7 @@
 import { BullModule } from '@nestjs/bullmq';
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
+import { IPartyReadPort } from '@src/common';
 import {
   AddClientRoleHandler,
   AddOrganizationMemberHandler,
@@ -12,20 +13,13 @@ import {
   GetOrgFacingProviderProfileHandler,
   GetPartyByIdHandler,
   GetPublicProviderProfileHandler,
-  IPartyRepository,
-  IProviderBadgeRepository,
   MonthlyTrustStatsJob,
   OnAuthUserRegisteredHandler,
   OnVerificationCompletedHandler,
   OnErrandCompletedHandler,
   OnDisputeOpenedHandler,
   OnRatingSubmittedHandler,
-  PartyMapper,
-  PartyResolver,
-  PrismaPartyRepository,
-  PrismaProviderBadgeRepository,
   ProfileRatingRecalcJob,
-  ProviderBadgeMapper,
   ProviderResponseTimeRecalcJob,
   RemoveOrganizationMemberHandler,
   RequestTierUpgradeHandler,
@@ -33,8 +27,19 @@ import {
   SetDefaultPaymentMethodHandler,
   TrustedByCountSyncSaga,
   UpdateProviderRoleHandler,
-} from '@module/party';
+} from './application';
+import { IPartyRepository } from './domain/repositories/party.repository.interface';
+import { IProviderBadgeRepository } from './domain/repositories/provider-badge.repository.interface';
+import {
+  PartyMapper,
+  PartyReadAdapter,
+  PrismaPartyRepository,
+  PrismaProviderBadgeRepository,
+  ProviderBadgeMapper,
+} from './infrastructure';
+import { PartyResolver } from './presentation';
 
+@Global()
 @Module({
   imports: [
     CqrsModule,
@@ -54,6 +59,11 @@ import {
     {
       provide: IProviderBadgeRepository,
       useClass: PrismaProviderBadgeRepository,
+    },
+    PartyReadAdapter,
+    {
+      provide: IPartyReadPort,
+      useClass: PartyReadAdapter,
     },
     CreatePersonPartyHandler,
     AddProviderRoleHandler,
@@ -80,6 +90,6 @@ import {
     ProfileRatingRecalcJob,
     MonthlyTrustStatsJob,
   ],
-  exports: [IPartyRepository],
+  exports: [IPartyReadPort],
 })
 export class PartyModule {}

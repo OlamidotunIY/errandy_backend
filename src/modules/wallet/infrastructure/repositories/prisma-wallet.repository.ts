@@ -1,12 +1,14 @@
+import { Injectable } from '@nestjs/common';
 import {
   WalletRepository,
   Wallet,
   WalletId,
-  WalletMapper,
-} from '@module/wallet';
+} from '../../domain';
+import { WalletMapper } from '../mappers';
 import { PrismaService } from '@src/prisma/prisma.service';
 import { UserId } from '@module/user';
 
+@Injectable()
 export class PrismaWalletRepository implements WalletRepository {
   constructor(
     private readonly prisma: PrismaService,

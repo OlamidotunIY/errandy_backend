@@ -3,9 +3,8 @@ import {
   ApplicationSubmittedEvent,
   ApplicationAcceptedEvent,
 } from '@module/application/domain';
-import { IPartyRepository } from '@module/party/domain';
+import { IPartyReadPort, ILogger } from '@src/common';
 import { SendNotificationCommand } from '../commands/send-notification';
-import { ILogger } from '@src/common';
 
 @EventsHandler(ApplicationSubmittedEvent, ApplicationAcceptedEvent)
 export class OnApplicationEventsHandler
@@ -13,7 +12,7 @@ export class OnApplicationEventsHandler
 {
   constructor(
     private readonly commandBus: CommandBus,
-    private readonly partyRepository: IPartyRepository,
+    private readonly partyReadPort: IPartyReadPort,
     private readonly logger: ILogger,
   ) {}
 
@@ -28,11 +27,11 @@ export class OnApplicationEventsHandler
         });
       } else if (event instanceof ApplicationAcceptedEvent) {
         const payload = event.payload;
-        const providerParty = await this.partyRepository.findById(
+        const providerParty = await this.partyReadPort.findById(
           payload.providerPartyId.value,
         );
         const recipientUserId =
-          providerParty?.person?.userId.value ?? payload.providerPartyId.value;
+          providerParty?.personUserId ?? payload.providerPartyId.value;
 
         await this.commandBus.execute(
           new SendNotificationCommand({

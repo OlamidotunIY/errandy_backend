@@ -1,7 +1,5 @@
 import { Module } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
-import { PartyModule } from '@module/party/party.module';
-import { UserModule } from '@module/user/user.module';
 import {
   PaymentGatewayAdapter,
   PaymentMapper,
@@ -17,7 +15,7 @@ import { InitiateChargeHandler } from './application';
 import { PaymentWebhookController } from './presentation';
 
 @Module({
-  imports: [CqrsModule, PartyModule, UserModule],
+  imports: [CqrsModule],
   controllers: [PaymentWebhookController],
   providers: [
     PaymentMapper,

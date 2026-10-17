@@ -1,25 +1,26 @@
 import { Module } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
-import { PartyModule } from '@module/party';
 import {
   SubmitRatingHandler,
   ReactToRatingHandler,
   ReplyToRatingHandler,
   GetRatingsByRateeHandler,
   GetRatingsByErrandHandler,
+  RatingPromptSaga,
 } from './application';
 import { IRatingRepository } from './domain';
 import { PrismaRatingRepository } from './infrastructure';
 import { RatingResolver } from './presentation';
 
 @Module({
-  imports: [CqrsModule, PartyModule],
+  imports: [CqrsModule],
   providers: [
     SubmitRatingHandler,
     ReactToRatingHandler,
     ReplyToRatingHandler,
     GetRatingsByRateeHandler,
     GetRatingsByErrandHandler,
+    RatingPromptSaga,
     {
       provide: IRatingRepository,
       useClass: PrismaRatingRepository,
