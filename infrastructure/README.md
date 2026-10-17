@@ -1,50 +1,51 @@
-# Errandy Backend — Infrastructure & Co-Deployment Guide
+# Infrastructure & Deployment Guide
 
-This directory contains the Kubernetes (K3s) and Docker configurations for deploying `errandy_backend` alongside `atlashub-backend` on the **shared Azure K3s VM**.
+This guide contains all the essential commands to manage your standalone Azure (`Standard_D2ads_v7`) + Kubernetes (K3s) infrastructure for **Errandy Backend**.
 
----
-
-## 🏗️ 1. Architecture Summary
-
-* **Shared Compute**: Runs on the same Azure K3s node (`atlashub-k3s-node`) provisioned in `atlashub-backend/infrastructure/terraform`.
-* **Ingress Routing (Traefik)**:
-  * `api.atlashub.name.ng` $\rightarrow$ `atlashub-app:8080`
-  * `api.errandy.com.ng` $\rightarrow$ `errandy-api:8080`
-* **Workloads**:
-  * `errandy-api`: NestJS HTTP/GraphQL/WebSocket/Better-Auth server (`node dist/src/main.js`).
-  * `errandy-worker`: BullMQ background processor (`node dist/src/worker.js`) for payouts, escrow releases, and notifications.
-* **Shared Redis**: Connects to the in-cluster `redis:6379` service using **logical DB `1`** (`REDIS_URL=redis://redis:6379/1`) so keys never collide with Atlashub (logical DB `0`).
-* **Database**: Uses MongoDB (`DATABASE_URL` in `.env.production` / `.env`, injected via the `errandy-secrets` Kubernetes Secret).
-
----
-
-## 🚀 2. Makefile Automation (Run on Windows)
-
-Run these commands from the root `errandy_backend` directory. By default, `Makefile` reads `VM_IP` from `../../Atlashub/atlashub-backend/infrastructure/terraform` (or you can pass `VM_IP=<ip>` directly).
+## 🏗️ 1. Makefile Automation (Run on Windows)
+These commands are run locally on your Windows machine from the root `errandy_backend` folder.
 
 | Command | Description |
 | :--- | :--- |
-| `make deploy-stack` | **Deploy / Update Errandy:** Syncs `.env.production` (or `.env`) and `infrastructure/Firebase/*.json` to the VM, updates Kubernetes secrets, builds the image (if missing), applies K8s manifests, and restarts `errandy-api` & `errandy-worker`. |
-| `make build-image` | **Force Rebuild:** Syncs the current codebase to the remote VM, builds `errandy/app:latest`, imports it into K3s containerd, and restarts both deployments. |
-| `make seed-db` | **Seed MongoDB:** Executes `npx prisma db seed` inside the running `errandy-api` pod. |
-| `make update-dns` | **Cloudflare DNS:** Updates the `A` record for `api.errandy.com.ng` to point to the current Azure VM IP. |
-| `make logs-api` | Streams live logs from the `errandy-api` pod. |
-| `make logs-worker` | Streams live logs from the `errandy-worker` pod. |
-| `make ssh` | Opens an interactive SSH session into the Azure K3s VM. |
+| `make start` | **From Scratch:** Provisions the dedicated Azure VM (`errandy-k3s-node` in `errandy-k3s-rg`), waits for boot, installs Docker/K3s, copies secrets, builds the image, and deploys all Kubernetes pods. |
+| `make deploy-stack` | **Fast Update:** Use this if the VM is already running. Syncs secrets, builds the image (if missing), and applies updated Kubernetes YAML files. |
+| `make build-image` | **Force Rebuild:** Syncs your latest code to the remote VM, rebuilds the Docker image (`errandy/app:latest`), and loads it into K3s. |
+| `make seed-db` | **Database Seed:** Runs `npx prisma db seed` inside the running `errandy-api` pod against your MongoDB database. |
+| `make update-dns` | **Cloudflare DNS:** Updates the `A` record for `api.errandy.com.ng` to the Azure VM's public IP. |
+| `make stop` | **Destroy Everything:** Destroys the Azure VM, VNet, IP, and all disks (`errandy-k3s-rg`) so billing = $0. |
+| `make ssh` | Instantly logs you into the Azure VM so you can run Kubernetes commands. |
+| `make logs-api` | Streams live logs for the `errandy-api` deployment. |
+| `make logs-worker` | Streams live logs for the `errandy-worker` BullMQ background deployment. |
 
 ---
 
-## ☸️ 3. Kubernetes Commands (Run inside the VM)
+## ☸️ 2. Kubernetes Commands (Run inside the VM)
+To run these, first type `make ssh` on your Windows machine to enter the remote server. K3s has standard `kubectl` built-in!
 
-After running `make ssh`, use standard `kubectl` commands:
+### Checking if Apps are Running
+* **See all running apps:** `kubectl get pods`
+* **See everything in the cluster:** `kubectl get all`
+* **Check if your domain is mapped:** `kubectl get ingress`
 
-* **Check running pods (both Atlashub & Errandy):**
-  `kubectl get pods`
-* **Check ingress host mappings:**
-  `kubectl get ingress`
-* **Stream API logs:**
+### Viewing Logs (Debugging)
+* **Stream live logs for the NestJS API:**
   `kubectl logs -f -l app=errandy-api`
-* **Stream Worker logs:**
+* **Stream live logs for the BullMQ Worker:**
   `kubectl logs -f -l app=errandy-worker`
-* **Restart Errandy deployments:**
-  `kubectl rollout restart deployment/errandy-api deployment/errandy-worker`
+* **Stream live logs for Redis:**
+  `kubectl logs -f -l app=redis`
+
+### Restarting Services
+If you ever need to forcefully restart Errandy without rebuilding the image:
+* `kubectl rollout restart deployment errandy-api errandy-worker`
+
+---
+
+## ☁️ 3. Terraform Commands (Run on Windows)
+You rarely need to run these manually because `make start` and `make stop` handle them, but they are useful for debugging.
+
+| Command | Description |
+| :--- | :--- |
+| `cd infrastructure/terraform` | Move into the Terraform directory first! |
+| `terraform output k3s_vm_public_ip` | Prints the exact public IP address of your current Azure VM. |
+| `terraform state list` | Lists all the Azure resources Terraform is currently tracking. |
