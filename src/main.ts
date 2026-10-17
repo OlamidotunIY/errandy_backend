@@ -1,3 +1,10 @@
+import {
+  startOtel,
+  prometheusMiddleware,
+} from './infrastructure/observability';
+
+startOtel('errandy-api');
+
 import { NestFactory } from '@nestjs/core';
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
@@ -62,6 +69,9 @@ async function bootstrap() {
   app.use(graphqlUploadExpress({ maxFileSize: 10000000, maxFiles: 10 }));
   app.use(json({ limit: '50mb' }));
   app.use(urlencoded({ extended: true, limit: '50mb' }));
+
+  // Prometheus metrics middleware & GET /metrics endpoint
+  app.use(prometheusMiddleware);
 
   // Healthcheck endpoint for Docker & Kubernetes probes
   app.use((req: Request, res: Response, next: NextFunction) => {

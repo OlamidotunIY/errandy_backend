@@ -1,6 +1,6 @@
 # errandy — Local Development Stack
 # Usage: docker compose -f infrastructure/docker/docker-compose.yml up -d
-# Services: Redis, Errandy API, Errandy Worker
+# Services: Redis, Prometheus, Tempo, Grafana, Errandy API, Errandy Worker
 
 name: errandy
 
@@ -22,6 +22,77 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # ── Tempo (Distributed Tracing) ────────────────────────────────────────────
+  tempo:
+    image: grafana/tempo:2.6.1
+    user: "0:0"
+    container_name: errandy-tempo
+    restart: unless-stopped
+    networks:
+      - errandy-net
+    command: [ "-config.file=/etc/tempo.yaml" ]
+    volumes:
+      - ./tempo/tempo.yml:/etc/tempo.yaml
+      - tempo_data:/tmp/tempo
+    ports:
+      - "3200:3200"   # Tempo HTTP
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:3200/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # ── Prometheus ─────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: errandy-prometheus
+    restart: unless-stopped
+    networks:
+      - errandy-net
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # ── Grafana ────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: errandy-grafana
+    restart: unless-stopped
+    networks:
+      - errandy-net
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: errandy
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_FEATURE_TOGGLES_ENABLE: publicDashboards
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
 
   # ── Errandy API (Commented out for local `pnpm run start:dev`) ─────────────
   # api:
@@ -45,7 +116,9 @@ services:
   #     PORT: 8080
   #     REDIS_HOST: redis
   #     REDIS_PORT: 6379
-  #     REDIS_URL: redis://redis:6379/1
+  #     REDIS_URL: redis://redis:6379
+  #     OTEL_SERVICE_NAME: errandy-api
+  #     OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
   #   command: ["node", "dist/src/main.js"]
   #   healthcheck:
   #     test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
@@ -73,7 +146,9 @@ services:
   #     NODE_ENV: production
   #     REDIS_HOST: redis
   #     REDIS_PORT: 6379
-  #     REDIS_URL: redis://redis:6379/1
+  #     REDIS_URL: redis://redis:6379
+  #     OTEL_SERVICE_NAME: errandy-worker
+  #     OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
   #   command: ["node", "dist/src/worker.js"]
 
 networks:
@@ -83,3 +158,6 @@ networks:
 
 volumes:
   redis_data:
+  prometheus_data:
+  grafana_data:
+  tempo_data:

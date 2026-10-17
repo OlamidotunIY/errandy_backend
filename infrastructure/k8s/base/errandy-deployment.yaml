@@ -35,6 +35,10 @@ spec:
           value: "redis://redis:6379"
         - name: REDIS_PASSWORD
           value: ""
+        - name: OTEL_SERVICE_NAME
+          value: "errandy-api"
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://tempo:4318"
         livenessProbe:
           httpGet:
             path: /health
@@ -103,6 +107,10 @@ spec:
           value: "redis://redis:6379"
         - name: REDIS_PASSWORD
           value: ""
+        - name: OTEL_SERVICE_NAME
+          value: "errandy-worker"
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://tempo:4318"
         volumeMounts:
         - name: firebase-secrets
           mountPath: /app/infrastructure/Firebase

@@ -1,3 +1,7 @@
+import { startOtel } from './infrastructure/observability';
+
+startOtel('errandy-worker');
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { Logger } from '@nestjs/common';
