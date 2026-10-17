@@ -69,3 +69,4 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 k8s/secret.yaml
 infrastructure/Firebase/*.json
 variables.txt
+errandy.tar.gz

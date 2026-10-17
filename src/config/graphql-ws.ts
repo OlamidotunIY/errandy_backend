@@ -52,7 +52,7 @@ export const GqlConfig = GraphQLModule.forRootAsync<ApolloDriverConfig>({
               ApolloServerPluginInlineTrace(),
             ]
           : []),
-      ],
+      ] as any[],
       autoSchemaFile: isProduction
         ? true
         : join(process.cwd(), 'src/schema.gql'),

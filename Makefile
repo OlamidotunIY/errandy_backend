@@ -11,10 +11,14 @@ ifeq ($(OS),Windows_NT)
     SSH = C:\Windows\sysnative\OpenSSH\ssh.exe
     SCP = C:\Windows\sysnative\OpenSSH\scp.exe
     SSH_KEY = $(USERPROFILE)\.ssh\id_rsa_azure
+    RM = del /f /q
+    MAKE_CMD = make
 else
     SSH = ssh
     SCP = scp
     SSH_KEY = ~/.ssh/id_rsa_azure
+    RM = rm -f
+    MAKE_CMD = $(MAKE)
 endif
 
 .PHONY: start deploy-stack build-image sync-source seed-db stop ssh update-dns logs-api logs-worker prune-runtime-images
@@ -25,7 +29,7 @@ start:
 	cd $(TF_DIR) && terraform init -upgrade && terraform apply -auto-approve
 	@echo "=> Waiting 45s for VM SSH to boot..."
 	timeout /t 45 /nobreak
-	$(MAKE) deploy-stack
+	$(MAKE_CMD) deploy-stack
 
 # Internal target: runs AFTER infrastructure exists so $(VM_IP) evaluates correctly
 deploy-stack:
@@ -37,20 +41,25 @@ deploy-stack:
 	@$(SCP) -O $(SSH_OPTIONS) -i $(SSH_KEY) $(ENV_FILE) ubuntu@$(VM_IP):/tmp/.env
 	$(if $(FIREBASE_JSON),@$(SCP) -O $(SSH_OPTIONS) -i $(SSH_KEY) $(FIREBASE_JSON) ubuntu@$(VM_IP):/tmp/$(FIREBASE_JSON_NAME),)
 	@echo "=> Ensuring Docker Image errandy/app:latest exists in K3s..."
-	@$(SSH) $(SSH_OPTIONS) -i $(SSH_KEY) ubuntu@$(VM_IP) "sudo k3s ctr images ls | grep -q errandy/app:latest" || $(MAKE) build-image
+	@$(SSH) $(SSH_OPTIONS) -i $(SSH_KEY) ubuntu@$(VM_IP) "sudo k3s ctr images ls | grep -q errandy/app:latest" || $(MAKE_CMD) build-image
 	@echo "=> Applying Kubernetes Secrets..."
 	$(SSH) $(SSH_OPTIONS) -i $(SSH_KEY) ubuntu@$(VM_IP) "export KUBECONFIG=/home/ubuntu/.kube/config && kubectl delete secret errandy-secrets firebase-secrets --ignore-not-found && kubectl create secret generic errandy-secrets --from-env-file=/tmp/.env $(if $(FIREBASE_JSON),&& kubectl create secret generic firebase-secrets --from-file=/tmp/$(FIREBASE_JSON_NAME),)"
 	@echo "=> Syncing & Applying Kubernetes Manifests..."
-	@$(MAKE) sync-source
+	@$(MAKE_CMD) sync-source
 	$(SSH) $(SSH_OPTIONS) -i $(SSH_KEY) ubuntu@$(VM_IP) "export KUBECONFIG=/home/ubuntu/.kube/config && kubectl apply -k /home/ubuntu/errandy/infrastructure/k8s/base"
 	@echo "=> Rolling out the Errandy API and Worker deployments..."
 	$(SSH) $(SSH_OPTIONS) -i $(SSH_KEY) ubuntu@$(VM_IP) "export KUBECONFIG=/home/ubuntu/.kube/config && kubectl rollout restart deployment/errandy-api deployment/errandy-worker && kubectl rollout status deployment/errandy-api --timeout=180s && kubectl rollout status deployment/errandy-worker --timeout=180s"
-	$(MAKE) prune-runtime-images
+	$(MAKE_CMD) prune-runtime-images
 	@echo "=> Environment is completely up and running!"
 
 sync-source:
-	@echo "=> Syncing Errandy source files to ubuntu@$(VM_IP):/home/ubuntu/errandy..."
-	tar --exclude='node_modules' --exclude='dist' --exclude='.git' --exclude='coverage' --exclude='infrastructure/terraform/.terraform' -czf - . | $(SSH) $(SSH_OPTIONS) -i $(SSH_KEY) ubuntu@$(VM_IP) "mkdir -p /home/ubuntu/errandy && tar -xzf - -C /home/ubuntu/errandy"
+	@echo "=> Packaging Errandy source files..."
+	tar --exclude=errandy.tar.gz --exclude=node_modules --exclude=dist --exclude=.git --exclude=coverage --exclude=infrastructure/terraform/.terraform -czf errandy.tar.gz .
+	@echo "=> Uploading errandy.tar.gz to ubuntu@$(VM_IP):/tmp/..."
+	@$(SCP) -O $(SSH_OPTIONS) -i $(SSH_KEY) errandy.tar.gz ubuntu@$(VM_IP):/tmp/errandy.tar.gz
+	@echo "=> Extracting on remote VM at /home/ubuntu/errandy..."
+	@$(SSH) $(SSH_OPTIONS) -i $(SSH_KEY) ubuntu@$(VM_IP) "mkdir -p /home/ubuntu/errandy && tar -xzf /tmp/errandy.tar.gz -C /home/ubuntu/errandy && rm -f /tmp/errandy.tar.gz"
+	-@$(RM) errandy.tar.gz
 
 build-image: sync-source
 	@echo "=> Building Docker Image and Loading into K3s..."
