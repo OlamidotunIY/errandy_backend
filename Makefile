@@ -5,6 +5,7 @@
 TF_DIR = infrastructure/terraform
 VM_IP = $(shell terraform -chdir=$(TF_DIR) output -raw k3s_vm_public_ip)
 ENV_FILE = $(if $(wildcard .env.production),.env.production,.env)
+DEPLOY_BRANCH ?= main
 SSH_COMMON_OPTIONS = -o BatchMode=yes -o ConnectTimeout=20 -o ConnectionAttempts=5 -o ServerAliveInterval=15 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=no
 SSH_OPTIONS = -n $(SSH_COMMON_OPTIONS)
 SCP_OPTIONS = $(SSH_COMMON_OPTIONS)
@@ -55,12 +56,14 @@ deploy-stack:
 	@echo "=> Environment is completely up and running!"
 
 sync-source:
-	@echo "=> Packaging Errandy source files..."
-	tar --exclude=errandy.tar.gz --exclude=node_modules --exclude=dist --exclude=.git --exclude=coverage --exclude=infrastructure/terraform/.terraform -czf errandy.tar.gz .
+	@echo "=> Fetching origin/$(DEPLOY_BRANCH)..."
+	git fetch origin $(DEPLOY_BRANCH)
+	@echo "=> Packaging GitHub commit $$(git rev-parse --short origin/$(DEPLOY_BRANCH)) from origin/$(DEPLOY_BRANCH)..."
+	git archive --format=tar.gz --output=errandy.tar.gz origin/$(DEPLOY_BRANCH)
 	@echo "=> Uploading errandy.tar.gz to ubuntu@$(VM_IP):/tmp/..."
 	@$(SCP) -O $(SCP_OPTIONS) -i $(SSH_KEY) errandy.tar.gz ubuntu@$(VM_IP):/tmp/errandy.tar.gz
 	@echo "=> Extracting on remote VM at /home/ubuntu/errandy..."
-	@$(SSH) $(SSH_OPTIONS) -i $(SSH_KEY) ubuntu@$(VM_IP) "mkdir -p /home/ubuntu/errandy && tar -xzf /tmp/errandy.tar.gz -C /home/ubuntu/errandy && rm -f /tmp/errandy.tar.gz"
+	@$(SSH) $(SSH_OPTIONS) -i $(SSH_KEY) ubuntu@$(VM_IP) "rm -rf /home/ubuntu/errandy && mkdir -p /home/ubuntu/errandy && tar -xzf /tmp/errandy.tar.gz -C /home/ubuntu/errandy && rm -f /tmp/errandy.tar.gz"
 	-@$(RM) errandy.tar.gz
 
 build-image: sync-source
