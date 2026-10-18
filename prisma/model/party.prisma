@@ -10,12 +10,16 @@ model Party {
   organization Organization?
   providerRole ProviderRole?
   clientRole   ClientRole?
+
+  @@map("parties")
 }
 
 model Person {
   id     String @id @map("_id") // shared PK with Party
   party  Party  @relation(fields: [id], references: [id])
   userId String @unique
+
+  @@map("persons")
 }
 
 model Organization {
@@ -28,6 +32,8 @@ model Organization {
   createdAt                  DateTime @default(now())
 
   members OrganizationMember[]
+
+  @@map("organizations")
 }
 
 model OrganizationMember {
@@ -39,6 +45,7 @@ model OrganizationMember {
   active              Boolean       @default(true)
 
   @@unique([organizationPartyId, userId])
+  @@map("organization_members")
 }
 
 model ProviderRole {
@@ -56,6 +63,8 @@ model ProviderRole {
   isActive               Boolean      @default(true)
   createdAt              DateTime     @default(now())
   updatedAt              DateTime     @updatedAt
+
+  @@map("provider_roles")
 }
 
 model ProviderBadge {
@@ -65,6 +74,8 @@ model ProviderBadge {
   awardedByOrganizationPartyId String
   period                  String
   awardedAt               DateTime  @default(now())
+
+  @@map("provider_badges")
 }
 
 model ClientRole {
@@ -74,6 +85,8 @@ model ClientRole {
   isActive               Boolean  @default(true)
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
+
+  @@map("client_roles")
 }
 
 enum PartyKind {
