@@ -1,10 +1,11 @@
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { GetPartyByIdQuery, GetPartyByIdResponseDto } from '.';
+import { GetPartyByIdQuery } from './get-party-by-id.query';
+import { GetPartyByIdResponseDto } from './get-party-by-id.request.dto';
 import {
   IPartyRepository,
   PartyInvariantError,
   PartyNotFoundError,
-} from '@module/party';
+} from '../../../domain';
 
 @QueryHandler(GetPartyByIdQuery)
 export class GetPartyByIdHandler implements IQueryHandler<GetPartyByIdQuery> {

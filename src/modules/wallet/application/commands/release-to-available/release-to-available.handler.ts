@@ -5,9 +5,9 @@ import {
   WalletNotFoundError,
   BucketType,
   LedgerEntry,
-} from '@module/wallet';
-import { Money } from '@module/escrow';
-import { ReleaseToAvailableCommand } from './';
+} from '../../../domain';
+import { Money } from '@module/escrow/domain';
+import { ReleaseToAvailableCommand } from './release-to-available.command';
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 import { isTransientTransactionError } from '@src/prisma/prisma.service';
 

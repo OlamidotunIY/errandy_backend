@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import {
   GatewayLedgerTransaction,
   GatewayLedgerTransactionPage,
-} from '@module/wallet';
+} from './gateway-ledger-transaction-page.adapter';
 import { Currency, Money } from '@module/escrow';
 import { Paystack } from '@paystack/paystack-sdk';
 import { ILogger, PaystackTransactionType } from '@src/common';

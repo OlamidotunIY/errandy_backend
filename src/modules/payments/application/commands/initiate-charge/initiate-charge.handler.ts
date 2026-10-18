@@ -1,19 +1,23 @@
 import { CommandHandler, ICommandHandler, EventBus } from '@nestjs/cqrs';
 import * as crypto from 'node:crypto';
+import { InitiateChargeCommand } from './initiate-charge.command';
+import { InitiateChargeResponseDto } from './initiate-charge.dto';
 import {
-  InitiateChargeCommand,
   IPaymentGatewayAdapter,
   IPaymentMethodRepository,
   IPaymentTransactionRepository,
-  InitiateChargeResponseDto,
   PaymentTransaction,
   ChargeFailedError,
-} from '../../../';
-import { IPartyRepository, PartyId } from '@module/party';
-import { ErrandId } from '@module/errands';
-import { Money } from '@module/escrow';
-import { ILogger } from '@src/common';
-import { IUserRepository } from '@module/user';
+} from '../../../domain';
+import { PartyId } from '@module/party/domain';
+import { ErrandId } from '@module/errands/domain';
+import { Money } from '@module/escrow/domain';
+import {
+  ILogger,
+  IPartyReadPort,
+  IUserReadPort,
+  ReferenceNotFoundError,
+} from '@src/common';
 
 @CommandHandler(InitiateChargeCommand)
 export class InitiateChargeHandler implements ICommandHandler<InitiateChargeCommand> {
@@ -21,8 +25,8 @@ export class InitiateChargeHandler implements ICommandHandler<InitiateChargeComm
     private readonly gateway: IPaymentGatewayAdapter,
     private readonly paymentMethod: IPaymentMethodRepository,
     private readonly transactionRepository: IPaymentTransactionRepository,
-    private readonly userRepo: IUserRepository,
-    private readonly partyRepo: IPartyRepository,
+    private readonly userReadPort: IUserReadPort,
+    private readonly partyReadPort: IPartyReadPort,
     private readonly eventBus: EventBus,
     private readonly logger: ILogger,
   ) {}
@@ -41,22 +45,22 @@ export class InitiateChargeHandler implements ICommandHandler<InitiateChargeComm
     });
 
     // 1. Get the party details to find the userId
-    const partyRow = await this.partyRepo.findById(clientPartyId);
+    const partyRow = await this.partyReadPort.findById(clientPartyId);
 
     if (!partyRow) {
-      throw new Error(`Party not found: ${clientPartyId}`);
+      throw new ReferenceNotFoundError('Party', clientPartyId);
     }
 
-    const userId = partyRow.person?.userId || partyRow.organization?.ownerId;
+    const userId = partyRow.personUserId || partyRow.organizationOwnerUserId;
     if (!userId) {
       throw new Error(`User ID not found for party: ${clientPartyId}`);
     }
 
     // 2. Get the user email
-    const userRow = await this.userRepo.findById(userId.toString());
+    const userRow = await this.userReadPort.findById(userId);
 
     if (!userRow?.email) {
-      throw new Error(`Email not found for user: ${userId.toString()}`);
+      throw new ReferenceNotFoundError('User', userId);
     }
 
     const email = userRow.email;
@@ -93,18 +97,30 @@ export class InitiateChargeHandler implements ICommandHandler<InitiateChargeComm
     );
 
     // 6. Handle charge result and publish events
+    const correlationId = crypto.randomUUID();
     if (chargeResult.success) {
-      const correlationId = crypto.randomUUID();
       transaction.markSucceeded(chargeResult.gatewayReference, correlationId);
       await this.transactionRepository.save(transaction);
+
+      for (const event of transaction.pullDomainEvents()) {
+        this.eventBus.publish(event);
+      }
 
       return {
         gatewayReference: chargeResult.gatewayReference,
       };
     } else {
       const reason = chargeResult.failureReason || 'Charge failed';
-      transaction.markFailed(reason, chargeResult.gatewayReference);
+      transaction.markFailed(
+        reason,
+        correlationId,
+        chargeResult.gatewayReference,
+      );
       await this.transactionRepository.save(transaction);
+
+      for (const event of transaction.pullDomainEvents()) {
+        this.eventBus.publish(event);
+      }
 
       throw new ChargeFailedError(reason);
     }

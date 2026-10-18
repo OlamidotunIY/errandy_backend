@@ -1,4 +1,5 @@
-import { Address, AddressId } from '@module/address';
+import { Address } from '../entities';
+import { AddressId } from '../value-object';
 import { UserId } from '@module/user';
 
 export abstract class IAddressRepository {

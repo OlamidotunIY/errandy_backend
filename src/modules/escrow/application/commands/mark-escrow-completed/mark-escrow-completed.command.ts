@@ -1,4 +1,4 @@
-import { MarkEscrowCompletedPayload } from '@module/escrow';
+import { MarkEscrowCompletedPayload } from './mark-escrow-completed.payload';
 import { Command } from '@nestjs/cqrs';
 
 export class MarkEscrowCompletedCommand extends Command<void> {

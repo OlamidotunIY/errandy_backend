@@ -2,7 +2,7 @@ import { Args, Query, Resolver } from '@nestjs/graphql';
 import { QueryBus } from '@nestjs/cqrs';
 import { EscrowGraphQLType } from '../graphql';
 import { CurrentUser } from '@src/common/decorators/current-user.decorator';
-import { GetEscrowByErrandQuery } from '@module/escrow';
+import { GetEscrowByErrandQuery } from '../../application';
 import { ErrandId } from '@module/errands';
 
 @Resolver()

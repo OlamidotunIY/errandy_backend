@@ -1,8 +1,6 @@
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import {
-  UpdateAssignmentConfirmationCommand,
-  UpdateAssignmentConfirmationResponseDto,
-} from '.';
+import { UpdateAssignmentConfirmationCommand } from './update-assignment-confirmation.command';
+import { UpdateAssignmentConfirmationResponseDto } from './update-assignment-confirmation.request.dto';
 import {
   ErrandInvariantError,
   ErrandNotFoundError,

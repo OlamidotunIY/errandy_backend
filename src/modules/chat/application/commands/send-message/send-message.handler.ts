@@ -1,5 +1,6 @@
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import { SendMessageCommand, SendMessageResponseDto } from '.';
+import { SendMessageCommand } from './send-message.command';
+import { SendMessageResponseDto } from './send-message.request.dto';
 import {
   ChatMessage,
   ChatThreadClosedError,

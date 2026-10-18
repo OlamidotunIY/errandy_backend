@@ -1,4 +1,4 @@
-import { ApplicationId } from '@src/modules';
+import { ApplicationId } from '../../../domain';
 
 export interface MarkApplicationAcceptanceFailedPayload {
   applicationId: ApplicationId;

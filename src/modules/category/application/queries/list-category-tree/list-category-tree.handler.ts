@@ -1,5 +1,6 @@
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { CategoryTreeNodeResponseDto, ListCategoryTreeQuery } from '.';
+import { ListCategoryTreeQuery } from './list-category-tree.query';
+import { CategoryTreeNodeResponseDto } from './list-category-tree.request.dto';
 import { Category, ICategoryRepository } from '@module/category/domain';
 
 @QueryHandler(ListCategoryTreeQuery)

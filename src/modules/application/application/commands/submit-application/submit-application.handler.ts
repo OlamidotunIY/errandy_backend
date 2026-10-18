@@ -1,16 +1,16 @@
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import { SubmitApplicationCommand } from './';
+import { SubmitApplicationCommand } from './submit-application.command';
 import {
   Application,
   ApplicationId,
   ApplicationInvariantError,
   DuplicateApplicationError,
   IApplicationRepository,
-} from '@module/application';
+} from '../../../domain';
 import { ILogger } from '@src/common';
 
 @CommandHandler(SubmitApplicationCommand)
-class SubmitApplicationHandler implements ICommandHandler<SubmitApplicationCommand> {
+export class SubmitApplicationHandler implements ICommandHandler<SubmitApplicationCommand> {
   constructor(
     private readonly repository: IApplicationRepository,
     private readonly event: EventBus,

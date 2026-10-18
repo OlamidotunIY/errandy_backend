@@ -1,10 +1,10 @@
-import { RatingSubmittedEvent } from '@module/rating';
+import { RatingSubmittedEvent } from '@module/rating/domain';
 import { EventBus, EventsHandler, IEventHandler } from '@nestjs/cqrs';
 import {
   IPartyRepository,
   PartyNotFoundError,
   ProviderRoleNotFoundError,
-} from '@module/party';
+} from '../../../domain';
 import { ILogger } from '@src/common';
 
 @EventsHandler(RatingSubmittedEvent)

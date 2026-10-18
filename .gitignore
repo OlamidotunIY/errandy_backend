@@ -37,6 +37,7 @@ lerna-debug.log*
 
 # dotenv environment variable files
 .env
+.env.production
 .env.development.local
 .env.test.local
 .env.production.local
@@ -64,6 +65,8 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 **/terraform.tfvars
 **/.terraform.tfstate.lock.info
 
-# Kubernetes secrets (generated from .env)
+# Kubernetes & Firebase secrets
 k8s/secret.yaml
+infrastructure/Firebase/*.json
 variables.txt
+errandy.tar.gz

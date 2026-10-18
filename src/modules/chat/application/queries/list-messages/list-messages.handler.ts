@@ -1,5 +1,6 @@
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { ListMessagesQuery, ListMessagesResponseDto } from '.';
+import { ListMessagesQuery } from './list-messages.query';
+import { ListMessagesResponseDto } from './list-messages.request.dto';
 import { IChatMessageRepository } from '@module/chat/domain';
 
 @QueryHandler(ListMessagesQuery)

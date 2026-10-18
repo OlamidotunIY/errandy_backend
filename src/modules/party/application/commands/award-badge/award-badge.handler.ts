@@ -1,18 +1,16 @@
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
-import {
-  AwardBadgeCommand,
-  AwardBadgeResponseDto,
-  ProviderBadge,
-  ProviderBadgeId,
-} from '@module/party';
+import { AwardBadgeCommand } from './award-badge.command';
+import { AwardBadgeResponseDto } from './award-badge.request.dto';
 import {
   IPartyRepository,
   IProviderBadgeRepository,
   PartyInvariantError,
   PartyNotFoundError,
   ProviderRoleNotFoundError,
-} from '@module/party';
-import { PartyId } from '@module/party';
+  ProviderBadge,
+  ProviderBadgeId,
+  PartyId,
+} from '../../../domain';
 import { ILogger } from '@src/common';
 
 @CommandHandler(AwardBadgeCommand)

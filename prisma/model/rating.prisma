@@ -1,39 +1,40 @@
-enum RateeType {
-    PROVIDER
-    CLIENT
+model Rating {
+  id        String        @id @default(uuid()) @map("_id")
+  errandId  String        
+  raterId   String        // Party — plain scalar
+  rateeId   String        // Party — plain scalar
+  context   RatingContext @default(CLIENT_FACING)
+  score     Int           // 1–5
+  comment   String?       // CLIENT_FACING only — never populated for INTERNAL
+  createdAt DateTime      @default(now())
+
+  @@unique([errandId, raterId, rateeId, context])
+  @@index([rateeId, context])
+  @@map("ratings")
 }
 
-model Rating {
-    id        String     @id @default(uuid()) @map("_id")
-    raterId   String    
-    rateeId   String    
-    rateeType RateeType
-    errandId  String?   
-    rating    Int
-    comment   String?
-    createdAt DateTime  @default(now())
-
-    @@map("ratings")
+enum RatingContext {
+  CLIENT_FACING
+  INTERNAL
 }
 
 model RatingReaction {
-    id        String    @id @default(uuid()) @map("_id")
-    ratingId  String   
-    userId    String   
-    emoji     String // e.g. "👍", "❤️", "😊"
-    createdAt DateTime @default(now())
+  id        String   @id @default(uuid()) @map("_id")
+  ratingId  String   
+  userId    String   
+  emoji     String
+  createdAt DateTime @default(now())
 
-
-    @@unique([ratingId, userId])
-    @@map("rating_reactions")
+  @@unique([ratingId, userId])
+  @@map("rating_reactions")
 }
 
 model RatingReply {
-    id        String    @id @default(uuid()) @map("_id")
-    ratingId  String   
-    userId    String   
-    content   String
-    createdAt DateTime @default(now())
+  id        String   @id @default(uuid()) @map("_id")
+  ratingId  String   
+  userId    String   
+  content   String
+  createdAt DateTime @default(now())
 
-    @@map("rating_replies")
+  @@map("rating_replies")
 }

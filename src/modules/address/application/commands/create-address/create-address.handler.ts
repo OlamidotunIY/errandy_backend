@@ -1,11 +1,11 @@
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
+import { CreateAddressCommand } from './create-address.command';
+import { AddressDto } from './create-address.payload';
 import {
   Address,
-  AddressDto,
   Coordinates,
-  CreateAddressCommand,
   IAddressRepository,
-} from '@module/address';
+} from '../../../domain';
 import { ILogger } from '@src/common';
 
 @CommandHandler(CreateAddressCommand)
@@ -55,6 +55,11 @@ export class CreateAddressHandler implements ICommandHandler<CreateAddressComman
       city: address.city,
       state: address.state,
       country: address.country,
+      isDefault: address.isDefault,
+      coordinates: {
+        latitude: address.coordinates.latitude,
+        longitude: address.coordinates.longitude,
+      },
       createdAt: address.createdAt,
       updatedAt: address.updatedAt,
     };

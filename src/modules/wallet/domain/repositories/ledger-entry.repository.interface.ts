@@ -1,5 +1,5 @@
-import { LedgerEntry } from '../entities';
-import { WalletId } from '..';
+import { LedgerEntry } from '../entities/ledger-entry.entity';
+import { WalletId } from '../value-objects';
 
 enum BucketType {
   ACTIVE = 'active',

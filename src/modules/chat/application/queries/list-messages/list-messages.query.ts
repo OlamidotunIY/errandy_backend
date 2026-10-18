@@ -1,5 +1,5 @@
 import { Query } from '@nestjs/cqrs';
-import { ListMessagesRequestDto, ListMessagesResponseDto } from '.';
+import { ListMessagesRequestDto, ListMessagesResponseDto } from './list-messages.request.dto';
 
 export class ListMessagesQuery extends Query<ListMessagesResponseDto> {
   constructor(public readonly payload: ListMessagesRequestDto) {

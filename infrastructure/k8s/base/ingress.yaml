@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: errandy-ingress
+spec:
+  ingressClassName: traefik
+  rules:
+  - host: api.errandy.com.ng
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: errandy-api
+            port:
+              number: 8080

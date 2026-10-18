@@ -1,5 +1,6 @@
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { ChatThreadResponseDto, GetChatThreadByErrandIdQuery } from '.';
+import { GetChatThreadByErrandIdQuery } from './get-chat-thread-by-errand-id.query';
+import { ChatThreadResponseDto } from './get-chat-thread-by-errand-id.request.dto';
 import { IChatThreadRepository } from '@module/chat/domain';
 
 @QueryHandler(GetChatThreadByErrandIdQuery)

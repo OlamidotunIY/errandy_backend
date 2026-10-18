@@ -5,11 +5,11 @@ import {
   IPartyRepository,
   PartyNotFoundError,
   ProviderRoleNotFoundError,
-} from '@module/party';
+} from '../../../domain';
 import {
   TrustedCircleMemberConfirmedEvent,
   TrustedCircleMemberRemovedEvent,
-} from '@module/trusted-circle';
+} from '@module/trusted-circle/domain';
 import { ILogger } from '@src/common';
 
 @Injectable()

@@ -1,4 +1,4 @@
-import { CreditActiveErrandCommand } from './';
+import { CreditActiveErrandCommand } from './credit-active-errand.command';
 import { CommandHandler, EventBus, ICommandHandler } from '@nestjs/cqrs';
 import {
   LedgerEntryRepository,

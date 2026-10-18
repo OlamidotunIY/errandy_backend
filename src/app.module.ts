@@ -5,6 +5,9 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { GqlConfig } from '@src/config/graphql-ws';
 import { GraphqlExceptionFilter } from '@src/common/filters/graphql-exception.filter';
 import { PrismaModule } from './prisma/prisma.module';
+import { CommonModule } from '@src/common/common.module';
+import { RedisModule } from '@src/infrastructure/redis/redis.module';
+import { PubSubModule } from '@src/infrastructure/pubsub/pubsub.module';
 import { NotificationModule } from '@module/notification/notification.module';
 import { PartyModule } from '@module/party/party.module';
 import { AddressModule } from '@module/address/address.module';
@@ -14,6 +17,13 @@ import { CategoryModule } from '@module/category/category.module';
 import { WalletModule } from '@module/wallet/wallet.module';
 import { ChatModule } from '@module/chat/chat.module';
 import { UserModule } from '@module/user/user.module';
+import { ErrandsModule } from '@module/errands/errands.module';
+import { ApplicationModule } from '@module/application/application.module';
+import { PaymentsModule } from '@module/payments/payments.module';
+import { VerificationModule } from '@module/verification/verification.module';
+import { TrustedCircleModule } from '@module/trusted-circle/trusted-circle.module';
+import { RatingModule } from '@module/rating/rating.module';
+import { DisputeModule } from '@module/dispute/dispute.module';
 import { PaymentProviderModule } from '@src/infrastructure/payment-provider';
 
 @Module({
@@ -21,6 +31,9 @@ import { PaymentProviderModule } from '@src/infrastructure/payment-provider';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    CommonModule,
+    RedisModule,
+    PubSubModule,
     PaymentProviderModule,
     GqlConfig,
     EventEmitterModule.forRoot(),
@@ -34,6 +47,13 @@ import { PaymentProviderModule } from '@src/infrastructure/payment-provider';
     WalletModule,
     ChatModule,
     UserModule,
+    ErrandsModule,
+    ApplicationModule,
+    PaymentsModule,
+    VerificationModule,
+    TrustedCircleModule,
+    RatingModule,
+    DisputeModule,
   ],
   controllers: [],
   providers: [

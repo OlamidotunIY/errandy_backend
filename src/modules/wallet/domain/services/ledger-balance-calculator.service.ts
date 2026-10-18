@@ -1,9 +1,7 @@
-import {
-  LedgerEntry,
-  LedgerEntryType,
-  WalletBalancesDTO,
-} from '@module/wallet';
-import { Currency } from '@module/escrow';
+import { LedgerEntry } from '../entities/ledger-entry.entity';
+import { LedgerEntryType } from '../value-objects';
+import { WalletBalancesDTO } from '../../application/queries/get-wallet-balances/get-wallet-balances.query';
+import { Currency } from '@module/escrow/domain';
 
 class LedgerBalanceCalculator {
   calculate(entries: LedgerEntry[], currency: Currency): WalletBalancesDTO {

@@ -1,14 +1,20 @@
-model ProviderVerification {
-    id              String              @id @map("_id")
-    providerPartyId String @unique
-    // requiredSteps StepType[]
-    createdAt       DateTime           @default(now())
-    updateAt        DateTime @updatedAt
-
-    @@map("provider_verifications")
+type VerificationStep {
+  stepType        String    // NIN_VERIFIED | LICENSE_VERIFIED | BUSINESS_REG_VERIFIED
+  status          String    @default("PENDING") // PENDING | SUBMITTED | APPROVED | REJECTED
+  documentUrls    String[]  @default([])
+  submittedAt     DateTime?
+  reviewedAt      DateTime?
+  reviewerId      String?   // better-auth admin user id, null if system-approved
+  rejectionReason String?
 }
 
-enum OverallStatus {
-    INCOMPLETE
-    COMPLETE
+model VerificationProfile {
+  id            String             @id @default(uuid()) @map("_id")
+  partyId       String             @unique // Party
+  steps         VerificationStep[]
+  overallStatus String             @default("INCOMPLETE") // INCOMPLETE | COMPLETE
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@map("verification_profiles")
 }

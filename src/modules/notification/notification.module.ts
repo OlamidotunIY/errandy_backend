@@ -3,26 +3,35 @@ import { CqrsModule } from '@nestjs/cqrs';
 import { ConfigModule } from '@nestjs/config';
 import { FirebaseModule } from '@src/firebase/firebase.module';
 import {
-  EmailAdapter,
+  GetMarketTemplateHandler,
+  ListMarketTemplatesHandler,
+  ListNotificationsByUserHandler,
+  OnApplicationEventsHandler,
+  OnDisputeEventsHandler,
+  OnErrandEventsHandler,
+  OnNotificationRequestedHandler,
+  OnPaymentEventsHandler,
+  SendAdminBroadcastHandler,
+  SendNotificationHandler,
+  UpdateMarketTemplateHandler,
+  UpdateNotificationPreferenceHandler,
+} from './application';
+import {
   INotificationLogRepository,
   INotificationPreferenceRepository,
   INotificationTemplateRepository,
-  ListNotificationsByUserHandler,
+} from './domain';
+import {
+  EmailAdapter,
   NotificationLogMapper,
   NotificationLogRepository,
   NotificationPreferenceMapper,
   NotificationPreferenceRepository,
   PrismaNotificationTemplateRepository,
   PushNotificationAdapter,
-  SendNotificationHandler,
   SmsAdapter,
-  UpdateNotificationPreferenceHandler,
-  GetMarketTemplateHandler,
-  ListMarketTemplatesHandler,
-  UpdateMarketTemplateHandler,
-  SendAdminBroadcastHandler,
-  NotificationTemplateResolver,
-} from '@module/notification';
+} from './infrastructure';
+import { NotificationTemplateResolver } from './presentation';
 
 @Module({
   imports: [CqrsModule, ConfigModule, FirebaseModule],
@@ -52,6 +61,11 @@ import {
     UpdateMarketTemplateHandler,
     SendAdminBroadcastHandler,
     NotificationTemplateResolver,
+    OnApplicationEventsHandler,
+    OnPaymentEventsHandler,
+    OnDisputeEventsHandler,
+    OnErrandEventsHandler,
+    OnNotificationRequestedHandler,
   ],
   exports: [
     INotificationLogRepository,

@@ -1,9 +1,19 @@
 {
   "moduleFileExtensions": ["js", "json", "ts"],
-  "rootDir": ".",
+  "rootDir": "../",
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
-  }
+  },
+  "moduleNameMapper": {
+    "^auth$": "<rootDir>/auth",
+    "^@module/(.*)$": "<rootDir>/src/modules/$1",
+    "^@module$": "<rootDir>/src/modules",
+    "^@src/(.*)$": "<rootDir>/src/$1",
+    "^@src$": "<rootDir>/src"
+  },
+  "transformIgnorePatterns": [
+    "node_modules/(?!(better-auth|@better-auth)/)"
+  ]
 }

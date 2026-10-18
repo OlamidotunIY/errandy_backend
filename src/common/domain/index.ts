@@ -5,3 +5,6 @@ export * from './domain-error';
 export * from './domain-event';
 export * from './entity-id';
 export * from './json';
+export * from './ports';
+export * from './integration-events';
+export * from './errors';

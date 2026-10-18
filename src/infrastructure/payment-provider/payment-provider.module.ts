@@ -1,7 +1,13 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Paystack } from '@paystack/paystack-sdk';
+import * as PaystackPkg from '@paystack/paystack-sdk';
+import type { Paystack } from '@paystack/paystack-sdk';
 import { PAYMENT_PROVIDER } from './payment-provider.constants';
+
+const PaystackClient =
+  (PaystackPkg as unknown as { Paystack?: typeof Paystack; default?: typeof Paystack }).Paystack ??
+  (PaystackPkg as unknown as { default?: typeof Paystack }).default ??
+  (PaystackPkg as unknown as typeof Paystack);
 
 /**
  * Global module that provides a single, shared Paystack SDK instance.
@@ -20,7 +26,9 @@ import { PAYMENT_PROVIDER } from './payment-provider.constants';
     {
       provide: PAYMENT_PROVIDER,
       useFactory: (config: ConfigService) => {
-        return new Paystack(config.getOrThrow<string>('PAYSTACK_SECRET_KEY'));
+        return new PaystackClient(
+          config.getOrThrow<string>('PAYSTACK_SECRET_KEY'),
+        );
       },
       inject: [ConfigService],
     },

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, Wallet as PrismaWalletRow } from '@prisma/client';
-import { Wallet, WalletId } from '@module/wallet';
+import { Wallet, WalletId } from '../../domain';
 import { Currency } from '@module/escrow';
 import { UserId } from '@module/user';
 @Injectable()

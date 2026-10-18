@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { IProviderBadgeRepository, ProviderBadge } from '@module/party';
+import { IProviderBadgeRepository, ProviderBadge } from '../../domain';
 import { PrismaService } from '@src/prisma/prisma.service';
 import { ProviderBadgeMapper } from '../mappers';
 

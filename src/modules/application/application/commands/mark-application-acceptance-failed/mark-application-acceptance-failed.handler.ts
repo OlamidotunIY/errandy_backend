@@ -1,6 +1,6 @@
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
-import { MarkApplicationAcceptanceFailedCommand } from './';
-import { IAcceptApplicationProgressRepository } from '@src/modules';
+import { MarkApplicationAcceptanceFailedCommand } from './mark-application-acceptance-failed.command';
+import { IAcceptApplicationProgressRepository } from '../../../domain';
 
 @CommandHandler(MarkApplicationAcceptanceFailedCommand)
 export class MarkApplicationAcceptanceFailedHandler implements ICommandHandler<MarkApplicationAcceptanceFailedCommand> {

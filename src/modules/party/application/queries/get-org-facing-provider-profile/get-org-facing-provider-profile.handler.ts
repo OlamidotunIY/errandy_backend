@@ -1,8 +1,6 @@
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import {
-  GetOrgFacingProviderProfileQuery,
-  GetOrgFacingProviderProfileResponseDto,
-} from '.';
+import { GetOrgFacingProviderProfileQuery } from './get-org-facing-provider-profile.query';
+import { GetOrgFacingProviderProfileResponseDto } from './get-org-facing-provider-profile.request.dto';
 import {
   IPartyRepository,
   IProviderBadgeRepository,
@@ -10,7 +8,7 @@ import {
   PartyInvariantError,
   PartyNotFoundError,
   ProviderRoleNotFoundError,
-} from '@module/party';
+} from '../../../domain';
 
 @QueryHandler(GetOrgFacingProviderProfileQuery)
 export class GetOrgFacingProviderProfileHandler implements IQueryHandler<GetOrgFacingProviderProfileQuery> {

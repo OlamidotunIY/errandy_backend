@@ -1,14 +1,12 @@
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
-import {
-  SetDefaultPaymentMethodCommand,
-  SetDefaultPaymentMethodResponseDto,
-} from '@module/party';
+import { SetDefaultPaymentMethodCommand } from './set-default-payment-method.command';
+import { SetDefaultPaymentMethodResponseDto } from './set-default-payment-method.request.dto';
 import {
   ClientRoleNotFoundError,
   IPartyRepository,
   PartyInvariantError,
   PartyNotFoundError,
-} from '@module/party';
+} from '../../../domain';
 import { ILogger } from '@src/common';
 
 @CommandHandler(SetDefaultPaymentMethodCommand)

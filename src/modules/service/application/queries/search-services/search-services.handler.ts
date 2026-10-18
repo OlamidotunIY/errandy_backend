@@ -1,5 +1,5 @@
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { SearchServicesQuery } from '.';
+import { SearchServicesQuery } from './search-services.query';
 import { ServiceResponseDto } from '../get-service-by-id';
 import {
   IServiceRepository,

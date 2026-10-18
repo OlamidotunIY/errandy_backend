@@ -1,4 +1,4 @@
-import { ProviderTier } from '@module/party';
+import { ProviderTier } from '@module/party/domain';
 
 export class VerificationCompletedEvent {
   constructor(

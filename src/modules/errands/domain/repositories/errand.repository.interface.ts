@@ -5,6 +5,7 @@ export abstract class IErrandRepository {
   abstract save(errand: Errand): Promise<void>;
   abstract findById(id: string): Promise<Errand | null>;
   abstract findByClientId(clientPartyId: string): Promise<Errand[]>;
+  abstract findByProviderId(providerPartyId: string): Promise<Errand[]>;
   abstract findOpenErrands(filters: {
     marketId: string;
     categoryId?: string;

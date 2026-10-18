@@ -1,5 +1,5 @@
 import { AggregateRoot } from '@src/common';
-import { ProviderTier } from '@module/party';
+import { ProviderTier } from '@module/party/domain';
 import { CategoryId } from '../value-objects';
 
 const TIER_RANK: Record<ProviderTier, number> = {

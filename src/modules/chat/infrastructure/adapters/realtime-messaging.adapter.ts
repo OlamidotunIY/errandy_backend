@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
-import { EventEmitter } from 'events';
+import { Inject, Injectable } from '@nestjs/common';
+import { PUB_SUB, SubscriptionChannels } from '@src/infrastructure/pubsub';
+import { RedisPubSub } from 'graphql-redis-subscriptions';
 
 export interface RealtimeMessagePayload {
   threadId: string;
@@ -9,28 +10,20 @@ export interface RealtimeMessagePayload {
   sentAt: string;
 }
 
-/**
- * NOTE: placeholder adapter. No GraphQL subscription/PubSub transport is
- * wired into the project yet (only `graphql-ws` transport config exists,
- * no `graphql-subscriptions` PubSub dependency). This wraps a local
- * EventEmitter so callers have a stable interface to publish/subscribe to
- * new chat messages, ready to be swapped for a real PubSub-backed
- * implementation once GraphQL subscriptions are introduced.
- */
 @Injectable()
 export class RealtimeMessagingAdapter {
-  private readonly emitter = new EventEmitter();
+  constructor(
+    @Inject(PUB_SUB)
+    private readonly pubSub: RedisPubSub,
+  ) {}
 
-  publish(payload: RealtimeMessagePayload): void {
-    this.emitter.emit(`chat-thread:${payload.threadId}`, payload);
+  async publish(payload: RealtimeMessagePayload): Promise<void> {
+    await this.pubSub.publish(SubscriptionChannels.CHAT_MESSAGE_RECEIVED, {
+      messageSent: payload,
+    });
   }
 
-  subscribe(
-    threadId: string,
-    listener: (payload: RealtimeMessagePayload) => void,
-  ): () => void {
-    const eventName = `chat-thread:${threadId}`;
-    this.emitter.on(eventName, listener);
-    return () => this.emitter.off(eventName, listener);
+  asyncIterator() {
+    return this.pubSub.asyncIterator(SubscriptionChannels.CHAT_MESSAGE_RECEIVED);
   }
 }

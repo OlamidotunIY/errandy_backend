@@ -1,8 +1,8 @@
 enum ApplicationStatus {
-  PENDING,
-  ACCEPTED,
-  REJECTED,
-  CANCELLED,
+  PENDING = 'PENDING',
+  ACCEPTED = 'ACCEPTED',
+  REJECTED = 'REJECTED',
+  CANCELLED = 'CANCELLED',
 }
 
 export { ApplicationStatus };

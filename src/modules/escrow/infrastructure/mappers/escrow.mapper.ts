@@ -6,7 +6,7 @@ import {
   EscrowId,
   EscrowStatus,
   Money,
-} from '@module/escrow';
+} from '../../domain';
 import { Prisma, Escrow as PrismaEscrow } from '@prisma/client';
 import { ErrandId } from '@module/errands';
 

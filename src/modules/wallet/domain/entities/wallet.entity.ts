@@ -1,5 +1,5 @@
-import { LedgerEntryType, WalletId } from '..';
-import { Currency, EscrowId, Money } from '@module/escrow';
+import { LedgerEntryType, WalletId } from '../value-objects';
+import { Currency, EscrowId, Money } from '@module/escrow/domain';
 import { LedgerEntry } from './ledger-entry.entity';
 import {
   InsufficientActiveBalanceError,
@@ -13,9 +13,10 @@ import {
   MovedToPending,
   ReleasedToAvailable,
   WithdrawalRecorded,
+  WithdrawalReversed,
 } from '../events';
 import { AggregateRoot } from '@src/common';
-import { UserId } from '@module/user';
+import { UserId } from '@module/user/domain';
 
 class Wallet extends AggregateRoot<WalletId> {
   private constructor(
@@ -239,6 +240,33 @@ class Wallet extends AggregateRoot<WalletId> {
         this,
         escrowId,
         gatewayReference,
+        correlationId,
+      ),
+    );
+    return entry;
+  }
+
+  recordWithdrawalReversal(
+    amount: Money,
+    gatewayReference: string,
+    reason: string,
+    correlationId: string,
+  ): LedgerEntry {
+    const creditIdempotencyKey = `${LedgerEntryType.AVAILABLE_CREDIT}_reversal_${gatewayReference}`;
+    const entry = LedgerEntry.create({
+      walletId: this.id,
+      userId: this.userId,
+      type: LedgerEntryType.AVAILABLE_CREDIT,
+      amount,
+      escrowId: null,
+      gatewayReference,
+      idempotencyKey: creditIdempotencyKey,
+    });
+    this.addDomainEvent(
+      WithdrawalReversed.fromAggregate(
+        this,
+        gatewayReference,
+        reason,
         correlationId,
       ),
     );

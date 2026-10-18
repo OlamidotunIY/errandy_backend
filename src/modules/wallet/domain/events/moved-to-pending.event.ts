@@ -1,8 +1,8 @@
 import { WalletId } from '../value-objects';
-import { EscrowId } from 'src/modules/escrow';
+import { EscrowId } from '@module/escrow/domain';
 import { Wallet } from '../entities';
 import { BaseDomainEvent } from '@src/common';
-import { UserId } from '@module/user';
+import { UserId } from '@module/user/domain';
 
 interface MovedToPendingPayload {
   walletId: WalletId;

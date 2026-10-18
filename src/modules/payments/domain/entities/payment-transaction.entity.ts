@@ -10,7 +10,8 @@ import {
   PaymentTransactionId,
 } from '../';
 import { PartyId } from '@module/party';
-import { ErrandId, Money } from '@src/modules';
+import { ErrandId } from '@module/errands/domain';
+import { Money } from '@module/escrow/domain';
 
 export class PaymentTransaction extends AggregateRoot<PaymentTransactionId> {
   constructor(
@@ -123,5 +124,51 @@ export class PaymentTransaction extends AggregateRoot<PaymentTransactionId> {
         },
       ),
     );
+  }
+
+  static reconstitute(props: {
+    id: PaymentTransactionId;
+    clientPartyId: PartyId;
+    purposeId: ErrandId;
+    amount: Money;
+    status: PaymentStatus;
+    gatewayReference: GatewayReference | null;
+    method: PaymentMethodId | null;
+    failureReason: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }): PaymentTransaction {
+    return new PaymentTransaction(
+      props.id,
+      props.clientPartyId,
+      props.purposeId,
+      props.amount,
+      props.status,
+      props.gatewayReference,
+      props.method,
+      props.failureReason,
+      props.createdAt,
+      props.updatedAt,
+    );
+  }
+
+  get getAmount(): Money {
+    return this.amount;
+  }
+
+  get status(): PaymentStatus {
+    return this._status;
+  }
+
+  get gatewayReference(): GatewayReference | null {
+    return this._gatewayReference;
+  }
+
+  get method(): PaymentMethodId | null {
+    return this._method;
+  }
+
+  get failureReason(): string | null {
+    return this._failureReason;
   }
 }

@@ -1,4 +1,4 @@
-import { EscrowDTO, GetEscrowByErrandPayload } from '@module/escrow';
+import { EscrowDTO, GetEscrowByErrandPayload } from './get-escrow-by-errand.query.payload';
 import { Query } from '@nestjs/cqrs';
 
 export class GetEscrowByErrandQuery extends Query<EscrowDTO | null> {

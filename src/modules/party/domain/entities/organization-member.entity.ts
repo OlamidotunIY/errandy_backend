@@ -1,5 +1,5 @@
 import { AggregateRoot } from '@src/common';
-import { OrganizationMemberId, OrgMemberRole, PartyId } from '@module/party';
+import { OrganizationMemberId, OrgMemberRole, PartyId } from '../value-objects';
 import { UserId } from '@module/user';
 
 export class OrganizationMember extends AggregateRoot<OrganizationMemberId> {

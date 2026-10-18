@@ -11,7 +11,7 @@ import {
   Person,
   ProviderRole,
   ProviderTier,
-} from '@module/party';
+} from '../../domain';
 import { Prisma, Party as PrismaParty } from '@prisma/client';
 import { UserId } from '@module/user';
 

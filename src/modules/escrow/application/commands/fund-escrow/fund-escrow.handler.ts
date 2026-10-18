@@ -1,6 +1,6 @@
 import { FundEscrowResult } from './fund-escrow.result';
 import { CommandHandler, EventBus } from '@nestjs/cqrs';
-import { FundEscrowCommand } from './';
+import { FundEscrowCommand } from './fund-escrow.command';
 import {
   Escrow,
   EscrowInvariantError,
@@ -9,7 +9,7 @@ import {
 import { ILogger } from '@src/common';
 
 @CommandHandler(FundEscrowCommand)
-class FundEscrowHandler {
+export class FundEscrowHandler {
   constructor(
     private readonly escrowRepository: EscrowRepository,
     private readonly logger: ILogger,
@@ -68,4 +68,3 @@ class FundEscrowHandler {
   }
 }
 
-export { FundEscrowHandler };

@@ -5,13 +5,13 @@ import {
   WorkerHost,
 } from '@nestjs/bullmq';
 import {
+  LedgerDiscrepancyDetected,
   LedgerEntryId,
   LedgerEntryRepository,
-  LedgerDiscrepancyDetected,
-  PaystackLedgerAuditAdapter,
-  ReconcileLedgerPayload,
   WalletErrorClassifier,
-} from '@module/wallet';
+} from '../../domain';
+import { PaystackLedgerAuditAdapter } from '../../infrastructure';
+import { ReconcileLedgerPayload } from './reconcile-ledger.payload';
 import { EventBus } from '@nestjs/cqrs';
 import { Job, Queue } from 'bullmq';
 import {

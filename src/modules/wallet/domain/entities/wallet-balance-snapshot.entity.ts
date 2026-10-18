@@ -1,11 +1,11 @@
 import {
-  LedgerBalanceCalculator,
-  LedgerEntry,
   LedgerEntryType,
   WalletBalanceSnapshotId,
   WalletId,
-} from 'src/modules/wallet/domain';
-import { Currency } from 'src/modules/escrow';
+} from '../value-objects';
+import { LedgerEntry } from './ledger-entry.entity';
+import { LedgerBalanceCalculator } from '../services/ledger-balance-calculator.service';
+import { Currency } from '@module/escrow/domain';
 import { AggregateRoot } from '@src/common';
 import * as crypto from 'node:crypto';
 

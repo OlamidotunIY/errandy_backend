@@ -4,7 +4,7 @@ import {
   PartyId,
   ProviderBadge,
   ProviderBadgeId,
-} from '@module/party';
+} from '../../domain';
 import { Prisma, ProviderBadge as PrismaProviderBadge } from '@prisma/client';
 
 @Injectable()

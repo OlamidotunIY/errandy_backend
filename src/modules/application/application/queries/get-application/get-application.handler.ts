@@ -1,7 +1,7 @@
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import { GetApplicationQuery, GetApplicationQueryDTO } from './';
-import { IApplicationRepository } from '@src/modules';
-import { ApplicationId } from '@module/application';
+import { GetApplicationQuery } from './get-application.query';
+import { GetApplicationQueryDTO } from './get-application.query.dto';
+import { ApplicationId, IApplicationRepository } from '../../../domain';
 
 @QueryHandler(GetApplicationQuery)
 export class GetApplicationHandler implements IQueryHandler<GetApplicationQuery> {

@@ -1,0 +1,28 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: local
+
+scrape_configs:
+  # ── Errandy API running in Docker ──
+  - job_name: 'errandy-docker'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['api:8080']
+        labels:
+          instance: errandy-docker
+
+  # ── Errandy API running locally on host ──
+  - job_name: 'errandy-local'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['host.docker.internal:8080']
+        labels:
+          instance: errandy-local
+    scrape_interval: 5s
+
+  # ── Prometheus self-monitoring ──
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

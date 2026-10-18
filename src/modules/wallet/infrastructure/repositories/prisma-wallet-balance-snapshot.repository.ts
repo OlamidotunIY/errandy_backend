@@ -4,11 +4,11 @@ import {
   LedgerEntry,
   WalletBalanceSnapshot,
   WalletId,
-  WalletBalancesDTO,
-} from '@module/wallet';
+} from '../../domain';
+import { WalletBalancesDTO } from '../../application/queries/get-wallet-balances/get-wallet-balances.query';
 import { PrismaService } from '@src/prisma/prisma.service';
-import { Currency } from 'src/modules/escrow';
-import { WalletBalanceSnapshotMapper } from '..';
+import { Currency } from '@module/escrow/domain';
+import { WalletBalanceSnapshotMapper } from '../mappers/wallet-balance-snapshot.mapper';
 
 @Injectable()
 export class PrismaWalletBalanceSnapshotRepository implements WalletBalanceRepository {

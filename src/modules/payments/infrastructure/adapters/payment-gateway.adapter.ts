@@ -6,7 +6,7 @@ import {
   PaymentAuthorization,
   PaystackAuthenticationError,
   RefundResult,
-} from '@src/modules';
+} from '../../domain';
 import { PAYMENT_PROVIDER } from '@src/infrastructure/payment-provider';
 
 @Injectable()

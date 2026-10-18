@@ -1,5 +1,5 @@
-import { EscrowDTO } from '@module/escrow';
-import { EscrowStatus } from '@module/escrow/domain';
+import { EscrowDTO } from '../../application';
+import { EscrowStatus } from '../../domain';
 import { Field, ObjectType, registerEnumType } from '@nestjs/graphql';
 
 registerEnumType(EscrowStatus, { name: 'EscrowStatus' });

@@ -1,4 +1,4 @@
-import { EscrowId } from 'src/modules/escrow/domain';
+import { EscrowId } from '../../../domain';
 
 export interface ReleaseEscrowPayload {
   escrowId: EscrowId;

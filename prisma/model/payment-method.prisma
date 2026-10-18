@@ -1,49 +1,70 @@
 model PaymentTransaction {
-    id              String   @id @default(auto()) @map("_id") @db.ObjectId
-    clientPartyId   String   @db.ObjectId   // Party — plain scalar
-    purposeId       String   @db.ObjectId   // an applicationId, or an errand id for direct bookings
-    amount          Money
-    status          String   @default("PENDING")   // PENDING | SUCCEEDED | FAILED | REFUNDED
+    id               String   @id @default(uuid()) @map("_id")
+    clientPartyId    String   
+    purposeId        String   // an applicationId, or an errand id for direct bookings
+    amount           Money
+    status           String   @default("PENDING") // PENDING | SUCCEEDED | FAILED | REFUNDED
+    direction        String   @default("CHARGE")  // CHARGE | TRANSFER
     gatewayReference String?
-    method          String?
-    failureReason   String?
-    createdAt       DateTime @default(now())
-    updatedAt       DateTime @updatedAt
+    method           String?
+    failureReason    String?
+    createdAt        DateTime @default(now())
+    updatedAt        DateTime @updatedAt
 
     @@index([purposeId])
     @@index([gatewayReference])
+    @@map("payment_transactions")
 }
 
 model PaymentMethod {
-    id      String @id @map("_id")
-    partyId String
+    id          String   @id @map("_id")
+    partyId     String
 
     provider    String
     providerRef String
     type        String
 
-    cardBrand String?
-    last4     String?
-    expMonth  Int?
-    expYear   Int?
+    cardBrand   String?
+    last4       String?
+    expMonth    Int?
+    expYear     Int?
 
-    isDefault Boolean @default(false)
-    verified  Boolean @default(false)
-    isActive  Boolean @default(true)
+    isDefault   Boolean  @default(false)
+    verified    Boolean  @default(false)
+    isActive    Boolean  @default(true)
 
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
 
+    @@index([partyId])
     @@map("payment_methods")
 }
 
 model PaystackCustomer {
-    id            String @id @map("_id")
+    id            String   @id @map("_id")
     customer_code String
     customer_id   String
 
-    userId String
+    userId        String
 
     @@unique([userId])
     @@map("paystack_customers")
+}
+
+model FailedRefund {
+    id                   String    @id @default(uuid()) @map("_id")
+    paymentTransactionId String
+    partyId              String
+    amountMinorUnits     Int
+    currency             String
+    reason               String
+    status               String    @default("PENDING_MANUAL_REVIEW") // PENDING_MANUAL_REVIEW | RESOLVED
+    resolution           String?   // RETRY_REFUND | COMPENSATE_WALLET
+    resolvedById         String?
+    resolvedAt           DateTime?
+    createdAt            DateTime  @default(now())
+    updatedAt            DateTime  @updatedAt
+
+    @@index([partyId])
+    @@map("failed_refunds")
 }
