@@ -55,12 +55,14 @@ deploy-stack:
 	@echo "=> Environment is completely up and running!"
 
 sync-source:
-	@echo "=> Packaging Errandy source files..."
-	tar --exclude=errandy.tar.gz --exclude=node_modules --exclude=dist --exclude=.git --exclude=coverage --exclude=infrastructure/terraform/.terraform -czf errandy.tar.gz .
+	@echo "=> Fetching origin/main..."
+	git fetch origin main
+	@echo "=> Packaging GitHub commit $$(git rev-parse --short origin/main) from origin/main..."
+	git archive --format=tar.gz --output=errandy.tar.gz origin/main
 	@echo "=> Uploading errandy.tar.gz to ubuntu@$(VM_IP):/tmp/..."
 	@$(SCP) -O $(SCP_OPTIONS) -i $(SSH_KEY) errandy.tar.gz ubuntu@$(VM_IP):/tmp/errandy.tar.gz
 	@echo "=> Extracting on remote VM at /home/ubuntu/errandy..."
-	@$(SSH) $(SSH_OPTIONS) -i $(SSH_KEY) ubuntu@$(VM_IP) "mkdir -p /home/ubuntu/errandy && tar -xzf /tmp/errandy.tar.gz -C /home/ubuntu/errandy && rm -f /tmp/errandy.tar.gz"
+	@$(SSH) $(SSH_OPTIONS) -i $(SSH_KEY) ubuntu@$(VM_IP) "rm -rf /home/ubuntu/errandy && mkdir -p /home/ubuntu/errandy && tar -xzf /tmp/errandy.tar.gz -C /home/ubuntu/errandy && rm -f /tmp/errandy.tar.gz"
 	-@$(RM) errandy.tar.gz
 
 build-image: sync-source
