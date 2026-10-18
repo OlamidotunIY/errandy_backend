@@ -5,6 +5,16 @@ metadata:
 spec:
   ingressClassName: traefik
   rules:
+  - host: api.errandy.name.ng
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: errandy-api
+            port:
+              number: 8080
   - host: api.errandy.com.ng
     http:
       paths:
