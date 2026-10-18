@@ -29,6 +29,7 @@ const trustedOrigins = [
   'https://errandy.com.ng',
   'https://www.errandy.com.ng',
   'https://errandy.name.ng',
+  'https://dashboard.errandy.name.ng',
   'https://errandy-backend.onrender.com',
   ...(frontendOrigin ? [frontendOrigin] : []),
 ];
