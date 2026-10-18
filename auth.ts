@@ -18,6 +18,20 @@ import {
 } from '@module';
 
 const client = new PrismaClient();
+const frontendOrigin = process.env.FRONTEND_URL;
+
+const trustedOrigins = [
+  'errandy://*',
+  'errandy:///',
+  'exp://*',
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'https://errandy.com.ng',
+  'https://www.errandy.com.ng',
+  'https://errandy.name.ng',
+  'https://errandy-backend.onrender.com',
+  ...(frontendOrigin ? [frontendOrigin] : []),
+];
 
 export const auth = betterAuth({
   database: prismaAdapter(client, {
@@ -75,13 +89,9 @@ export const auth = betterAuth({
       },
     },
   },
-  trustedOrigins: [
-    'errandy://*',
-    'errandy:///',
-    'http://localhost:3000',
-    'exp://*',
-    'https://errandy-backend.onrender.com',
-  ],
+  // Every browser origin that can start OAuth or receive its callback must be
+  // explicitly trusted. Set FRONTEND_URL in each deployed environment.
+  trustedOrigins,
   hooks: {},
   databaseHooks: {
     user: {

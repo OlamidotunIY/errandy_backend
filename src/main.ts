@@ -22,16 +22,20 @@ async function bootstrap() {
   });
 
   const configService = app.get(ConfigService);
+  const frontendOrigin = configService.get<string>('FRONTEND_URL');
 
   const allowedOrigins = [
     'http://localhost:3000',
+    'http://localhost:5173',
     'http://localhost:8081',
     'exp://localhost:8081',
     'https://errandy.com.ng',
     'https://www.errandy.com.ng',
+    'https://errandy.name.ng',
     'https://api.errandy.com',
     'exp://192.168.0.105:8081',
     'exp://192.168.0.105:19000',
+    ...(frontendOrigin ? [frontendOrigin] : []),
   ];
 
   app.enableCors({
