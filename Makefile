@@ -5,7 +5,6 @@
 TF_DIR = infrastructure/terraform
 VM_IP = $(shell terraform -chdir=$(TF_DIR) output -raw k3s_vm_public_ip)
 ENV_FILE = $(if $(wildcard .env.production),.env.production,.env)
-DEPLOY_BRANCH ?= main
 SSH_COMMON_OPTIONS = -o BatchMode=yes -o ConnectTimeout=20 -o ConnectionAttempts=5 -o ServerAliveInterval=15 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=no
 SSH_OPTIONS = -n $(SSH_COMMON_OPTIONS)
 SCP_OPTIONS = $(SSH_COMMON_OPTIONS)
@@ -56,10 +55,10 @@ deploy-stack:
 	@echo "=> Environment is completely up and running!"
 
 sync-source:
-	@echo "=> Fetching origin/$(DEPLOY_BRANCH)..."
-	git fetch origin $(DEPLOY_BRANCH)
-	@echo "=> Packaging GitHub commit $$(git rev-parse --short origin/$(DEPLOY_BRANCH)) from origin/$(DEPLOY_BRANCH)..."
-	git archive --format=tar.gz --output=errandy.tar.gz origin/$(DEPLOY_BRANCH)
+	@echo "=> Fetching origin/main..."
+	git fetch origin main
+	@echo "=> Packaging GitHub commit $$(git rev-parse --short origin/main) from origin/main..."
+	git archive --format=tar.gz --output=errandy.tar.gz origin/main
 	@echo "=> Uploading errandy.tar.gz to ubuntu@$(VM_IP):/tmp/..."
 	@$(SCP) -O $(SCP_OPTIONS) -i $(SSH_KEY) errandy.tar.gz ubuntu@$(VM_IP):/tmp/errandy.tar.gz
 	@echo "=> Extracting on remote VM at /home/ubuntu/errandy..."
