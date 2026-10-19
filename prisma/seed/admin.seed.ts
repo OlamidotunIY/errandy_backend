@@ -15,7 +15,7 @@ async function getAvailableUsername(prisma: PrismaClient, email: string) {
   return username;
 }
 
-export async function seedAdmins(prisma: PrismaClient) {
+export async function seedAdmins(prisma: PrismaClient, marketId: string) {
   console.log('Seeding initial Admin accounts...');
   const adminEmails = ['dotuniyanda@errandy.name.ng', 'admin@errandy.com'];
   const defaultPassword = process.env.DEFAULT_ADMIN_PASSWORD || 'adminpassword123';
@@ -38,6 +38,7 @@ export async function seedAdmins(prisma: PrismaClient) {
           displayUsername: username,
           emailVerified: true,
           role: Role.ADMIN,
+          marketId,
           createdAt: new Date(),
           updatedAt: new Date(),
           accounts: {
@@ -53,6 +54,12 @@ export async function seedAdmins(prisma: PrismaClient) {
       });
       console.log(`✅ Created Admin user: ${email}`);
     } else {
+      if (existingAdmin.marketId !== marketId) {
+        await prisma.user.update({
+          where: { id: existingAdmin.id },
+          data: { marketId },
+        });
+      }
       console.log(`✅ Admin user ${email} already exists.`);
     }
   }
