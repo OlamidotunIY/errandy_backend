@@ -33,6 +33,7 @@ async function bootstrap() {
     'https://www.errandy.com.ng',
     'https://errandy.name.ng',
     'https://dashboard.errandy.name.ng',
+    'https://dashboard.errandy.name.ng:3000',
     'https://api.errandy.com',
     'exp://192.168.0.105:8081',
     'exp://192.168.0.105:19000',
