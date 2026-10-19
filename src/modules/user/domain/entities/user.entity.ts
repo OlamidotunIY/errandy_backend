@@ -13,6 +13,7 @@ export class User extends AggregateRoot<UserId> {
     public readonly username: string | null,
     public readonly displayUsername: string | null,
     public readonly twoFactorEnabled: boolean | null,
+    public readonly marketId: string,
     public readonly activeAddressId: string | null,
     public readonly chatRoomIds: string[],
     public readonly createdAt: Date,

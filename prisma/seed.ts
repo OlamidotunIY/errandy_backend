@@ -15,7 +15,7 @@ async function main() {
   await seedIndexes(prisma);
   const { ngMarket } = await seedMarkets(prisma);
   await seedCategories(prisma);
-  await seedAdmins(prisma);
+  await seedAdmins(prisma, ngMarket.id);
   await seedTemplates(prisma, ngMarket.id);
 }
 
