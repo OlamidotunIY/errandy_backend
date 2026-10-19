@@ -1,5 +1,5 @@
 import { prismaAdapter } from 'better-auth/adapters/prisma';
-import { CountryCode, PrismaClient } from '@prisma/client';
+import { CountryCode, PrismaClient, Role } from '@prisma/client';
 import {
   twoFactor,
   username,
@@ -135,9 +135,11 @@ export const auth = betterAuth({
   user: {
     additionalFields: {
       role: {
-        type: ['user', 'admin'],
+        // Prisma enum inputs use their schema identifiers. The lowercase values
+        // remain the MongoDB representation through the enum @map directives.
+        type: [Role.USER, Role.ADMIN],
         required: false,
-        defaultValue: 'user',
+        defaultValue: Role.USER,
         input: false,
       },
       marketId: {
