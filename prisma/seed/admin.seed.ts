@@ -2,6 +2,19 @@ import { PrismaClient, Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'node:crypto';
 
+async function getAvailableUsername(prisma: PrismaClient, email: string) {
+  const baseUsername = `admin-${email.split('@')[0].toLowerCase()}`;
+  let username = baseUsername;
+  let suffix = 2;
+
+  while (await prisma.user.findUnique({ where: { username } })) {
+    username = `${baseUsername}-${suffix}`;
+    suffix += 1;
+  }
+
+  return username;
+}
+
 export async function seedAdmins(prisma: PrismaClient) {
   console.log('Seeding initial Admin accounts...');
   const adminEmails = ['dotuniyanda@errandy.name.ng', 'admin@errandy.com'];
@@ -15,11 +28,14 @@ export async function seedAdmins(prisma: PrismaClient) {
 
     if (!existingAdmin) {
       const userId = crypto.randomUUID();
+      const username = await getAvailableUsername(prisma, email);
       await prisma.user.create({
         data: {
           id: userId,
           name: email.split('@')[0],
           email,
+          username,
+          displayUsername: username,
           emailVerified: true,
           role: Role.ADMIN,
           createdAt: new Date(),

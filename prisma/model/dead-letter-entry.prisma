@@ -8,4 +8,5 @@ model DeadLetterEntry {
   createdAt     DateTime @default(now())
 
   @@index([queueName, createdAt])
+  @@map("dead_letter_entries")
 }

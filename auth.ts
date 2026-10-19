@@ -1,5 +1,5 @@
 import { prismaAdapter } from 'better-auth/adapters/prisma';
-import { PrismaClient } from '@prisma/client';
+import { CountryCode, PrismaClient } from '@prisma/client';
 import {
   twoFactor,
   username,
@@ -105,6 +105,13 @@ export const auth = betterAuth({
             );
           } else {
             countryCode = IpCountryResolver.resolve(context);
+          }
+
+          // An absent/unknown IP must not be passed to Prisma as an enum value.
+          // Errandy currently launches in Nigeria, so use its default market
+          // until a client can provide a supported phone or GeoIP country code.
+          if (!Object.values(CountryCode).includes(countryCode as CountryCode)) {
+            countryCode = CountryCode.NG;
           }
 
           const marketRepo = new MarketRepository();

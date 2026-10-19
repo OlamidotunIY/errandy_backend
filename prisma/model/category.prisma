@@ -5,4 +5,6 @@ model Category {
     parent           Category?  @relation("CategoryChildren", fields: [parentCategoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
     children         Category[] @relation("CategoryChildren")
     requiredTier     String? // ProviderTier — only set on leaf categories (no children); parents are browsing-only groupings
+
+    @@map("categories")
 }
