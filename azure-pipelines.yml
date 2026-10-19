@@ -1,0 +1,86 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pr: none
+
+variables:
+  - group: errandy-production
+  - name: IMAGE_TAG
+    value: $(Build.SourceVersion)
+
+stages:
+  - stage: Deploy
+    displayName: Deploy production
+    jobs:
+      - deployment: DeployProduction
+        displayName: Build and deploy main
+        environment: errandy-production
+        pool:
+          vmImage: ubuntu-latest
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                  fetchDepth: 1
+
+                - task: InstallSSHKey@0
+                  displayName: Install deployment SSH key
+                  inputs:
+                    sshKeySecureFile: id_rsa_azure
+                    knownHostsEntry: $(VM_KNOWN_HOSTS)
+
+                - task: DownloadSecureFile@1
+                  name: productionEnv
+                  displayName: Download production environment
+                  inputs:
+                    secureFile: .env.production
+
+                - task: DownloadSecureFile@1
+                  name: firebaseCredentials
+                  displayName: Download Firebase credentials
+                  inputs:
+                    secureFile: firebase-service-account.json
+
+                - bash: |
+                    set -euo pipefail
+
+                    REMOTE="ubuntu@$(VM_HOST)"
+                    ARCHIVE="errandy-${IMAGE_TAG}.tar.gz"
+
+                    # Archive exactly the checked-out main commit.
+                    git archive --format=tar.gz --output="$ARCHIVE" HEAD
+
+                    scp "$ARCHIVE" "$REMOTE:/tmp/errandy.tar.gz"
+                    scp "$(productionEnv.secureFilePath)" "$REMOTE:/tmp/.env"
+                    scp "$(firebaseCredentials.secureFilePath)" \
+                      "$REMOTE:/tmp/firebase-service-account.json"
+
+                    ssh "$REMOTE" "set -euo pipefail
+                      sudo rm -rf /home/ubuntu/errandy
+                      sudo mkdir -p /home/ubuntu/errandy
+                      sudo tar -xzf /tmp/errandy.tar.gz -C /home/ubuntu/errandy
+                      sudo rm -f /tmp/errandy.tar.gz
+
+                      cd /home/ubuntu/errandy
+                      sudo docker build -t errandy/app:${IMAGE_TAG} .
+                      sudo docker tag errandy/app:${IMAGE_TAG} errandy/app:latest
+                      sudo docker save errandy/app:${IMAGE_TAG} | sudo k3s ctr images import -
+
+                      export KUBECONFIG=/home/ubuntu/.kube/config
+                      kubectl create secret generic errandy-secrets \
+                        --from-env-file=/tmp/.env \
+                        --dry-run=client -o yaml | kubectl apply -f -
+
+                      kubectl create secret generic firebase-secrets \
+                        --from-file=/tmp/firebase-service-account.json \
+                        --dry-run=client -o yaml | kubectl apply -f -
+
+                      kubectl apply -k infrastructure/k8s/base
+                      kubectl rollout restart deployment/errandy-api deployment/errandy-worker
+                      kubectl rollout status deployment/errandy-api --timeout=180s
+                      kubectl rollout status deployment/errandy-worker --timeout=180s
+                    "
+                  displayName: Build image and deploy to K3s

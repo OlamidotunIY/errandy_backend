@@ -71,7 +71,7 @@ build-image: sync-source
 
 seed-db:
 	@echo "=> Running Prisma DB Seed inside errandy-api pod..."
-	$(SSH) $(SSH_OPTIONS) -i $(SSH_KEY) ubuntu@$(VM_IP) "export KUBECONFIG=/home/ubuntu/.kube/config && POD=\$$(kubectl get pod -l app=errandy-api -o jsonpath='{.items[0].metadata.name}') && kubectl exec \$$POD -- npx prisma db seed"
+	$(SSH) $(SSH_OPTIONS) -i $(SSH_KEY) ubuntu@$(VM_IP) "export KUBECONFIG=/home/ubuntu/.kube/config && kubectl exec deployment/errandy-api -- node dist/prisma/seed.js"
 
 prune-runtime-images:
 	@echo "=> Pruning unused Docker build cache and K3s images..."
