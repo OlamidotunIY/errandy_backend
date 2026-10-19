@@ -7,9 +7,14 @@ export class IpCountryResolver {
 
     // Note: better-auth passes standard web Request objects.
     const request = context.request;
+    const cloudflareCountry = request?.headers?.get('cf-ipcountry')?.trim();
+    if (cloudflareCountry && /^[a-z]{2}$/i.test(cloudflareCountry)) {
+      return cloudflareCountry.toUpperCase();
+    }
+
     const ip =
-      request?.headers?.get('x-forwarded-for') ||
       request?.headers?.get('cf-connecting-ip') ||
+      request?.headers?.get('x-forwarded-for') ||
       '';
 
     // Split by comma in case of multiple proxy IPs and take the first one
